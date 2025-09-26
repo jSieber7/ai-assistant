@@ -10,8 +10,8 @@ A series of LLM Agents designed to provide a human-like assistant with tool call
 * Eventually the project will be Dockerized to allow a consistent and efficient way to install and host on remote computing platforms.
 
 ## Quick Start
-Clone the repository
 ```bash
+git clone https://github.com/jSieber7/ai_assistant.git
 cd ai_assistant
 cp .env.template .env 
 
