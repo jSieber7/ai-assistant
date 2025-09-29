@@ -11,3 +11,6 @@ wheels/
 
 # Personal environment file
 .env
+
+# Local implementation notes
+development_notes
