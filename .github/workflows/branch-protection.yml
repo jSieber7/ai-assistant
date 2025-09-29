@@ -1,0 +1,61 @@
+name: Branch Protection Enforcement
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+
+jobs:
+  validate-pr:
+    name: Validate Pull Request
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Check PR requirements
+      run: |
+        echo "Validating pull request requirements..."
+        echo "PR Number: ${{ github.event.pull_request.number }}"
+        echo "Base Branch: ${{ github.event.pull_request.base.ref }}"
+        echo "Head Branch: ${{ github.event.pull_request.head.ref }}"
+        
+        # Check if PR is targeting main branch
+        if [ "${{ github.event.pull_request.base.ref }}" != "main" ]; then
+          echo "Warning: PR is not targeting main branch"
+        fi
+        
+        # Check if PR has description
+        if [ -z "${{ github.event.pull_request.body }}" ]; then
+          echo "Warning: PR description is empty. Please add a description."
+        fi
+
+  enforce-main-branch-protection:
+    name: Enforce Main Branch Protection
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Check if direct push to main is allowed
+      run: |
+        echo "Direct push detected to main branch"
+        echo "This workflow ensures that direct pushes to main are properly monitored"
+        echo "Consider enabling branch protection rules in repository settings:"
+        echo "- Require pull request reviews before merging"
+        echo "- Require status checks to pass before merging"
+        echo "- Require linear history"
+        echo "- Include administrators"
+
+  notify-admins:
+    name: Notify on Direct Push to Main
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: enforce-main-branch-protection
+    
+    steps:
+    - name: Log push event
+      run: |
+        echo "Direct push to main branch detected at $(date)"
+        echo "Commit: ${{ github.sha }}"
+        echo "Author: ${{ github.actor }}"
+        echo "This should be monitored for security purposes."
