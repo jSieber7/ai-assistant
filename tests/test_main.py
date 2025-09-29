@@ -51,7 +51,8 @@ class TestMainEndpoints:
         # CORS preflight should return 200
         assert response.status_code == 200
         assert "access-control-allow-origin" in response.headers
-        assert response.headers["access-control-allow-origin"] == "*"
+        # When allow_credentials=True, the origin is echoed back instead of "*"
+        assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
     
     def test_nonexistent_endpoint(self, client: TestClient):
         """Test that nonexistent endpoints return 404."""

@@ -17,7 +17,7 @@ def event_loop():
 @pytest.fixture
 def mock_llm():
     """Mock the LLM factory function to return a controlled response."""
-    with patch('app.core.config.get_llm') as mock:
+    with patch('app.api.routes.get_llm') as mock:
         mock_llm_instance = AsyncMock()
         mock_llm_instance.ainvoke.return_value = AIMessage(content="Mocked AI response")
         mock.return_value = mock_llm_instance
@@ -76,7 +76,7 @@ def invalid_chat_request_data():
 @pytest.fixture
 def mock_openrouter_error():
     """Mock an OpenRouter API error."""
-    with patch('app.core.config.get_llm') as mock:
+    with patch('app.api.routes.get_llm') as mock:
         mock_llm_instance = AsyncMock()
         mock_llm_instance.ainvoke.side_effect = Exception("OpenRouter API error")
         mock.return_value = mock_llm_instance
@@ -124,7 +124,7 @@ class MockStreamingResponse:
 @pytest.fixture
 def mock_streaming_llm():
     """Mock LLM for streaming responses."""
-    with patch('app.core.config.get_llm') as mock:
+    with patch('app.api.routes.get_llm') as mock:
         mock_llm_instance = AsyncMock()
         mock_llm_instance.ainvoke.return_value = AIMessage(content="Mocked streaming response")
         mock.return_value = mock_llm_instance

@@ -7,34 +7,35 @@ import os
 from pathlib import Path
 
 
+@pytest.fixture
+def test_server_process():
+    """Start the FastAPI server in a subprocess for integration testing."""
+    # Set test environment variables
+    env = os.environ.copy()
+    env['OPENROUTER_API_KEY'] = 'test-key-integration'
+    env['ENVIRONMENT'] = 'testing'
+    
+    # Start the server
+    process = subprocess.Popen(
+        ['uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8001'],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=Path(__file__).parent.parent  # Project root directory
+    )
+    
+    # Wait for server to start
+    time.sleep(3)
+    
+    yield process
+    
+    # Cleanup - terminate the server
+    process.terminate()
+    process.wait(timeout=5)
+
+
 class TestApplicationIntegration:
     """Integration tests for the FastAPI application."""
-    
-    @pytest.fixture
-    def test_server_process(self):
-        """Start the FastAPI server in a subprocess for integration testing."""
-        # Set test environment variables
-        env = os.environ.copy()
-        env['OPENROUTER_API_KEY'] = 'test-key-integration'
-        env['ENVIRONMENT'] = 'testing'
-        
-        # Start the server
-        process = subprocess.Popen(
-            ['uvicorn', 'app.main:app', '--host', '127.0.0.1', '--port', '8001'],
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            cwd=Path(__file__).parent.parent  # Project root directory
-        )
-        
-        # Wait for server to start
-        time.sleep(3)
-        
-        yield process
-        
-        # Cleanup - terminate the server
-        process.terminate()
-        process.wait(timeout=5)
     
     def test_server_starts_successfully(self, test_server_process):
         """Test that the server starts without errors."""
@@ -77,15 +78,18 @@ class TestConfigurationIntegration:
             m.setenv('DEFAULT_MODEL', 'test-model')
             
             settings = Settings()
-            assert settings.openrouter_api_key == 'test-key-123'
+            assert settings.openrouter_api_key.get_secret_value() == 'test-key-123'
             assert settings.default_model == 'test-model'
     
     def test_missing_api_key_handling(self):
         """Test error handling when API key is missing."""
+        # Test that get_llm raises ValueError when API key is missing
+        from unittest.mock import patch
         from app.core.config import get_llm
         
-        with pytest.MonkeyPatch().context() as m:
-            m.delenv('OPENROUTER_API_KEY', raising=False)
+        # Mock the settings to have no API key
+        with patch('app.core.config.settings') as mock_settings:
+            mock_settings.openrouter_api_key = None
             
             with pytest.raises(ValueError, match="OPENROUTER_API_KEY is not set"):
                 get_llm()

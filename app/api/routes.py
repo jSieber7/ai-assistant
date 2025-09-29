@@ -108,7 +108,7 @@ async def _stream_response(messages, llm, model_name):
                     }]
                 }
                 yield f"data: {json.dumps(chunk)}\n\n"
-                await asyncio.sleep(0.05)  # Small delay for streaming effect
+                await asyncio.sleep(0.01)  # Small delay for streaming effect
             
             # Final chunk
             final_chunk = {
