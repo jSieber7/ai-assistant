@@ -14,3 +14,9 @@ wheels/
 
 # Local implementation notes
 development_notes
+
+# Test reports
+*.xml
+junit*.xml
+test-results/
+reports/
