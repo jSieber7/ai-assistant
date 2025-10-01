@@ -20,7 +20,8 @@ def main():
     command = sys.argv[1]
 
     if command == "serve":
-        run_cmd(["uv", "run", "mkdocs", "serve"], "Starting docs server")
+        run_cmd(["uv", "run", "mkdocs", "serve", "-a localhost:8001", "-o"],
+                "Starting docs server")
     elif command == "build":
         run_cmd(["uv", "run", "mkdocs", "build"], "Building docs")
     elif command == "deploy":
