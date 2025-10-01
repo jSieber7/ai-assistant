@@ -2,7 +2,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api.routes import router
-<<<<<<< HEAD
 from .api.tool_routes import router as tool_router
 from .api.agent_routes import router as agent_router
 from .api.monitoring_routes import router as monitoring_router
@@ -10,20 +9,14 @@ from .core.config import settings, initialize_agent_system
 from .core.tools import tool_registry
 from .core.agents.registry import agent_registry
 from .core.monitoring.middleware import MonitoringMiddleware
-=======
 from .core.config import settings
->>>>>>> 1a26fed (Automated versioning (#6))
+
 from app import __version__
 
 # Create FastAPI app
 app = FastAPI(
-<<<<<<< HEAD
-    title="AI Assistant Tool System",
-    description="Extensible tool system with FastAPI interface for AI assistants",
-=======
     title="LangChain Agent Hub",
     description="Multi-agent system with FastAPI interface for OpenWebUI",
->>>>>>> 1a26fed (Automated versioning (#6))
     version=__version__,
 )
 
@@ -58,11 +51,7 @@ async def root():
     )
 
     return {
-<<<<<<< HEAD
         "message": "AI Assistant Tool System is running!",
-=======
-        "message": "LangChain Agent Hub is running!",
->>>>>>> 1a26fed (Automated versioning (#6))
         "version": __version__,
         "status": "ready",
         "tool_system": {
