@@ -4,8 +4,7 @@ requires-python = "==3.12.*"
 
 [[package]]
 name = "ai-assistant"
-version = "0.0.2"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "fastapi" },

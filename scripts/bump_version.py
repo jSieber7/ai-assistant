@@ -7,16 +7,16 @@ def bump_version(new_version):
     """Update version in all files to the new version."""
 
     # Update app/version.py
-    version_file = Path("app/version.py")
+    version_file = Path("app/__init__.py")
     if version_file.exists():
         content = version_file.read_text()
         updated_content = re.sub(
             r'__version__ = ".*"', f'__version__ = "{new_version}"', content
         )
         version_file.write_text(updated_content)
-        print(f"Updated app/version.py to version {new_version}")
+        print(f"Updated app/__init__.py to version {new_version}")
     else:
-        print("Warning: app/version.py not found")
+        print("Warning: app/__init__.py not found")
 
     # Update docs/index.md
     docs_file = Path("docs/index.md")
