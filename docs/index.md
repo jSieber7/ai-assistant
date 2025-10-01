@@ -71,7 +71,7 @@ Robust test suite with unit tests, integration tests, and security scanning.
 
 ## Development Status
 
-**Current Version**: 0.1.1
+**Current Version**: 0.1.2
 
 ### Implemented Features
 - ✅ OpenAI-compatible API endpoints

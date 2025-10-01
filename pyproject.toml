@@ -23,6 +23,9 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 packages = ["app"]
 
+[tool.setuptools.dynamic]
+version = {attr = "app.__version__"}
+
 [dependency-groups]
 dev = [
     "bandit>=1.8.6",

@@ -32,6 +32,7 @@ def bump_version(new_version):
     else:
         print("Warning: docs/index.md not found")
 
+
     print(f"Successfully bumped version to {new_version}")
 
 
