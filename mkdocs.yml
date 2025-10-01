@@ -29,6 +29,8 @@ nav:
     - Setup Guide: development/setup.md
     - Contributing: development/contributing.md
     - Branch Protection: development/branch-protection.md
+    - Security and API Key Handling: development/security-and-api-key-handling.md
+    - Testing: development/testing.md
   - Tools:
     - SearX Integration: tools/searx.md
     - RAG System: tools/rag.md

@@ -353,7 +353,7 @@ Configure your IDE to help with compliance:
 
 - [Contributing Guide](contributing.md)
 - [Development Setup](setup.md)
-- [GitHub Actions Workflows](../.github/workflows/)
-- [Code Owners File](../.github/CODEOWNERS)
+- [GitHub Actions Workflows](https://github.com/jSieber7/ai-assistant/tree/main/.github/workflows/)
+- [Code Owners File](https://github.com/jSieber7/ai-assistant/blob/main/.github/CODEOWNERS)
 
 This branch protection guide helps maintain code quality while enabling efficient collaboration. Follow these guidelines to ensure smooth development workflows.

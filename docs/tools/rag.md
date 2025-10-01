@@ -281,10 +281,10 @@ RAG-enhanced responses will include:
 
 ## Related Documentation
 
-- [AI Assistant Architecture](architecture/overview.md)
-- [Tool System Design](architecture/tools.md)
-- [API Endpoints Reference](api/endpoints.md)
-- [SearX Integration](tools/searx.md)
+- [AI Assistant Architecture](../architecture/overview.md)
+- [Tool System Design](../architecture/tools.md)
+- [API Endpoints Reference](../api/endpoints.md)
+- [SearX Integration](searx.md)
 
 ## Support
 
@@ -292,7 +292,7 @@ For issues with RAG integration:
 1. Check database connectivity and permissions
 2. Verify document processing pipeline
 3. Review embedding model compatibility
-4. Consult the [troubleshooting guide](development/troubleshooting.md)
+4. Consult the [troubleshooting guide](../development/setup.md#troubleshooting)
 
 ## Best Practices
 
