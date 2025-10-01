@@ -20,3 +20,7 @@ development_notes
 junit*.xml
 test-results/
 reports/
+.ruff_cache
+.pytest_cache
+.mypy_cache
+bandit-results.json

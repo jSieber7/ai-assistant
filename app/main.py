@@ -8,7 +8,7 @@ from .core.config import settings
 app = FastAPI(
     title="LangChain Agent Hub",
     description="Multi-agent system with FastAPI interface for OpenWebUI",
-    version="0.1.0"
+    version="0.1.0",
 )
 
 # Add CORS middleware for OpenWebUI integration
@@ -23,19 +23,17 @@ app.add_middleware(
 # Include API routes
 app.include_router(router)
 
+
 @app.get("/")
 async def root():
     return {
         "message": "LangChain Agent Hub is running!",
         "version": "0.1.0",
-        "status": "ready"
+        "status": "ready",
     }
+
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "app.main:app",
-        host=settings.host,
-        port=settings.port,
-        reload=True
-    )
+
+    uvicorn.run("app.main:app", host=settings.host, port=settings.port, reload=True)
