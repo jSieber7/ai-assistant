@@ -26,5 +26,5 @@ reports/
 bandit-results.json
 
 # MkDocs
-site/          # Built documentation
+site/
 .cache/
