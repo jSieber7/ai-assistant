@@ -1,9 +1,10 @@
 [project]
 name = "ai-assistant"
-version = "0.0.2"
+dynamic = ["version"] 
 description = "AI assistant integrated with tool-calling."
 readme = "README.md"
 requires-python = "==3.12.*"
+
 dependencies = [
     "aiohttp>=3.12.15",
     "fastapi>=0.117.1",
@@ -14,6 +15,16 @@ dependencies = [
     "pydantic>=2.11.9",
     "uvicorn>=0.37.0",
 ]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.setuptools.dynamic]
+version = {attr = "app.__version__"}
 
 [dependency-groups]
 dev = [

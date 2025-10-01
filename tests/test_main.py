@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from app import __version__
 
 
 class TestMainEndpoints:
@@ -12,7 +13,7 @@ class TestMainEndpoints:
 
         data = response.json()
         assert data["message"] == "LangChain Agent Hub is running!"
-        assert data["version"] == "0.1.0"
+        assert data["version"] == __version__
         assert data["status"] == "ready"
 
     def test_health_endpoint(self, client: TestClient):

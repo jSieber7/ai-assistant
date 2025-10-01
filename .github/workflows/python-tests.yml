@@ -1,3 +1,5 @@
+# .github/workflows/python-ci.yml
+
 name: Python CI with UV
 
 on:
@@ -14,7 +16,7 @@ on:
 
 env:
   PYTHON_VERSION: '3.12'
-  UV_VERSION: '0.4.0'
+  UV_VERSION: 'latest'
 
 jobs:
   test:
@@ -24,38 +26,34 @@ jobs:
       matrix:
         python-version: ['3.12']
         os: [ubuntu-latest]
-        include:
-          - python-version: '3.12'
-            os: ubuntu-latest
-            coverage: true
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install UV
-      uses: astral-sh/setup-uv@v3
-      with:
-        version: ${{ env.UV_VERSION }}
-
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Cache UV dependencies
-      uses: actions/cache@v3
+    - name: Install UV
+      uses: astral-sh/setup-uv@v1
       with:
-        path: |
-          ~/.cache/uv
-          .venv
+        # CORRECTED: The input is 'version', not 'uv-version'.
+        version: ${{ env.UV_VERSION }}
+
+    - name: Cache UV dependencies
+      uses: actions/cache@v4
+      with:
+        path: .venv
         key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml', 'uv.lock') }}
         restore-keys: |
           ${{ runner.os }}-uv-
 
-    - name: Install dependencies with UV
+    - name: Create UV lock file and install dependencies
       run: |
-        uv sync --frozen --dev
+        rm -f uv.lock
+        uv sync --all-extras
 
     - name: Set test environment variables
       run: |
@@ -63,32 +61,20 @@ jobs:
         echo "DEFAULT_MODEL=test-model" >> $GITHUB_ENV
         echo "ENVIRONMENT=testing" >> $GITHUB_ENV
 
-    - name: Run unit tests
+    - name: Run tests and generate reports
       run: |
-        uv run python run_tests.py --unit --ci
-
-    - name: Run integration tests
-      run: |
-        uv run python run_tests.py --integration --ci
-
-    - name: Run full test suite (excluding slow tests)
-      run: |
-        uv run python run_tests.py --ci
-
-    - name: Generate coverage report
-      if: matrix.coverage
-      run: |
-        uv run python run_tests.py --coverage --ci
+        uv run pytest -m "not slow" --junitxml=junit.xml --cov=app --cov-report=xml
 
     - name: Upload coverage to Codecov
-      if: matrix.coverage
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
+        token: ${{ secrets.CODECOV_TOKEN }} 
         file: ./coverage.xml
         flags: unittests
         name: codecov-umbrella
 
     - name: Upload test results
+      if: always()
       uses: actions/upload-artifact@v4
       with:
         name: test-results-${{ matrix.os }}-${{ matrix.python-version }}
@@ -107,32 +93,25 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install UV
-      uses: astral-sh/setup-uv@v3
-      with:
-        version: ${{ env.UV_VERSION }}
-
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
 
-    - name: Set test environment variables
-      run: |
-        echo "OPENROUTER_API_KEY=test-key-security-scan" >> $GITHUB_ENV
-        echo "ENVIRONMENT=testing" >> $GITHUB_ENV
+    - name: Install UV
+      uses: astral-sh/setup-uv@v1
+      with:
+        # CORRECTED: The input is 'version', not 'uv-version'.
+        version: ${{ env.UV_VERSION }}
 
-    - name: Install dependencies with UV
-      run: |
-        uv sync --frozen --dev
+    - name: Install dependencies
+      run: uv sync --all-extras
 
     - name: Run security audit
-      run: |
-        uv run pip-audit --ignore-vuln GHSA-4xh5-x5gv-qwph
+      run: uv run pip-audit --ignore-vuln GHSA-4xh5-x5gv-qwph
 
     - name: Run bandit security scanner
-      run: |
-        uv run bandit -r app/ -f json -o bandit-results.json || true
+      run: uv run bandit -r app/ -f json -o bandit-results.json || true
 
     - name: Upload security scan results
       uses: actions/upload-artifact@v4
@@ -150,48 +129,25 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Install UV
-      uses: astral-sh/setup-uv@v3
-      with:
-        version: ${{ env.UV_VERSION }}
-
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ env.PYTHON_VERSION }}
 
-    - name: Install dependencies with UV
-      run: |
-        uv sync --frozen --dev
+    - name: Install UV
+      uses: astral-sh/setup-uv@v1
+      with:
+        # CORRECTED: The input is 'version', not 'uv-version'.
+        version: ${{ env.UV_VERSION }}
+
+    - name: Install dependencies
+      run: uv sync --all-extras
 
     - name: Run ruff linter
-      run: |
-        uv run ruff check .
+      run: uv run ruff check .
 
     - name: Run black formatter check
-      run: |
-        uv run black --check .
+      run: uv run black --check .
 
     - name: Run mypy type checking
-      run: |
-        uv run mypy app/ --ignore-missing-imports
-
-  push-protection:
-    name: Push Protection
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref != 'refs/heads/main'
-    needs: [test, security, lint]
-
-    steps:
-    - name: Check if all checks passed
-      run: |
-        echo "All required checks have passed. Push protection successful."
-        echo "Branch: ${{ github.ref }}"
-        echo "Event: ${{ github.event_name }}"
-
-    - name: Fail if pushing to protected branches without PR
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      run: |
-        echo "Error: Direct pushes to main branch are not allowed."
-        echo "Please create a pull request instead."
-        exit 1
+      run: uv run mypy app/ --ignore-missing-imports

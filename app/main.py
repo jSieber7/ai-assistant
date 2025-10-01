@@ -3,12 +3,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from .api.routes import router
 from .core.config import settings
+from app import __version__
 
 # Create FastAPI app
 app = FastAPI(
     title="LangChain Agent Hub",
     description="Multi-agent system with FastAPI interface for OpenWebUI",
-    version="0.1.0",
+    version=__version__,
 )
 
 # Add CORS middleware for OpenWebUI integration
@@ -28,7 +29,7 @@ app.include_router(router)
 async def root():
     return {
         "message": "LangChain Agent Hub is running!",
-        "version": "0.1.0",
+        "version": __version__,
         "status": "ready",
     }
 
