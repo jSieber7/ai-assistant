@@ -83,4 +83,4 @@ To enable full push protection, configure branch protection rules in your reposi
    - ✅ Require linear history
    - ✅ Include administrators
 
-See [.github/branch-protection.md](.github/branch-protection.md) for detailed configuration instructions.
+See [Branch Protection Guide](branch-protection.md) for detailed configuration instructions.

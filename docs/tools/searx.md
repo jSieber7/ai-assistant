@@ -208,8 +208,8 @@ async def test_searx_integration():
 ## Related Documentation
 
 - [SearX Official Documentation](https://docs.searxng.org/)
-- [AI Assistant Architecture](architecture/overview.md)
-- [Tool System Design](architecture/tools.md)
+- [AI Assistant Architecture](../architecture/overview.md)
+- [Tool System Design](../architecture/tools.md)
 
 ## Support
 
@@ -217,4 +217,4 @@ For issues with SearX integration:
 1. Check the SearX instance is running and accessible
 2. Verify network connectivity and firewall settings
 3. Review logs for detailed error information
-4. Consult the [troubleshooting guide](development/troubleshooting.md)
+4. Consult the [troubleshooting guide](../development/setup.md#troubleshooting)

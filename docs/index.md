@@ -2,7 +2,7 @@
 
 Welcome to the AI Assistant project documentation! This project provides an OpenAI-compatible API interface for LLM agents with tool-calling capabilities.
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - UV package manager
@@ -24,7 +24,7 @@ uv run uvicorn app.main:app --reload # For the current build in development
 2. Add it to your `.env` file: `OPENROUTER_API_KEY=your_key_here`
 3. Visit the API documentation at `http://localhost:8000/docs`
 
-## 📖 Documentation Sections
+## Documentation Sections
 
 ### [Architecture](architecture/overview.md)
 - System design and components
@@ -46,7 +46,7 @@ uv run uvicorn app.main:app --reload # For the current build in development
 - SearX web search integration
 - RAG knowledge base system
 
-## 🎯 Key Features
+## Key Features
 
 ### OpenAI API Compatibility
 Full compatibility with the OpenAI API specification, allowing integration with various LLM frontends and tools.
@@ -69,7 +69,7 @@ Robust test suite with unit tests, integration tests, and security scanning.
 - **CI/CD**: GitHub Actions with security scanning
 - **Documentation**: MkDocs with Material theme
 
-## 🛠️ Development Status
+## Development Status
 
 **Current Version**: 0.0.2
 
@@ -82,47 +82,44 @@ Robust test suite with unit tests, integration tests, and security scanning.
 - ✅ Security scanning and code quality checks
 
 ### Planned Features
+- 🔄 Ability to use local as well as more cloud based LLMs
 - 🔄 SearX web search integration
 - 🔄 RAG knowledge base system
 - 🔄 Additional tool integrations
 - 🔄 Docker containerization
 - 🔄 Advanced agent capabilities
 
-## 🤝 Contributing
+## Contributing
 
-We welcome contributions! Please see our [Contributing Guide](development/contributing.md) for details on how to get involved.
+Contributions will be welcomed soon! Please see our [Contributing Guide](development/contributing.md) for details on how to get involved.
 
 ### Getting Help
 - **Documentation**: This site contains comprehensive documentation
 - **Issues**: Check existing issues or create new ones on GitHub
-- **Discussions**: Join the conversation in GitHub Discussions
 
-## 📊 Project Metrics
+## Project Metrics
 
 - **Test Coverage**: Comprehensive unit and integration tests
 - **Code Quality**: Enforced with ruff, black, and mypy
 - **Security**: Regular scanning with bandit and pip-audit
 - **Performance**: Optimized for low-latency responses
 
-## 🔒 Security
+## Security
 
-This project takes security seriously:
-- No hardcoded API keys or secrets
-- Comprehensive security scanning in CI/CD
-- Regular dependency vulnerability checks
-- Secure development practices
+Security measures include
 
-## 📄 License
+* No hardcoded API keys or secrets
+* Comprehensive security scanning in CI/CD
+* Regular dependency vulnerability checks
+* Secure development practices
 
-This project is open source. Please see the LICENSE file for details.
+## License
 
-## 🙏 Acknowledgments
+This project is open source with an MIT license.
+
+## Acknowledgments
 
 - Built with [FastAPI](https://fastapi.tiangolo.com/) for high-performance APIs
 - Powered by [LangChain](https://www.langchain.com/) for LLM orchestration
 - Integrated with [OpenRouter](https://openrouter.ai/) for model access
 - Documented with [MkDocs](https://www.mkdocs.org/) and [Material](https://squidfunk.github.io/mkdocs-material/)
-
----
-
-*Last updated: {{ git.date }}*

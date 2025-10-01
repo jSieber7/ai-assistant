@@ -6,7 +6,7 @@
 - **No Real Secrets Required**: The workflow uses test environment variables
 - **Secure by Design**: API keys are never hardcoded or committed to version control
 
-For detailed security information, see [.github/SECURITY.md](.github/SECURITY.md).
+For detailed security information, see [SECURITY.md](https://github.com/jSieber7/ai-assistant/blob/main/.github/SECURITY.md).
 
 ### Workflow Features
 

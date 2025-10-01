@@ -8,7 +8,6 @@ This guide will help you set up the AI Assistant project for development and con
 - **Python 3.12** (required - see note below)
 - **UV** (Python package manager)
 - **Git** (version control)
-- **Docker** (optional, for containerized development)
 
 ### Python Version Note
 This project requires **Python 3.12** specifically. The `pyproject.toml` enforces this version constraint. Do not use older or newer versions.
@@ -129,7 +128,7 @@ python run_tests.py --parallel
 
 ```
 ai_assistant/
-├── app/                    # Application code
+├── app/                   # Application code
 │   ├── api/               # FastAPI routes and endpoints
 │   ├── core/              # Core functionality and configuration
 │   └── main.py            # FastAPI application entry point
@@ -296,4 +295,4 @@ After setting up the development environment:
 - Use descriptive commit messages
 - Create focused pull requests
 
-See [Contributing Guide](development/contributing.md) for detailed contribution guidelines.
+See [Contributing Guide](contributing.md) for detailed contribution guidelines.
