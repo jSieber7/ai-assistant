@@ -2,6 +2,7 @@
 
 *Currently, no contributions will be accepted. What follows is an example of the final version.*
 
+___
 
 Thank you for your interest in contributing to the AI Assistant project! This guide will help you get started with contributing code, documentation, and ideas.
 
@@ -19,7 +20,7 @@ Thank you for your interest in contributing to the AI Assistant project! This gu
 ### 1. Pre-Contribution Checklist
 - [ ] Read this contributing guide
 - [ ] Check existing issues and pull requests
-- [ ] Ensure you have Python 3.12 installed
+- [ ] Ensure you have Astral UV installed
 - [ ] Set up the development environment
 
 ### 2. Development Setup
@@ -31,7 +32,6 @@ cd ai_assistant
 # Set up development environment
 cp .env.template .env
 uv venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 uv sync --dev
 ```
 
@@ -42,7 +42,7 @@ git checkout -b feature/your-feature-name
 
 # Make your changes
 # Test your changes
-python run_tests.py --coverage
+uv run run_tests.py --coverage
 
 # Format and lint your code
 uv run black .
@@ -65,7 +65,7 @@ git push origin feature/your-feature-name
 ## 🏗️ Code Standards
 
 ### Python Code Style
-- Follow [PEP 8](https://pep8.org/) guidelines
+- Follow code formatting guidelines of black, ruff, and mypy
 - Use type hints for all function parameters and returns
 - Write docstrings for all public functions and classes
 - Use descriptive variable and function names
@@ -259,7 +259,7 @@ python run_tests.py --parallel
 ## 🤝 Community Guidelines
 
 ### Communication
-- Be respectful and inclusive
+- Be respectful
 - Provide constructive feedback
 - Assume good intentions
 - Help others learn and grow
