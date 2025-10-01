@@ -13,7 +13,11 @@ class TestMainEndpoints:
         assert response.status_code == 200
 
         data = response.json()
+<<<<<<< HEAD:tests/unit/test_main.py
         assert data["message"] == "AI Assistant Tool System is running!"
+=======
+        assert data["message"] == "LangChain Agent Hub is running!"
+>>>>>>> 1a26fed (Automated versioning (#6)):tests/test_main.py
         assert data["version"] == __version__
         assert data["status"] == "ready"
 
