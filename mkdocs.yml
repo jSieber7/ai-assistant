@@ -1,0 +1,40 @@
+site_name: AI Agent Workflow
+site_description: FastAPI LLM Agent with Tool Integration
+site_url: https://jSieber7.github.io/ai-assistant/
+
+theme:
+  name: material
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+  palette:
+    - scheme: default
+      primary: teal
+      accent: deep orange
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Architecture:
+    - Overview: architecture/overview.md
+    - Agent Workflow: architecture/workflow.md
+    - Tool System: architecture/tools.md
+  - API Reference: api/endpoints.md
+  - Development:
+    - Setup Guide: development/setup.md
+    - Contributing: development/contributing.md
+    - Branch Protection: development/branch-protection.md
+  - Tools:
+    - SearX Integration: tools/searx.md
+    - RAG System: tools/rag.md
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true

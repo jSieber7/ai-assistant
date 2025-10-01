@@ -24,3 +24,7 @@ reports/
 .pytest_cache
 .mypy_cache
 bandit-results.json
+
+# MkDocs
+site/
+.cache/
