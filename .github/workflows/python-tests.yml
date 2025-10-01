@@ -53,6 +53,10 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-uv-
 
+    - name: Create UV lock file
+      run: |
+        uv lock
+
     - name: Install dependencies with UV
       run: |
         uv sync --frozen --dev
