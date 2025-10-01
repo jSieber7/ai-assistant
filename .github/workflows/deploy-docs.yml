@@ -10,22 +10,36 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     
+    # Add permissions for the GITHUB_TOKEN
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    
     steps:
     - uses: actions/checkout@v4
+      with:
+        # Fetch all history for proper Git operations
+        fetch-depth: 0
     
     - name: Install UV
       uses: astral-sh/setup-uv@v3
-      
+        
     - name: Install Python
       run: uv python install 3.12
-      
+        
     - name: Install dependencies
       run: |
         uv sync --group docs
         
     - name: Build documentation
       run: uv run mkdocs build
-      
+        
     - name: Deploy to GitHub Pages
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-      run: uv run mkdocs gh-deploy --force
+      run: |
+        # Configure Git identity for the commit
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        # Deploy with force flag
+        uv run mkdocs gh-deploy --force
