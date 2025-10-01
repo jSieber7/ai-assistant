@@ -8,7 +8,6 @@
 - **Require pull request reviews before merging**: At least 1 approval
 - **Dismiss stale pull request approvals when new commits are pushed**: Enabled
 - **Require status checks to pass before merging**: 
-  - `Test Python 3.11 on ubuntu-latest`
   - `Test Python 3.12 on ubuntu-latest`
   - `Security Scan`
   - `Lint and Code Quality`

@@ -1,6 +1,6 @@
 site_name: AI Agent Workflow
 site_description: FastAPI LLM Agent with Tool Integration
-site_url: https://your-username.github.io/your-repo-name/  # Update this!
+site_url: https://jSieber7.github.io/ai-assistant/
 
 theme:
   name: material
