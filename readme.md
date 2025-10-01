@@ -26,7 +26,7 @@ cp .env.template .env
 uv venv .venv
 .venv\Scripts\activate # On Windows
 # source .venv/bin/activate On Linux
-uv sync --no-dev
+uv sync
 uvicorn app.main:app --reload # For the current build in development
 ```
 
