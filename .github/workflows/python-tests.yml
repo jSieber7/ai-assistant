@@ -149,5 +149,10 @@ jobs:
     - name: Run black formatter check
       run: uv run black --check .
 
+<<<<<<< HEAD
     # - name: Run mypy type checking
     #   run: uv run mypy app/ --ignore-missing-imports
+=======
+    - name: Run mypy type checking
+      run: uv run mypy app/ --ignore-missing-imports
+>>>>>>> 1a26fed (Automated versioning (#6))
