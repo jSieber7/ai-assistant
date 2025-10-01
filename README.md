@@ -19,7 +19,7 @@ This repository hosts an ai assistant powered by series of LLM Agents. It is des
 
 ## Quick Start
 ```bash
-git clone https://github.com/jSieber7/ai_assistant.git
+git clone https://github.com/jSieber7/ai-assistant.git
 cd ai_assistant
 cp .env.template .env
 
