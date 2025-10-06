@@ -9,6 +9,7 @@ agent registration, tool selection, and message processing.
 import asyncio
 import sys
 import os
+import pytest
 
 # Add the app directory to the path using shared utility
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "app"))
@@ -19,6 +20,8 @@ from app.core.tools.registry import tool_registry
 from tests.test_utils import TestResult, TEST_MESSAGES, TEST_QUERIES, run_async_test
 
 
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_agent_system():
     """Test the agent system functionality"""
     print("🧪 Testing Agent System Integration")
@@ -111,6 +114,8 @@ async def test_agent_system():
         return False
 
 
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_tool_selection_strategies():
     """Test different tool selection strategies"""
     print("\n🎯 Testing Tool Selection Strategies")
@@ -141,6 +146,8 @@ async def test_tool_selection_strategies():
         return False
 
 
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_agent_api_endpoints():
     """Test agent API endpoints"""
     print("\n🌐 Testing Agent API Endpoints")
@@ -168,51 +175,3 @@ async def test_agent_api_endpoints():
         return False
 
 
-async def main():
-    """Main test function"""
-    print("🚀 Starting Agent System Integration Tests")
-    print("=" * 60)
-
-    # Run all tests
-    tests = [
-        test_agent_system(),
-        test_tool_selection_strategies(),
-        test_agent_api_endpoints(),
-    ]
-
-    results = await asyncio.gather(*tests, return_exceptions=True)
-
-    # Print summary
-    print("\n" + "=" * 60)
-    print("📊 TEST SUMMARY")
-    print("=" * 60)
-
-    test_names = [
-        "Agent System Integration",
-        "Tool Selection Strategies",
-        "API Endpoints",
-    ]
-
-    all_passed = True
-    for i, (test_name, result) in enumerate(zip(test_names, results)):
-        if isinstance(result, Exception):
-            print(f"❌ {test_name}: FAILED - {str(result)}")
-            all_passed = False
-        elif result:
-            print(f"✅ {test_name}: PASSED")
-        else:
-            print(f"❌ {test_name}: FAILED")
-            all_passed = False
-
-    if all_passed:
-        print("\n🎉 ALL TESTS PASSED! Agent system is working correctly.")
-    else:
-        print("\n💥 SOME TESTS FAILED! Please check the implementation.")
-
-    return all_passed
-
-
-if __name__ == "__main__":
-    # Run the tests
-    success = asyncio.run(main())
-    sys.exit(0 if success else 1)
