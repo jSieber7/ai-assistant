@@ -10,12 +10,13 @@ import asyncio
 import sys
 import os
 
-# Add the app directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "app"))
+# Add the app directory to the path using shared utility
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "app"))
 
 from app.core.config import initialize_agent_system, settings
 from app.core.agents.registry import agent_registry
 from app.core.tools.registry import tool_registry
+from tests.test_utils import TestResult, TEST_MESSAGES, TEST_QUERIES, run_async_test
 
 
 async def test_agent_system():
@@ -61,14 +62,8 @@ async def test_agent_system():
 
         # Test simple message processing
         print("\n💬 Testing message processing...")
-        test_messages = [
-            "Hello, how are you?",
-            "What tools are available?",
-            "Can you help me calculate 15 + 27?",
-            "What's the weather like today?",
-        ]
 
-        for message in test_messages:
+        for message in TEST_MESSAGES:
             print(f"\n📨 Testing: '{message}'")
             try:
                 result = await agent_registry.process_message(message)
@@ -126,13 +121,8 @@ async def test_tool_selection_strategies():
     try:
         # Test keyword strategy
         keyword_strategy = KeywordStrategy()
-        test_queries = [
-            "Calculate 15 + 27",
-            "What's the weather in London?",
-            "Tell me a joke",
-        ]
 
-        for query in test_queries:
+        for query in TEST_QUERIES:
             print(f"\n🔍 Testing query: '{query}'")
             tools = await keyword_strategy.select_tools(query, None, tool_registry)
             print(f"   Selected tools: {[tool.name for tool in tools]}")

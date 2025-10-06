@@ -7,7 +7,8 @@ including metrics collection, health checks, and performance tracking.
 
 from enum import Enum
 from typing import Dict, Any
-from pydantic import BaseSettings, Field
+from pydantic import Field
+from pydantic_settings import BaseSettings
 
 
 class MonitoringLevel(str, Enum):

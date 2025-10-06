@@ -39,6 +39,9 @@ def main():
         "--integration", action="store_true", help="Run only integration tests"
     )
     parser.add_argument(
+        "--system", action="store_true", help="Run only system tests"
+    )
+    parser.add_argument(
         "--coverage", action="store_true", help="Run tests with coverage report"
     )
     parser.add_argument(
@@ -60,13 +63,15 @@ def main():
     args = parser.parse_args()
 
     # Build pytest command
-    pytest_cmd = ["python", "-m", "pytest"]
+    pytest_cmd = ["uv", "run", "pytest"]
 
     # Add options based on arguments
     if args.unit:
-        pytest_cmd.extend(["-m", "not integration and not slow"])
+        pytest_cmd.extend(["-m", "unit and not slow"])
     elif args.integration:
-        pytest_cmd.extend(["-m", "integration"])
+        pytest_cmd.extend(["-m", "integration and not slow"])
+    elif args.system:
+        pytest_cmd.extend(["-m", "system and not slow"])
     else:
         # Run all tests by default, but exclude slow unless specified
         if not args.slow:

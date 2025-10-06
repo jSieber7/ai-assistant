@@ -53,7 +53,7 @@ class ToolAgent(ToolCallingAgent):
     def description(self) -> str:
         return "Intelligent agent that can dynamically select and use tools based on context"
 
-    async def process_message(
+    async def _process_message_impl(
         self,
         message: str,
         conversation_id: Optional[str] = None,

@@ -12,7 +12,7 @@ class TestMainEndpoints:
         assert response.status_code == 200
 
         data = response.json()
-        assert data["message"] == "LangChain Agent Hub is running!"
+        assert data["message"] == "AI Assistant Tool System is running!"
         assert data["version"] == __version__
         assert data["status"] == "ready"
 
