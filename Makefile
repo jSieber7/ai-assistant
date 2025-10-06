@@ -45,7 +45,7 @@ format:  ## Format code
 
 ##@ Utility
 clean:  ## Clean up temporary files
-	rm -rf .coverage coverage_html junit.xml
+	rm -rf .coverage coverage_html junit.xml bandit-results.json .ruff_cache .pytest_cache .mypy_cache ai_assistant.egg-info
 
 ##@ Help
 help:  ## Display this help
