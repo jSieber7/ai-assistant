@@ -12,6 +12,7 @@ dependencies = [
     "langchain[community,openai]>=0.3.27",
     "orjson>=3.11.3",
     "pip-audit>=2.9.0",
+    "prometheus-client>=0.23.1",
     "pydantic>=2.11.9",
     "pydantic-settings>=2.0.0",
     "pytz>=2023.3",
@@ -34,6 +35,7 @@ dev = [
     "bandit>=1.8.6",
     "black>=25.9.0",
     "mypy>=1.18.2",
+    "psutil>=7.1.0",
     "pytest>=8.4.2",
     "pytest-asyncio>=1.2.0",
     "pytest-cov>=7.0.0",
@@ -56,9 +58,11 @@ addopts = [
     "--strict-markers",
     "--strict-config",
     "--disable-warnings",
+    "--ignore=tests/__pycache__",
 ]
 markers = [
     "unit: unit tests",
     "integration: integration tests",
+    "system: system tests",
     "slow: slow running tests",
 ]

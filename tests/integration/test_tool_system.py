@@ -10,15 +10,16 @@ import asyncio
 import sys
 import os
 
-# Add the app directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "app"))
+# Add the app directory to the path using shared utility
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "app"))
 
-from core.tools import tool_registry, CalculatorTool, TimeTool, EchoTool
-from core.tools.langchain_integration import (
+from app.core.tools import tool_registry, CalculatorTool, TimeTool, EchoTool
+from app.core.tools.langchain_integration import (
     LangChainToolWrapper,
     create_agent_with_tools,
 )
-from core.config import get_llm
+from app.core.config import get_llm
+from tests.test_utils import TestResult, run_async_test
 
 
 async def test_tool_registration():
