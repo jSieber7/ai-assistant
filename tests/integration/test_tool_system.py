@@ -9,6 +9,7 @@ tool registration, execution, and API integration.
 import asyncio
 import sys
 import os
+import pytest
 
 # Add the app directory to the path using shared utility
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "app"))
@@ -22,6 +23,8 @@ from app.core.config import get_llm
 from tests.test_utils import TestResult, run_async_test
 
 
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_tool_registration():
     """Test tool registration and basic functionality"""
     print("=== Testing Tool Registration ===")
@@ -51,6 +54,8 @@ async def test_tool_registration():
     print("✓ Tool registration test passed\n")
 
 
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_tool_execution():
     """Test tool execution functionality"""
     print("=== Testing Tool Execution ===")
@@ -73,6 +78,8 @@ async def test_tool_execution():
     print("✓ Tool execution test passed\n")
 
 
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_langchain_integration():
     """Test LangChain integration"""
     print("=== Testing LangChain Integration ===")
@@ -98,6 +105,8 @@ async def test_langchain_integration():
     print("✓ LangChain integration test passed\n")
 
 
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_agent_creation():
     """Test agent creation with tools"""
     print("=== Testing Agent Creation ===")
@@ -125,22 +134,3 @@ async def test_agent_creation():
     print("✓ Agent creation test passed\n")
 
 
-async def main():
-    """Run all tests"""
-    print("Starting AI Assistant Tool System Tests...\n")
-
-    try:
-        await test_tool_registration()
-        await test_tool_execution()
-        await test_langchain_integration()
-        await test_agent_creation()
-
-        print("🎉 All tests completed successfully!")
-
-    except Exception as e:
-        print(f"❌ Test failed: {e}")
-        raise
-
-
-if __name__ == "__main__":
-    asyncio.run(main())

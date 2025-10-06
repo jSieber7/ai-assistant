@@ -9,6 +9,7 @@ for the GitHub Actions workflows to function properly.
 import os
 import yaml
 import importlib.util
+import pytest
 
 
 def check_package_available(spec):
@@ -36,8 +37,9 @@ def validate_yaml(filepath):
         return f"❌ ({str(e)})", False
 
 
-def check_workflow_configuration():
-    """Check GitHub Actions workflow configuration."""
+@pytest.mark.system
+def test_workflow_configuration():
+    """Test GitHub Actions workflow configuration."""
     print("🔍 Checking GitHub Actions Configuration")
     print("=" * 50)
 
@@ -90,11 +92,12 @@ def check_workflow_configuration():
     else:
         print("❌ Some checks failed. Please review the configuration.")
 
-    return all_passed
+    assert all_passed, "GitHub Actions configuration checks failed"
 
 
-def check_python_dependencies():
-    """Check that required Python dependencies are available."""
+@pytest.mark.system
+def test_python_dependencies():
+    """Test that required Python dependencies are available."""
     print("\n🔍 Checking Python Dependencies")
     print("=" * 50)
 
@@ -103,21 +106,3 @@ def check_python_dependencies():
     check_package_available("langchain")
 
 
-def main():
-    """Run all validation checks."""
-    print("GitHub Actions Configuration Validator")
-    print("=" * 50)
-
-    workflow_ok = check_workflow_configuration()
-    check_python_dependencies()
-
-    if workflow_ok:
-        print("\n🎉 Configuration looks good! Ready to set up GitHub Actions.")
-        return 0
-    else:
-        print("\n⚠️  Some issues found. Please fix them before proceeding.")
-        return 1
-
-
-if __name__ == "__main__":
-    exit(main())
