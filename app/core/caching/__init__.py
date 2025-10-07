@@ -348,7 +348,10 @@ class CachingSystem:
 
         if self._cache:
             await self._cache.close()
+            self._cache = None
 
+        self._compressor = None
+        self._performance_monitor = None
         self._initialized = False
         logger.info("Caching system shutdown complete")
 
