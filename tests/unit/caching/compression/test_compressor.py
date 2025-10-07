@@ -361,12 +361,8 @@ class TestCompressedCacheBackend:
         compressed_data = gzip.compress(pickle.dumps(test_data))
 
         mock_backend.get.side_effect = [
-            {  # Main value
-                "compressed": True,
-                "algorithm": "gzip",
-                "data": compressed_data,
-                "original_size": 100,
-            },
+                # Main value
+                compressed_data,
             {  # Metadata
                 "algorithm": "gzip",
                 "original_size": 100,
