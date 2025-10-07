@@ -645,13 +645,13 @@ class CacheMetrics:
     def get_stats(self) -> Dict[str, Any]:
         """Get current metrics as a dictionary."""
         return {
-            "hits": self.hits,
-            "misses": self.misses,
-            "sets": self.sets,
-            "deletes": self.deletes,
-            "errors": self.errors,
-            "hit_rate": self.hit_rate(),
-            "total_operations": self.total_operations(),
+        "cache_hits": self.hits,           # Changed from "hits"
+        "cache_misses": self.misses,       # Changed from "misses" 
+        "cache_sets": self.sets,           # Changed from "sets"
+        "cache_deletes": self.deletes,     # Changed from "deletes"
+        "cache_errors": self.errors,       # Changed from "errors"
+        "cache_hit_rate": self.hit_rate(),
+        "total_cache_operations": self.total_operations(),
         }
 
 
@@ -729,15 +729,13 @@ class PerformanceMonitor:
     async def get_stats(self) -> Dict[str, Any]:
         """Get performance statistics."""
         stats = self._metrics.get_stats()
-        stats.update(
-            {
-                "enabled": self._enabled,
-                "total_response_time_samples": len(self._response_times),
-                "average_response_time": self.get_average_response_time(),
-                "p95_response_time": self.get_percentile_response_time(95),
-                "p99_response_time": self.get_percentile_response_time(99),
-            }
-        )
+        stats.update({
+            "enabled": self._enabled,
+            "total_response_time_samples": len(self._response_times),
+            "average_response_time": self.get_average_response_time(),
+            "p95_response_time": self.get_percentile_response_time(95),
+            "p99_response_time": self.get_percentile_response_time(99),
+        })
         return stats
 
     def reset(self) -> None:

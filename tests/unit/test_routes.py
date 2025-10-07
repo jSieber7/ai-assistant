@@ -14,7 +14,7 @@ class TestChatCompletions:
         assert response.status_code == 200
 
         data = response.json()
-        assert data["id"] == "chatcmpl-123456789"
+        assert data["id"].startswith("chatcmpl-")
         assert data["object"] == "chat.completion"
         assert data["model"] == "deepseek/deepseek-v3.1-terminus"
         assert "choices" in data

@@ -50,11 +50,11 @@ class AgentCache:
         self.default_ttl = default_ttl
         self.compressor = ResultCompressor()
         self._stats = {
-            "cache_hits": 0,
-            "cache_misses": 0,
+            "agent_cache_hits": 0,
+            "agent_cache_misses": 0,
             "agent_processings": 0,
-            "average_processing_time": 0.0,
-            "total_cache_savings": 0,
+            "agent_average_processing_time": 0.0,
+            "agent_total_cache_savings": 0,
         }
 
     def generate_agent_cache_key(

@@ -280,7 +280,7 @@ class CachingSystem:
 
         return await self._cache.clear()
 
-    def get_stats(self) -> Dict[str, Any]:
+    async def get_stats(self) -> Dict[str, Any]:
         """Get comprehensive caching system statistics."""
         stats = {
             "initialized": self._initialized,
@@ -308,7 +308,7 @@ class CachingSystem:
             stats["connection_pooling"] = pooling_stats
 
         if self._performance_monitor:
-            monitoring_stats = self._performance_monitor.get_stats()
+            monitoring_stats = await self._performance_monitor.get_stats()
             stats["monitoring"] = monitoring_stats
 
         return stats
@@ -418,7 +418,7 @@ async def cache_clear() -> bool:
 async def get_cache_stats() -> Dict[str, Any]:
     """Convenience function to get cache statistics."""
     caching_system = await get_caching_system()
-    return await caching_system.get_stats()
+    return caching_system.get_stats()
 
 
 # Context manager for temporary caching configuration

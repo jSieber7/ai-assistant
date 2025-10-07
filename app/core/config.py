@@ -70,8 +70,8 @@ class Settings(BaseSettings):
     max_concurrent_tools: int = 5
 
     # Agent system settings
-    agent_system_enabled: bool = True
-    default_agent: str = "tool_agent"
+    agent_system_enabled: bool = False
+    default_agent: Optional[str] = None
     max_agent_iterations: int = 3
     agent_timeout: int = 60
 
