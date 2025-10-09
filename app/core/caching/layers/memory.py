@@ -66,7 +66,7 @@ class MemoryCache(CacheBackend):
             "sets": 0,
             "deletes": 0,
             "evictions": 0,
-            "current_size": 0
+            "current_size": 0,
         }
 
     async def start(self) -> None:

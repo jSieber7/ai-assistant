@@ -5,8 +5,7 @@ This module provides a comprehensive caching system with multiple layers,
 compression, batching, and connection pooling for optimal performance.
 """
 
-from typing import Any, Dict, Optional, List
-import asyncio
+from typing import Any, Dict, Optional
 import logging
 
 from .base import (
@@ -22,7 +21,6 @@ from .layers.memory import MemoryCache, MemoryCacheLayer
 
 # Import Redis cache only if Redis is available
 try:
-    import redis
     from .layers.redis_cache import RedisCache, RedisCacheLayer
 
     REDIS_AVAILABLE = True
@@ -45,7 +43,6 @@ from .compression.compressor import (
     ResultCompressor,
     CompressionAlgorithm,
     CompressedCacheBackend,
-    get_default_compressor,
 )
 from .batching.batch_processor import (
     BatchProcessor,
@@ -234,7 +231,7 @@ class CachingSystem:
             return None
 
         value = await self._cache.get(key)
-        
+
         # Check if value is compressed and decompress if needed
         if isinstance(value, dict) and value.get("compressed") is True:
             try:
@@ -248,7 +245,7 @@ class CachingSystem:
                 logger.error(f"Failed to decompress value for key '{key}': {e}")
                 # Return the original value as fallback
                 return value.get("data", value)
-        
+
         return value
 
     async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
@@ -477,6 +474,8 @@ __all__ = [
     "CacheBackend",
     "CacheLayer",
     "MultiLayerCache",
+    "CacheOperation",
+    "CacheEvent",
     # Cache implementations
     "MemoryCache",
     "MemoryCacheLayer",

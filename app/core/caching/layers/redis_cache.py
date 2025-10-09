@@ -10,6 +10,8 @@ import json
 from typing import Any, Dict, List, Optional
 import logging
 
+from ..base import CacheBackend, CacheLayer
+
 # Try to import Redis, but make it optional
 _redis_available = False
 try:
@@ -19,12 +21,12 @@ try:
 except ImportError:
     # Try synchronous redis as fallback
     try:
-        import redis
+        import sync_redis
 
         # Create async wrapper for synchronous redis
         class AsyncRedisWrapper:
             def __init__(self, *args, **kwargs):
-                self._redis = redis.Redis(*args, **kwargs)
+                self._redis = sync_redis.Redis(*args, **kwargs)
 
             async def get(self, key: str) -> Optional[bytes]:
                 return self._redis.get(key)
@@ -55,8 +57,6 @@ except ImportError:
         # Redis is not available at all
         redis = None
         _redis_available = False
-
-from ..base import CacheBackend, CacheLayer
 
 logger = logging.getLogger(__name__)
 

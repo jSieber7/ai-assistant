@@ -39,7 +39,7 @@ class TestMemoryCache:
         assert memory_cache._stats["hits"] == 1
         assert memory_cache._stats["sets"] == 1
         assert memory_cache._stats["current_size"] == 1
-        assert 'test_key' in memory_cache._cache
+        assert "test_key" in memory_cache._cache
 
     @pytest.mark.asyncio
     async def test_set_with_custom_ttl(self, memory_cache):
@@ -220,7 +220,6 @@ class TestMemoryCache:
         # Cache should be empty
         assert memory_cache._cache == {}
 
-
     @pytest.mark.asyncio
     async def test_close(self, memory_cache):
         """Test closing the cache."""
@@ -233,6 +232,7 @@ class TestMemoryCache:
 
         # Cache should be cleared
         assert memory_cache._cache == {}
+
 
 class TestMemoryCacheLayer:
     """Test MemoryCacheLayer class."""
@@ -366,7 +366,7 @@ class TestMemoryCacheLayer:
         await memory_cache_layer.layer.set("key1", "value1")
         await memory_cache_layer.layer.get("key1")
         await memory_cache_layer.layer.get("key2")
-    
+
         # Get layer stats (synchronous method)
         stats = memory_cache_layer.layer.get_stats()
 
