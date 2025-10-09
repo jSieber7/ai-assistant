@@ -262,33 +262,37 @@ class MultiLayerCache:
             ttl: Time-to-live in seconds
 
         Returns:
-            True if at least one layer was written to successfully
+            True if all writable layers were written to successfully, False otherwise
         """
         if not self.layers:
             return False
 
-        success = False
-
         if self._write_through:
             # Write to all writable layers
+            success = True
+            for layer in self.layers:
+                if layer.enabled and not layer.read_only:
+                    try:
+                        layer_success = await layer.set(key, value, ttl)
+                        if not layer_success:
+                            success = False
+                            logger.warning(f"Failed to set key '{key}' in layer '{layer.name}'")
+                        else:
+                            logger.debug(f"Set key '{key}' in layer '{layer.name}'")
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to set key '{key}' in layer '{layer.name}': {e}"
+                        )
+                        success = False
+        else:
+            # Write only to the highest priority writable layer
+            success = False
             for layer in self.layers:
                 if layer.enabled and not layer.read_only:
                     try:
                         layer_success = await layer.set(key, value, ttl)
                         if layer_success:
                             success = True
-                            logger.debug(f"Set key '{key}' in layer '{layer.name}'")
-                    except Exception as e:
-                        logger.warning(
-                            f"Failed to set key '{key}' in layer '{layer.name}': {e}"
-                        )
-        else:
-            # Write only to the highest priority writable layer
-            for layer in self.layers:
-                if layer.enabled and not layer.read_only:
-                    try:
-                        success = await layer.set(key, value, ttl)
-                        if success:
                             logger.debug(f"Set key '{key}' in layer '{layer.name}'")
                             break
                     except Exception as e:

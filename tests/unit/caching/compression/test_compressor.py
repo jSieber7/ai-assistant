@@ -392,13 +392,9 @@ class TestCompressedCacheBackend:
     async def test_get_decompression_error(self, compressed_backend, mock_backend):
         """Test getting a value with decompression error."""
         # Mock invalid compressed data
+        compressed_data = b"invalid_compressed_data"
         mock_backend.get.side_effect = [
-            {  # Main value with invalid data
-                "compressed": True,
-                "algorithm": "gzip",
-                "data": b"invalid_compressed_data",
-                "original_size": 100,
-            },
+            compressed_data,  # Main value as bytes
             {  # Metadata
                 "algorithm": "gzip",
                 "original_size": 100,
@@ -406,24 +402,49 @@ class TestCompressedCacheBackend:
                 "compression_ratio": 0.5,
             },
         ]
-
+    
         # Should return the compressed value as fallback
         result = await compressed_backend.get("test_key")
-        assert result == mock_backend.get.return_value
+        assert result == compressed_data
 
     @pytest.mark.asyncio
     async def test_set_compress_large_data(self, compressed_backend, mock_backend):
         """Test setting a large value that should be compressed."""
         test_data = {"key": "value" * 100}  # Large data
         mock_backend.set.return_value = True
-
+    
         result = await compressed_backend.set("test_key", test_data, 300)
         assert result is True
-
+    
         # Should call set for both value and metadata
         assert mock_backend.set.call_count == 2
-        mock_backend.set.assert_any_call("test_key", Mock(), 300)
-        mock_backend.set.assert_any_call("test_key:compression", Mock(), 300)
+        
+        # Get the actual calls and verify they have the right types
+        calls = mock_backend.set.call_args_list
+        
+        # Find the value call and metadata call
+        value_call = None
+        metadata_call = None
+        
+        for call in calls:
+            args, _ = call
+            if args[0] == "test_key":
+                value_call = args
+            elif args[0] == "test_key:compression":
+                metadata_call = args
+        
+        assert value_call is not None, "Value call not found"
+        assert metadata_call is not None, "Metadata call not found"
+        
+        # Verify the value is bytes (compressed data)
+        assert isinstance(value_call[1], bytes), f"Expected bytes, got {type(value_call[1])}"
+        
+        # Verify the metadata is a dict with expected keys
+        assert isinstance(metadata_call[1], dict), f"Expected dict, got {type(metadata_call[1])}"
+        assert "algorithm" in metadata_call[1]
+        assert "original_size" in metadata_call[1]
+        assert "compressed_size" in metadata_call[1]
+        assert "compression_ratio" in metadata_call[1]
 
     @pytest.mark.asyncio
     async def test_set_compress_small_data(self, compressed_backend, mock_backend):
