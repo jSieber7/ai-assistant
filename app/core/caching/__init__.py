@@ -233,7 +233,23 @@ class CachingSystem:
         if not self._initialized or not self._cache:
             return None
 
-        return await self._cache.get(key)
+        value = await self._cache.get(key)
+        
+        # Check if value is compressed and decompress if needed
+        if isinstance(value, dict) and value.get("compressed") is True:
+            try:
+                algorithm_name = value.get("algorithm", "none")
+                algorithm = CompressionAlgorithm(algorithm_name)
+                decompressed_value = await self._compressor.decompress(
+                    value["data"], algorithm
+                )
+                return decompressed_value
+            except Exception as e:
+                logger.error(f"Failed to decompress value for key '{key}': {e}")
+                # Return the original value as fallback
+                return value.get("data", value)
+        
+        return value
 
     async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
         """Set a value in the cache."""
@@ -421,7 +437,7 @@ async def cache_clear() -> bool:
 async def get_cache_stats() -> Dict[str, Any]:
     """Convenience function to get cache statistics."""
     caching_system = await get_caching_system()
-    return caching_system.get_stats()
+    return await caching_system.get_stats()
 
 
 # Context manager for temporary caching configuration

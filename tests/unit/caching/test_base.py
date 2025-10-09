@@ -315,7 +315,7 @@ class TestMultiLayerCache:
     @pytest.mark.asyncio
     async def test_set_no_write_through(self, multi_layer_cache, mock_layers):
         """Test set with write-through disabled."""
-        multi_layer_cache.write_through = False
+        multi_layer_cache.set_write_through(False)
         mock_layers[0].set.return_value = True  # Only write to first layer
         result = await multi_layer_cache.set("test_key", "test_value")
         assert result is True
