@@ -276,7 +276,9 @@ class MultiLayerCache:
                         layer_success = await layer.set(key, value, ttl)
                         if not layer_success:
                             success = False
-                            logger.warning(f"Failed to set key '{key}' in layer '{layer.name}'")
+                            logger.warning(
+                                f"Failed to set key '{key}' in layer '{layer.name}'"
+                            )
                         else:
                             logger.debug(f"Set key '{key}' in layer '{layer.name}'")
                     except Exception as e:
@@ -471,7 +473,7 @@ class MultiLayerCache:
 
         return {
             "total_layers": len(self.layers),
-            "enabled_layers": len([l for l in self.layers if l.enabled]),
+            "enabled_layers": len([layer for layer in self.layers if layer.enabled]),
             "write_through": self._write_through,
             "read_through": self._read_through,
             "layers": layer_stats,
@@ -649,13 +651,13 @@ class CacheMetrics:
     def get_stats(self) -> Dict[str, Any]:
         """Get current metrics as a dictionary."""
         return {
-        "cache_hits": self.hits,           # Changed from "hits"
-        "cache_misses": self.misses,       # Changed from "misses" 
-        "cache_sets": self.sets,           # Changed from "sets"
-        "cache_deletes": self.deletes,     # Changed from "deletes"
-        "cache_errors": self.errors,       # Changed from "errors"
-        "cache_hit_rate": self.hit_rate(),
-        "total_cache_operations": self.total_operations(),
+            "cache_hits": self.hits,  # Changed from "hits"
+            "cache_misses": self.misses,  # Changed from "misses"
+            "cache_sets": self.sets,  # Changed from "sets"
+            "cache_deletes": self.deletes,  # Changed from "deletes"
+            "cache_errors": self.errors,  # Changed from "errors"
+            "cache_hit_rate": self.hit_rate(),
+            "total_cache_operations": self.total_operations(),
         }
 
 
@@ -733,13 +735,15 @@ class PerformanceMonitor:
     async def get_stats(self) -> Dict[str, Any]:
         """Get performance statistics."""
         stats = self._metrics.get_stats()
-        stats.update({
-            "enabled": self._enabled,
-            "total_response_time_samples": len(self._response_times),
-            "average_response_time": self.get_average_response_time(),
-            "p95_response_time": self.get_percentile_response_time(95),
-            "p99_response_time": self.get_percentile_response_time(99),
-        })
+        stats.update(
+            {
+                "enabled": self._enabled,
+                "total_response_time_samples": len(self._response_times),
+                "average_response_time": self.get_average_response_time(),
+                "p95_response_time": self.get_percentile_response_time(95),
+                "p99_response_time": self.get_percentile_response_time(99),
+            }
+        )
         return stats
 
     def reset(self) -> None:

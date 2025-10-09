@@ -16,8 +16,8 @@ from fastapi.routing import APIRoute
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
-from .metrics import metrics_collector
-from .config import monitoring_config
+from .metrics import metrics_collector  # noqa: F401
+from .config import monitoring_config  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
@@ -109,11 +109,9 @@ class InstrumentedAPIRoute(APIRoute):
                 # Process the request
                 response = await original_route_handler(request)
                 status_code = response.status_code
-                success = status_code < 400
 
             except Exception as e:
                 status_code = 500
-                success = False
                 logger.error(f"Route handler failed: {self.path} - {e}")
                 raise
 
@@ -188,13 +186,8 @@ class ToolExecutionMonitor:
 
         def decorator(func):
             async def wrapper(*args, **kwargs):
-                tools_used = []
-                with metrics_collector.measure_agent_execution(
-                    agent_name
-                ) as tracked_tools:
-                    # The tracked_tools list will be populated by tool executions
+                with metrics_collector.measure_agent_execution(agent_name):
                     result = await func(*args, **kwargs)
-                    # You can manually add tools to tracked_tools if needed
                     return result
 
             return wrapper
@@ -240,6 +233,6 @@ class ToolExecutionMonitor:
 
 
 # Global monitoring instances
-monitoring_middleware = MonitoringMiddleware
-instrumented_route = InstrumentedAPIRoute
-tool_monitor = ToolExecutionMonitor()
+monitoring_middleware = MonitoringMiddleware  # noqa: F811
+instrumented_route = InstrumentedAPIRoute  # noqa: F811
+tool_monitor = ToolExecutionMonitor()  # noqa: F811

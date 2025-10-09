@@ -284,7 +284,11 @@ class TestResultCompressor:
         algorithm = await compressor.get_best_algorithm(test_data)
         # For large data, it should choose an algorithm that compresses (not NONE)
         assert algorithm != CompressionAlgorithm.NONE
-        assert algorithm in [CompressionAlgorithm.GZIP, CompressionAlgorithm.LZMA, CompressionAlgorithm.ZLIB]
+        assert algorithm in [
+            CompressionAlgorithm.GZIP,
+            CompressionAlgorithm.LZMA,
+            CompressionAlgorithm.ZLIB,
+        ]
 
     @pytest.mark.asyncio
     async def test_get_stats(self, compressor):
@@ -361,8 +365,8 @@ class TestCompressedCacheBackend:
         compressed_data = gzip.compress(pickle.dumps(test_data))
 
         mock_backend.get.side_effect = [
-                # Main value
-                compressed_data,
+            # Main value
+            compressed_data,
             {  # Metadata
                 "algorithm": "gzip",
                 "original_size": 100,
@@ -402,7 +406,7 @@ class TestCompressedCacheBackend:
                 "compression_ratio": 0.5,
             },
         ]
-    
+
         # Should return the compressed value as fallback
         result = await compressed_backend.get("test_key")
         assert result == compressed_data
@@ -412,35 +416,39 @@ class TestCompressedCacheBackend:
         """Test setting a large value that should be compressed."""
         test_data = {"key": "value" * 100}  # Large data
         mock_backend.set.return_value = True
-    
+
         result = await compressed_backend.set("test_key", test_data, 300)
         assert result is True
-    
+
         # Should call set for both value and metadata
         assert mock_backend.set.call_count == 2
-        
+
         # Get the actual calls and verify they have the right types
         calls = mock_backend.set.call_args_list
-        
+
         # Find the value call and metadata call
         value_call = None
         metadata_call = None
-        
+
         for call in calls:
             args, _ = call
             if args[0] == "test_key":
                 value_call = args
             elif args[0] == "test_key:compression":
                 metadata_call = args
-        
+
         assert value_call is not None, "Value call not found"
         assert metadata_call is not None, "Metadata call not found"
-        
+
         # Verify the value is bytes (compressed data)
-        assert isinstance(value_call[1], bytes), f"Expected bytes, got {type(value_call[1])}"
-        
+        assert isinstance(
+            value_call[1], bytes
+        ), f"Expected bytes, got {type(value_call[1])}"
+
         # Verify the metadata is a dict with expected keys
-        assert isinstance(metadata_call[1], dict), f"Expected dict, got {type(metadata_call[1])}"
+        assert isinstance(
+            metadata_call[1], dict
+        ), f"Expected dict, got {type(metadata_call[1])}"
         assert "algorithm" in metadata_call[1]
         assert "original_size" in metadata_call[1]
         assert "compressed_size" in metadata_call[1]
@@ -600,5 +608,7 @@ class TestCompressionIntegration:
         # For repetitive data like "x" * 10000, LZMA should have good compression
         # but we can't guarantee it's always the best, so we'll check that at least
         # one of the compression algorithms is better than NONE
-        compressed_sizes = [results[alg]["compressed_size"] for alg in ["gzip", "lzma", "zlib"]]
+        compressed_sizes = [
+            results[alg]["compressed_size"] for alg in ["gzip", "lzma", "zlib"]
+        ]
         assert min(compressed_sizes) < results["none"]["compressed_size"]

@@ -6,7 +6,6 @@ This script tests the core functionality of the agent system, including
 agent registration, tool selection, and message processing.
 """
 
-import asyncio
 import sys
 import os
 import pytest
@@ -17,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "app"))
 from app.core.config import initialize_agent_system, settings
 from app.core.agents.registry import agent_registry
 from app.core.tools.registry import tool_registry
-from tests.test_utils import TestResult, TEST_MESSAGES, TEST_QUERIES, run_async_test
+from tests.test_utils import TEST_MESSAGES, TEST_QUERIES
 
 
 @pytest.mark.integration
@@ -173,5 +172,3 @@ async def test_agent_api_endpoints():
     except Exception as e:
         print(f"❌ API endpoint test failed: {str(e)}")
         return False
-
-

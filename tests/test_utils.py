@@ -5,9 +5,7 @@ This module provides common functionality to avoid code duplication
 across test files, including path setup, common imports, and shared fixtures.
 """
 
-import os
 import sys
-import asyncio
 from pathlib import Path
 
 
@@ -30,7 +28,7 @@ def get_test_llm_config():
     return {
         "openrouter_api_key": "test-key-123",
         "default_model": "deepseek/deepseek-v3.1-terminus",
-        "environment": "testing"
+        "environment": "testing",
     }
 
 
@@ -50,8 +48,13 @@ def create_test_chat_request(messages=None, model=None, stream=False):
     Create a standardized test chat request.
     """
     if messages is None:
-        messages = [{"role": "user", "content": "Hello, can you respond with just the word SUCCESS?"}]
-    
+        messages = [
+            {
+                "role": "user",
+                "content": "Hello, can you respond with just the word SUCCESS?",
+            }
+        ]
+
     return {
         "messages": messages,
         "model": model or "deepseek/deepseek-v3.1-terminus",
@@ -61,16 +64,16 @@ def create_test_chat_request(messages=None, model=None, stream=False):
 
 class TestResult:
     """Standardized test result container."""
-    
+
     def __init__(self, success=True, message="", data=None, error=None):
         self.success = success
         self.message = message
         self.data = data or {}
         self.error = error
-    
+
     def __bool__(self):
         return self.success
-    
+
     def __str__(self):
         if self.success:
             return f"✅ {self.message}"

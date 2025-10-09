@@ -6,7 +6,6 @@ This script tests the core functionality of the tool system including
 tool registration, execution, and API integration.
 """
 
-import asyncio
 import sys
 import os
 import pytest
@@ -20,7 +19,6 @@ from app.core.tools.langchain_integration import (
     create_agent_with_tools,
 )
 from app.core.config import get_llm
-from tests.test_utils import TestResult, run_async_test
 
 
 @pytest.mark.integration
@@ -132,5 +130,3 @@ async def test_agent_creation():
         print(f"Agent creation error: {e}")
 
     print("✓ Agent creation test passed\n")
-
-

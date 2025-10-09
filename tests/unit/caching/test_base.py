@@ -252,12 +252,11 @@ class TestMultiLayerCache:
         """Test multi-layer cache initialization."""
         assert multi_layer_cache.layers == mock_layers
         assert multi_layer_cache._write_through is True  # Use internal attribute
-        assert multi_layer_cache._read_through is True   # Use internal attribute
+        assert multi_layer_cache._read_through is True  # Use internal attribute
         # Layers should be sorted by priority
         assert multi_layer_cache.layers[0].priority == 0
         assert multi_layer_cache.layers[1].priority == 1
         assert multi_layer_cache.layers[2].priority == 2
-
 
     @pytest.mark.asyncio
     async def test_get_found_in_first_layer(self, multi_layer_cache, mock_layers):
@@ -373,6 +372,7 @@ class TestMultiLayerCache:
         assert result["total_layers"] == 3
         assert result["write_through"] is True
         assert result["read_through"] is True
+
 
 class TestCacheMetrics:
     """Test CacheMetrics class."""
