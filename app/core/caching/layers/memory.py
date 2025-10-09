@@ -66,7 +66,7 @@ class MemoryCache(CacheBackend):
             "sets": 0,
             "deletes": 0,
             "evictions": 0,
-            "current_size": 0,
+            "current_size": 0
         }
 
     async def start(self) -> None:
@@ -193,6 +193,7 @@ class MemoryCache(CacheBackend):
     async def close(self) -> None:
         """Close the cache and release resources."""
         await self.stop()
+        await self.clear()
 
     async def _evict_oldest(self) -> None:
         """Evict the oldest (least recently used) entry."""

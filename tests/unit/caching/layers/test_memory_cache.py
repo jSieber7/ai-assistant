@@ -21,10 +21,8 @@ class TestMemoryCache:
         assert memory_cache.max_size == 100
         assert memory_cache.default_ttl == 300
         assert memory_cache._cache == {}
-        assert memory_cache._expiry_times == {}
-        assert memory_cache._access_times == {}
-        assert memory_cache._hits == 0
-        assert memory_cache._misses == 0
+        assert memory_cache._stats["hits"] == 0
+        assert memory_cache._stats["misses"] == 0
 
     @pytest.mark.asyncio
     async def test_set_and_get(self, memory_cache):
@@ -38,7 +36,10 @@ class TestMemoryCache:
         assert result == "test_value"
 
         # Check that hit count increased
-        assert memory_cache._hits == 1
+        assert memory_cache._stats["hits"] == 1
+        assert memory_cache._stats["sets"] == 1
+        assert memory_cache._stats["current_size"] == 1
+        assert 'test_key' in memory_cache._cache
 
     @pytest.mark.asyncio
     async def test_set_with_custom_ttl(self, memory_cache):
@@ -57,14 +58,14 @@ class TestMemoryCache:
         # Value should be expired
         result = await memory_cache.get("test_key")
         assert result is None
-        assert memory_cache._misses == 1
+        assert memory_cache._stats["misses"] == 1
 
     @pytest.mark.asyncio
     async def test_get_nonexistent_key(self, memory_cache):
         """Test getting a nonexistent key."""
         result = await memory_cache.get("nonexistent_key")
         assert result is None
-        assert memory_cache._misses == 1
+        assert memory_cache._stats["misses"] == 1
 
     @pytest.mark.asyncio
     async def test_delete_existing_key(self, memory_cache):
@@ -125,8 +126,6 @@ class TestMemoryCache:
 
         # Cache should be empty
         assert memory_cache._cache == {}
-        assert memory_cache._expiry_times == {}
-        assert memory_cache._access_times == {}
 
         # Values should be gone
         result = await memory_cache.get("key1")
@@ -201,7 +200,6 @@ class TestMemoryCache:
         assert stats["misses"] == 1
         assert stats["sets"] == 1
         assert stats["deletes"] == 1
-        assert stats["errors"] == 0
         assert stats["current_size"] == 0  # key1 was deleted
         assert stats["max_size"] == 100
         assert stats["hit_rate"] == 0.5  # 1 hit / 2 gets
@@ -217,12 +215,11 @@ class TestMemoryCache:
         await asyncio.sleep(0.2)
 
         # Cleanup should remove expired entries
-        await memory_cache._cleanup_expired_entries()
+        await memory_cache._cleanup_expired()
 
         # Cache should be empty
         assert memory_cache._cache == {}
-        assert memory_cache._expiry_times == {}
-        assert memory_cache._access_times == {}
+
 
     @pytest.mark.asyncio
     async def test_close(self, memory_cache):
@@ -236,9 +233,6 @@ class TestMemoryCache:
 
         # Cache should be cleared
         assert memory_cache._cache == {}
-        assert memory_cache._expiry_times == {}
-        assert memory_cache._access_times == {}
-
 
 class TestMemoryCacheLayer:
     """Test MemoryCacheLayer class."""
@@ -257,10 +251,10 @@ class TestMemoryCacheLayer:
     @pytest.mark.asyncio
     async def test_initialization(self, memory_cache_layer):
         """Test layer initialization."""
-        assert memory_cache_layer.name == "test_layer"
-        assert memory_cache_layer.priority == 0
-        assert memory_cache_layer.read_only is False
-        assert memory_cache_layer.default_ttl == 300
+        assert memory_cache_layer.layer.name == "test_layer"
+        assert memory_cache_layer.layer.priority == 0
+        assert memory_cache_layer.layer.read_only is False
+        assert memory_cache_layer.layer.default_ttl == 300
         assert memory_cache_layer.layer is not None
         assert isinstance(memory_cache_layer.layer.backend, MemoryCache)
 
@@ -372,15 +366,21 @@ class TestMemoryCacheLayer:
         await memory_cache_layer.layer.set("key1", "value1")
         await memory_cache_layer.layer.get("key1")
         await memory_cache_layer.layer.get("key2")
-
-        stats = await memory_cache_layer.layer.get_stats()
+    
+        # Get layer stats (synchronous method)
+        stats = memory_cache_layer.layer.get_stats()
 
         assert stats["name"] == "test_layer"
         assert stats["priority"] == 0
         assert stats["read_only"] is False
-        assert "hits" in stats
-        assert "misses" in stats
-        assert "sets" in stats
+        assert stats["enabled"] is True
+        assert stats["default_ttl"] == 300
+
+        # Get backend stats (async method)
+        backend_stats = await memory_cache_layer.cache.get_stats()
+        assert "hits" in backend_stats
+        assert "misses" in backend_stats
+        assert "sets" in backend_stats
 
 
 class TestMemoryCacheIntegration:
