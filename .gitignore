@@ -14,6 +14,9 @@ wheels/
 
 # Local implementation notes
 development_notes
+development_notes_2
+ai_notes
+examples
 
 # Test reports
 *.xml
