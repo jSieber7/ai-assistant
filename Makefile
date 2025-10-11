@@ -1,4 +1,8 @@
-.PHONY: test test-unit test-integration test-system test-all test-slow test-coverage test-parallel test-ci test-failed dev ci help lint format clean
+.PHONY: run test test-unit test-integration test-system test-all test-slow test-coverage test-parallel test-ci test-failed dev ci help lint format clean
+
+##@ Running
+run:
+	uv run uvicorn app.main:app --reload
 
 ##@ Testing
 test:  ## Run all tests
