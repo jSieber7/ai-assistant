@@ -15,7 +15,7 @@ from app import __version__
 # Create FastAPI app
 app = FastAPI(
     title="LangChain Agent Hub",
-    description="Multi-agent system with FastAPI interface for OpenWebUI",
+    description="Multi-agent system with FastAPI interface for an OpenAI Compatible API",
     version=__version__,
 )
 

@@ -38,7 +38,7 @@ class ChatResponse(BaseModel):
 
 @router.get("/v1/models")
 async def list_models():
-    """OpenWebUI compatible models endpoint"""
+    """OpenAI Compatible API compatible models endpoint"""
     return {
         "object": "list",
         "data": [
@@ -57,7 +57,7 @@ async def list_models():
 
 @router.post("/v1/chat/completions")
 async def chat_completions(request: ChatRequest):
-    """OpenWebUI compatible chat endpoint with agent system integration"""
+    """OpenAI Compatible API compatible chat endpoint with agent system integration"""
 
     try:
         # Check if agent system should be used
@@ -156,7 +156,7 @@ async def chat_completions(request: ChatRequest):
 
 
 async def _stream_response(messages, llm, model_name):
-    """Handle streaming responses for OpenWebUI"""
+    """Handle streaming responses for OpenAI Compatible API"""
     from fastapi.responses import StreamingResponse
 
     async def generate():
