@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from app import __version__
 
 
+@pytest.mark.unit
 class TestMainEndpoints:
     """Test basic application endpoints."""
 
@@ -12,7 +13,7 @@ class TestMainEndpoints:
         assert response.status_code == 200
 
         data = response.json()
-        assert data["message"] == "LangChain Agent Hub is running!"
+        assert data["message"] == "AI Assistant Tool System is running!"
         assert data["version"] == __version__
         assert data["status"] == "ready"
 
@@ -66,6 +67,7 @@ class TestMainEndpoints:
         assert response.status_code == 404
 
 
+@pytest.mark.unit
 class TestErrorScenarios:
     """Test error scenarios for core endpoints."""
 
@@ -90,6 +92,7 @@ class TestErrorScenarios:
         assert response.status_code == 422  # Unprocessable Entity
 
 
+@pytest.mark.unit
 @pytest.mark.asyncio
 class TestAsyncEndpoints:
     """Test async endpoint functionality."""
