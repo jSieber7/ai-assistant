@@ -9,10 +9,8 @@ from .core.config import settings, initialize_agent_system
 from .core.tools import tool_registry
 from .core.agents.registry import agent_registry
 from .core.monitoring.middleware import MonitoringMiddleware
-from .core.config import settings
 from app import __version__
 
-from app import __version__
 
 # Create FastAPI app
 app = FastAPI(
