@@ -1,0 +1,106 @@
+# SearXNG configuration for AI Assistant
+# See https://docs.searxng.org/admin/engines.html for engine configuration
+
+general:
+  debug: false
+  instance_name: "AI Assistant Search"
+  privacypolicy_url: false
+  contact_url: false
+  enable_metrics: true
+  forkbomb_protection: true
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: ""
+  languages:
+    all: []
+  ban_time_on_fail: 5
+  max_ban_time_on_fail: 120
+  formats:
+    - html
+    - json
+    - csv
+
+server:
+  port: 8080
+  bind_address: "0.0.0.0"
+  secret_key: "ultrasecretkey"
+  base_url: false
+  image_proxy: true
+  http_protocol_version: "1.1"
+  method: "POST"
+  default_http_headers:
+    X-Content-Type-Options: nosniff
+    X-Download-Options: noopen
+    X-Robots-Tag: noindex, nofollow
+    X-XSS-Protection: 1; mode=block
+
+redis:
+  url: redis://redis:6379/1
+
+ui:
+  static_path: ""
+  templates_path: ""
+  default_theme: simple
+  default_locale: ""
+  theme_args:
+    simple_style: auto
+
+outgoing:
+  useragent_suffix: ""
+  request_timeout: 3.0
+  max_request_timeout: 10.0
+  pool_connections: 100
+  pool_maxsize: 10
+  keepalive_expiry: 5.0
+  enable_http2: true
+  source_ips:
+    - ""
+
+engines:
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    disabled: false
+
+  - name: google
+    engine: google
+    shortcut: go
+    disabled: false
+
+  - name: bing
+    engine: bing
+    shortcut: bi
+    disabled: false
+
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wp
+    disabled: false
+
+  - name: wikidata
+    engine: wikidata
+    shortcut: wd
+    disabled: false
+
+  - name: startpage
+    engine: startpage
+    shortcut: sp
+    disabled: true
+
+  - name: qwant
+    engine: qwant
+    shortcut: qw
+    disabled: true
+
+  - name: yahoo
+    engine: yahoo
+    shortcut: yh
+    disabled: true
+
+# Custom search engines can be added here
+# - name: custom_engine
+#   engine: custom
+#   shortcut: ce
+#   search_url: https://example.com/search?q={query}
