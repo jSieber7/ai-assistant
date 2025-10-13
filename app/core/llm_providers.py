@@ -18,8 +18,11 @@ logger = logging.getLogger(__name__)
 class ProviderType(Enum):
     """Supported LLM provider types"""
 
-    OPENROUTER = "openrouter"
+    OPENAI_COMPATIBLE = "openai_compatible"
     OLLAMA = "ollama"
+
+    # Backward compatibility aliases
+    OPENROUTER = "openrouter"  # Maps to OPENAI_COMPATIBLE for backward compatibility
 
 
 @dataclass
@@ -87,57 +90,84 @@ class LLMProvider(ABC):
         self._is_healthy = is_healthy
 
 
-class OpenRouterProvider(LLMProvider):
-    """OpenRouter LLM provider"""
+class OpenAICompatibleProvider(LLMProvider):
+    """Generic OpenAI-compatible API provider"""
 
-    def __init__(self, api_key: str, base_url: str = "https://openrouter.ai/api/v1"):
-        super().__init__(ProviderType.OPENROUTER)
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str = "https://openrouter.ai/api/v1",
+        provider_name: str = None,
+        custom_headers: Dict[str, str] = None,
+    ):
+        super().__init__(ProviderType.OPENAI_COMPATIBLE)
         self.api_key = api_key
-        self.base_url = base_url
-        self._common_models = [
+        self.base_url = base_url.rstrip("/")
+        self._provider_name = provider_name or self._detect_provider_name(base_url)
+        self.custom_headers = custom_headers or {}
+
+        # Common fallback models for endpoints without model listing
+        self._fallback_models = [
             ModelInfo(
-                name="anthropic/claude-3.5-sonnet",
-                provider=ProviderType.OPENROUTER,
-                display_name="Claude 3.5 Sonnet",
-                description="Anthropic's most capable model",
+                name="gpt-4",
+                provider=ProviderType.OPENAI_COMPATIBLE,
+                display_name="GPT-4",
+                description="OpenAI's GPT-4 model",
+                context_length=8192,
+                supports_streaming=True,
+                supports_tools=True,
+            ),
+            ModelInfo(
+                name="gpt-3.5-turbo",
+                provider=ProviderType.OPENAI_COMPATIBLE,
+                display_name="GPT-3.5 Turbo",
+                description="OpenAI's GPT-3.5 Turbo model",
+                context_length=4096,
+                supports_streaming=True,
+                supports_tools=True,
+            ),
+            ModelInfo(
+                name="claude-3-sonnet",
+                provider=ProviderType.OPENAI_COMPATIBLE,
+                display_name="Claude 3 Sonnet",
+                description="Anthropic's Claude 3 Sonnet model",
                 context_length=200000,
-                supports_streaming=True,
-                supports_tools=True,
-            ),
-            ModelInfo(
-                name="deepseek/deepseek-chat",
-                provider=ProviderType.OPENROUTER,
-                display_name="DeepSeek Chat",
-                description="DeepSeek's conversational model",
-                context_length=32768,
-                supports_streaming=True,
-                supports_tools=True,
-            ),
-            ModelInfo(
-                name="openai/gpt-4o",
-                provider=ProviderType.OPENROUTER,
-                display_name="GPT-4o",
-                description="OpenAI's latest multimodal model",
-                context_length=128000,
                 supports_streaming=True,
                 supports_tools=True,
             ),
         ]
 
+    def _detect_provider_name(self, base_url: str) -> str:
+        """Detect provider name from base URL"""
+        if "openrouter.ai" in base_url:
+            return "OpenRouter"
+        elif "api.openai.com" in base_url:
+            return "OpenAI"
+        elif "together.ai" in base_url:
+            return "Together AI"
+        elif "azure.com" in base_url:
+            return "Azure OpenAI"
+        else:
+            return "OpenAI Compatible"
+
     @property
     def name(self) -> str:
-        return "OpenRouter"
+        return self._provider_name
 
     @property
     def is_configured(self) -> bool:
         return bool(self.api_key)
 
     async def create_llm(self, model_name: str, **kwargs) -> Any:
-        """Create LangChain ChatOpenAI instance for OpenRouter"""
+        """Create LangChain ChatOpenAI instance for OpenAI-compatible API"""
         from langchain_openai import ChatOpenAI
 
         if not self.is_configured:
-            raise ValueError("OpenRouter provider is not configured with API key")
+            raise ValueError(f"{self.name} provider is not configured with API key")
+
+        # Prepare headers
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        headers.update(self.custom_headers)
 
         return ChatOpenAI(
             base_url=self.base_url,
@@ -146,29 +176,105 @@ class OpenRouterProvider(LLMProvider):
             temperature=kwargs.get("temperature", 0.7),
             max_tokens=kwargs.get("max_tokens"),
             streaming=kwargs.get("streaming", False),
+            default_headers=headers if self.custom_headers else None,
         )
 
     async def list_models(self) -> List[ModelInfo]:
-        """List available OpenRouter models"""
-        return self._common_models
-
-    async def health_check(self) -> bool:
-        """Check OpenRouter API health"""
+        """List available models from the OpenAI-compatible API"""
         try:
             import httpx
+
+            headers = {"Authorization": f"Bearer {self.api_key}"}
+            headers.update(self.custom_headers)
 
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(
                     f"{self.base_url}/models",
-                    headers={"Authorization": f"Bearer {self.api_key}"},
+                    headers=headers,
+                )
+
+                if response.status_code == 200:
+                    data = response.json()
+                    models = []
+
+                    # Handle different response formats
+                    if "data" in data:
+                        # OpenAI format
+                        for model in data["data"]:
+                            model_info = ModelInfo(
+                                name=model.get("id", model.get("model", "")),
+                                provider=ProviderType.OPENAI_COMPATIBLE,
+                                display_name=model.get(
+                                    "id", model.get("model", "")
+                                ).split("/")[-1],
+                                description=model.get("object", "model"),
+                                context_length=None,  # Not typically provided in list endpoint
+                                supports_streaming=True,
+                                supports_tools=True,
+                            )
+                            models.append(model_info)
+                    elif isinstance(data, list):
+                        # Direct list format
+                        for model in data:
+                            if isinstance(model, dict):
+                                model_name = model.get("id", model.get("name", ""))
+                                model_info = ModelInfo(
+                                    name=model_name,
+                                    provider=ProviderType.OPENAI_COMPATIBLE,
+                                    display_name=model_name.split("/")[-1],
+                                    description=model.get(
+                                        "description", f"Model from {self.name}"
+                                    ),
+                                    context_length=model.get("context_length"),
+                                    supports_streaming=model.get(
+                                        "supports_streaming", True
+                                    ),
+                                    supports_tools=model.get("supports_tools", True),
+                                )
+                                models.append(model_info)
+
+                    if models:
+                        return models
+
+                # If API call fails or returns unexpected format, use fallback models
+                logger.warning(
+                    f"Could not fetch models from {self.name}, using fallback models"
+                )
+                return self._fallback_models
+
+        except Exception as e:
+            logger.error(f"Failed to list models from {self.name}: {str(e)}")
+            return self._fallback_models
+
+    async def health_check(self) -> bool:
+        """Check OpenAI-compatible API health"""
+        try:
+            import httpx
+
+            headers = {"Authorization": f"Bearer {self.api_key}"}
+            headers.update(self.custom_headers)
+
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(
+                    f"{self.base_url}/models",
+                    headers=headers,
                 )
                 is_healthy = response.status_code == 200
                 self.set_health_status(is_healthy)
                 return is_healthy
         except Exception as e:
-            logger.error(f"OpenRouter health check failed: {str(e)}")
+            logger.error(f"{self.name} health check failed: {str(e)}")
             self.set_health_status(False)
             return False
+
+
+class OpenRouterProvider(OpenAICompatibleProvider):
+    """OpenRouter LLM provider - backward compatibility wrapper"""
+
+    def __init__(self, api_key: str, base_url: str = "https://openrouter.ai/api/v1"):
+        super().__init__(api_key=api_key, base_url=base_url, provider_name="OpenRouter")
+        # Override provider type for backward compatibility
+        self.provider_type = ProviderType.OPENROUTER
 
 
 class OllamaProvider(LLMProvider):

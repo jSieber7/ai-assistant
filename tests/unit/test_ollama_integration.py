@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch, AsyncMock
 from app.core.llm_providers import (
     OllamaProvider,
     OpenRouterProvider,
+    OpenAICompatibleProvider,
     LLMProviderRegistry,
     ProviderType,
     ModelInfo,
@@ -304,3 +305,227 @@ class TestModelInfo:
         assert model.context_length is None
         assert model.supports_streaming  # Default
         assert model.supports_tools  # Default
+
+
+class TestOpenAICompatibleProvider:
+    """Test OpenAI-compatible provider functionality"""
+
+    def test_openai_compatible_provider_init_openrouter(self):
+        """Test OpenAI-compatible provider initialization with OpenRouter URL"""
+        provider = OpenAICompatibleProvider(
+            api_key="test_key", base_url="https://openrouter.ai/api/v1"
+        )
+
+        assert provider.provider_type == ProviderType.OPENAI_COMPATIBLE
+        assert provider.name == "OpenRouter"
+        assert provider.base_url == "https://openrouter.ai/api/v1"
+        assert provider.api_key == "test_key"
+        assert provider.is_configured
+
+    def test_openai_compatible_provider_init_openai(self):
+        """Test OpenAI-compatible provider initialization with OpenAI URL"""
+        provider = OpenAICompatibleProvider(
+            api_key="test_key", base_url="https://api.openai.com/v1"
+        )
+
+        assert provider.provider_type == ProviderType.OPENAI_COMPATIBLE
+        assert provider.name == "OpenAI"
+        assert provider.base_url == "https://api.openai.com/v1"
+
+    def test_openai_compatible_provider_init_custom_name(self):
+        """Test OpenAI-compatible provider with custom name"""
+        provider = OpenAICompatibleProvider(
+            api_key="test_key",
+            base_url="https://custom.example.com/v1",
+            provider_name="Custom Provider",
+        )
+
+        assert provider.name == "Custom Provider"
+
+    def test_openai_compatible_provider_init_custom_headers(self):
+        """Test OpenAI-compatible provider with custom headers"""
+        custom_headers = {"X-Custom-Header": "value"}
+        provider = OpenAICompatibleProvider(
+            api_key="test_key",
+            base_url="https://api.openai.com/v1",
+            custom_headers=custom_headers,
+        )
+
+        assert provider.custom_headers == custom_headers
+
+    @pytest.mark.asyncio
+    async def test_openai_compatible_health_check_success(self):
+        """Test successful OpenAI-compatible health check"""
+        provider = OpenAICompatibleProvider(
+            api_key="test_key", base_url="https://api.openai.com/v1"
+        )
+
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_client.return_value.__aenter__.return_value.get.return_value = (
+                mock_response
+            )
+
+            result = await provider.health_check()
+
+            assert result
+            assert provider.is_healthy()
+
+    @pytest.mark.asyncio
+    async def test_openai_compatible_health_check_failure(self):
+        """Test OpenAI-compatible health check failure"""
+        provider = OpenAICompatibleProvider(
+            api_key="test_key", base_url="https://api.openai.com/v1"
+        )
+
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_client.return_value.__aenter__.return_value.get.side_effect = (
+                Exception("Connection failed")
+            )
+
+            result = await provider.health_check()
+
+            assert not result
+            assert not provider.is_healthy()
+
+    @pytest.mark.asyncio
+    async def test_openai_compatible_list_models_openai_format(self):
+        """Test listing models in OpenAI format"""
+        provider = OpenAICompatibleProvider(
+            api_key="test_key", base_url="https://api.openai.com/v1"
+        )
+
+        mock_response_data = {
+            "data": [
+                {"id": "gpt-4", "object": "model"},
+                {"id": "gpt-3.5-turbo", "object": "model"},
+            ]
+        }
+
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = mock_response_data
+            mock_client.return_value.__aenter__.return_value.get.return_value = (
+                mock_response
+            )
+
+            models = await provider.list_models()
+
+            assert len(models) == 2
+            assert models[0].name == "gpt-4"
+            assert models[0].provider == ProviderType.OPENAI_COMPATIBLE
+            assert models[1].name == "gpt-3.5-turbo"
+
+    @pytest.mark.asyncio
+    async def test_openai_compatible_list_models_fallback(self):
+        """Test listing models with fallback when API fails"""
+        provider = OpenAICompatibleProvider(
+            api_key="test_key", base_url="https://api.openai.com/v1"
+        )
+
+        with patch("httpx.AsyncClient") as mock_client:
+            mock_client.return_value.__aenter__.return_value.get.side_effect = (
+                Exception("API unavailable")
+            )
+
+            models = await provider.list_models()
+
+            # Should return fallback models
+            assert len(models) > 0
+            assert all(
+                model.provider == ProviderType.OPENAI_COMPATIBLE for model in models
+            )
+
+    @pytest.mark.asyncio
+    async def test_openai_compatible_create_llm(self):
+        """Test creating OpenAI-compatible LLM instance"""
+        provider = OpenAICompatibleProvider(
+            api_key="test_key", base_url="https://api.openai.com/v1"
+        )
+
+        # Mock the ChatOpenAI import from langchain_openai
+        with patch("langchain_openai.ChatOpenAI") as mock_chat_openai:
+            mock_llm = Mock()
+            mock_chat_openai.return_value = mock_llm
+
+            result = await provider.create_llm("gpt-4", temperature=0.7)
+
+            assert result == mock_llm
+            mock_chat_openai.assert_called_once_with(
+                base_url="https://api.openai.com/v1",
+                api_key="test_key",
+                model="gpt-4",
+                temperature=0.7,
+                max_tokens=None,
+                streaming=False,
+                default_headers=None,
+            )
+
+    @pytest.mark.asyncio
+    async def test_openai_compatible_create_llm_with_custom_headers(self):
+        """Test creating LLM instance with custom headers"""
+        custom_headers = {"X-Custom-Header": "value"}
+        provider = OpenAICompatibleProvider(
+            api_key="test_key",
+            base_url="https://api.openai.com/v1",
+            custom_headers=custom_headers,
+        )
+
+        with patch("langchain_openai.ChatOpenAI") as mock_chat_openai:
+            mock_llm = Mock()
+            mock_chat_openai.return_value = mock_llm
+
+            result = await provider.create_llm("gpt-4")
+
+            assert result == mock_llm
+            # The implementation includes both Authorization and custom headers
+            expected_headers = {"Authorization": "Bearer test_key", **custom_headers}
+            mock_chat_openai.assert_called_once_with(
+                base_url="https://api.openai.com/v1",
+                api_key="test_key",
+                model="gpt-4",
+                temperature=0.7,
+                max_tokens=None,
+                streaming=False,
+                default_headers=expected_headers,
+            )
+
+
+class TestOpenRouterBackwardCompatibility:
+    """Test OpenRouter backward compatibility"""
+
+    def test_openrouter_provider_inheritance(self):
+        """Test that OpenRouterProvider inherits from OpenAICompatibleProvider"""
+        provider = OpenRouterProvider(
+            api_key="test_key", base_url="https://openrouter.ai/api/v1"
+        )
+
+        assert isinstance(provider, OpenAICompatibleProvider)
+        assert provider.provider_type == ProviderType.OPENROUTER
+        assert provider.name == "OpenRouter"
+
+    @pytest.mark.asyncio
+    async def test_openrouter_provider_create_llm(self):
+        """Test OpenRouter provider creates LLM correctly"""
+        provider = OpenRouterProvider(
+            api_key="test_key", base_url="https://openrouter.ai/api/v1"
+        )
+
+        with patch("langchain_openai.ChatOpenAI") as mock_chat_openai:
+            mock_llm = Mock()
+            mock_chat_openai.return_value = mock_llm
+
+            result = await provider.create_llm("anthropic/claude-3.5-sonnet")
+
+            assert result == mock_llm
+            mock_chat_openai.assert_called_once_with(
+                base_url="https://openrouter.ai/api/v1",
+                api_key="test_key",
+                model="anthropic/claude-3.5-sonnet",
+                temperature=0.7,
+                max_tokens=None,
+                streaming=False,
+                default_headers=None,
+            )

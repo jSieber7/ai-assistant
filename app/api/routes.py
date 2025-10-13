@@ -51,7 +51,8 @@ async def list_models():
                 {
                     "id": (
                         f"{model.provider.value}:{model.name}"
-                        if model.provider.value != "openrouter"
+                        if model.provider.value
+                        not in ["openrouter", "openai_compatible"]
                         else model.name
                     ),
                     "object": "model",
