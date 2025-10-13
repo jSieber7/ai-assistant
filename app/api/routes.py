@@ -40,32 +40,38 @@ class ChatResponse(BaseModel):
 async def list_models():
     """OpenAI Compatible API compatible models endpoint"""
     from ..core.config import get_available_models
-    
+
     try:
         models = get_available_models()
-        
+
         # Convert to OpenAI-compatible format
         model_data = []
         for model in models:
-            model_data.append({
-                "id": f"{model.provider.value}:{model.name}" if model.provider.value != "openrouter" else model.name,
-                "object": "model",
-                "created": 1677610602,
-                "owned_by": model.provider.value,
-                "permission": [],
-                "root": model.name,
-                "parent": None,
-                "description": model.description,
-                "context_length": model.context_length,
-                "supports_streaming": model.supports_streaming,
-                "supports_tools": model.supports_tools,
-            })
-        
+            model_data.append(
+                {
+                    "id": (
+                        f"{model.provider.value}:{model.name}"
+                        if model.provider.value != "openrouter"
+                        else model.name
+                    ),
+                    "object": "model",
+                    "created": 1677610602,
+                    "owned_by": model.provider.value,
+                    "permission": [],
+                    "root": model.name,
+                    "parent": None,
+                    "description": model.description,
+                    "context_length": model.context_length,
+                    "supports_streaming": model.supports_streaming,
+                    "supports_tools": model.supports_tools,
+                }
+            )
+
         return {
             "object": "list",
             "data": model_data,
         }
-    except Exception as e:
+    except Exception:
         # Fallback to basic response if model listing fails
         return {
             "object": "list",
@@ -156,10 +162,10 @@ async def chat_completions(request: ChatRequest):
 
             # Get LLM and generate response
             llm = await get_llm(
-                request.model, 
+                request.model,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens,
-                streaming=request.stream
+                streaming=request.stream,
             )
 
             if request.stream:
@@ -241,26 +247,34 @@ async def health_check():
     """Simple health check endpoint"""
     return {"status": "healthy", "service": "langchain-agent-hub"}
 
+
 @router.get("/v1/providers")
 async def list_providers():
     """List available LLM providers and their status"""
     from ..core.llm_providers import provider_registry
-    
+
     try:
         providers_data = []
         for provider in provider_registry.list_providers():
-            providers_data.append({
-                "name": provider.name,
-                "type": provider.provider_type.value,
-                "configured": provider.is_configured,
-                "healthy": provider.is_healthy(),
-                "default": provider.provider_type == provider_registry._default_provider,
-            })
-        
+            providers_data.append(
+                {
+                    "name": provider.name,
+                    "type": provider.provider_type.value,
+                    "configured": provider.is_configured,
+                    "healthy": provider.is_healthy(),
+                    "default": provider.provider_type
+                    == provider_registry._default_provider,
+                }
+            )
+
         return {
             "object": "list",
             "data": providers_data,
-            "default_provider": provider_registry._default_provider.value if provider_registry._default_provider else None,
+            "default_provider": (
+                provider_registry._default_provider.value
+                if provider_registry._default_provider
+                else None
+            ),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -270,40 +284,48 @@ async def list_providers():
 async def list_provider_models(provider_type: str):
     """List models for a specific provider"""
     from ..core.llm_providers import provider_registry, ProviderType
-    
+
     try:
         # Validate provider type
         try:
             provider_enum = ProviderType(provider_type)
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid provider type: {provider_type}")
-        
+            raise HTTPException(
+                status_code=400, detail=f"Invalid provider type: {provider_type}"
+            )
+
         provider = provider_registry.get_provider(provider_enum)
         if not provider:
-            raise HTTPException(status_code=404, detail=f"Provider {provider_type} not found")
-        
+            raise HTTPException(
+                status_code=404, detail=f"Provider {provider_type} not found"
+            )
+
         if not provider.is_configured:
-            raise HTTPException(status_code=400, detail=f"Provider {provider_type} not configured")
-        
+            raise HTTPException(
+                status_code=400, detail=f"Provider {provider_type} not configured"
+            )
+
         models = await provider.list_models()
-        
+
         # Convert to OpenAI-compatible format
         model_data = []
         for model in models:
-            model_data.append({
-                "id": model.name,
-                "object": "model",
-                "created": 1677610602,
-                "owned_by": provider_type,
-                "permission": [],
-                "root": model.name,
-                "parent": None,
-                "description": model.description,
-                "context_length": model.context_length,
-                "supports_streaming": model.supports_streaming,
-                "supports_tools": model.supports_tools,
-            })
-        
+            model_data.append(
+                {
+                    "id": model.name,
+                    "object": "model",
+                    "created": 1677610602,
+                    "owned_by": provider_type,
+                    "permission": [],
+                    "root": model.name,
+                    "parent": None,
+                    "description": model.description,
+                    "context_length": model.context_length,
+                    "supports_streaming": model.supports_streaming,
+                    "supports_tools": model.supports_tools,
+                }
+            )
+
         return {
             "object": "list",
             "data": model_data,
@@ -319,23 +341,24 @@ async def list_provider_models(provider_type: str):
 async def health_check_providers():
     """Perform health check on all providers"""
     from ..core.llm_providers import provider_registry
-    
+
     try:
         await provider_registry.health_check_all()
-        
+
         providers_data = []
         for provider in provider_registry.list_providers():
-            providers_data.append({
-                "name": provider.name,
-                "type": provider.provider_type.value,
-                "configured": provider.is_configured,
-                "healthy": provider.is_healthy(),
-            })
-        
+            providers_data.append(
+                {
+                    "name": provider.name,
+                    "type": provider.provider_type.value,
+                    "configured": provider.is_configured,
+                    "healthy": provider.is_healthy(),
+                }
+            )
+
         return {
             "status": "completed",
             "providers": providers_data,
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
