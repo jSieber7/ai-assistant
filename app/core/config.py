@@ -58,21 +58,21 @@ class CacheSettings(BaseSettings):
 
 class OllamaSettings(BaseSettings):
     """Ollama local model configuration."""
-    
+
     # Ollama server settings
     enabled: bool = True
     base_url: str = "http://localhost:11434"
     default_model: str = "llama2"
-    
+
     # Connection settings
     timeout: int = 30
     max_retries: int = 3
-    
+
     # Model settings
     temperature: float = 0.7
     max_tokens: Optional[int] = None
     streaming: bool = True
-    
+
     # Health check settings
     health_check_interval: int = 60  # seconds
     auto_health_check: bool = True
@@ -82,7 +82,7 @@ class Settings(BaseSettings):
     openrouter_api_key: Optional[SecretStr] = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     default_model: str = "anthropic/claude-3.5-sonnet"
-    
+
     # Provider selection
     preferred_provider: str = "openrouter"  # "openrouter", "ollama", or "auto"
     enable_fallback: bool = True  # Fall back to other providers if preferred fails
@@ -106,7 +106,7 @@ class Settings(BaseSettings):
 
     # Caching system settings
     cache_settings: CacheSettings = CacheSettings()
-    
+
     # Ollama settings
     ollama_settings: OllamaSettings = OllamaSettings()
 
@@ -130,38 +130,34 @@ settings = Settings()
 
 def initialize_llm_providers():
     """Initialize all configured LLM providers"""
-    from .llm_providers import (
-        OpenRouterProvider, 
-        OllamaProvider, 
-        provider_registry
-    )
-    
+    from .llm_providers import OpenRouterProvider, OllamaProvider, provider_registry
+
     # Initialize OpenRouter provider if API key is available
     if settings.openrouter_api_key:
         openrouter_provider = OpenRouterProvider(
             api_key=settings.openrouter_api_key.get_secret_value(),
-            base_url=settings.openrouter_base_url
+            base_url=settings.openrouter_base_url,
         )
         provider_registry.register_provider(openrouter_provider)
         logger.info("OpenRouter provider initialized")
     else:
         logger.warning("OpenRouter provider not initialized - missing API key")
-    
+
     # Initialize Ollama provider if enabled
     if settings.ollama_settings.enabled:
-        ollama_provider = OllamaProvider(
-            base_url=settings.ollama_settings.base_url
-        )
+        ollama_provider = OllamaProvider(base_url=settings.ollama_settings.base_url)
         provider_registry.register_provider(ollama_provider)
-        logger.info(f"Ollama provider initialized at {settings.ollama_settings.base_url}")
+        logger.info(
+            f"Ollama provider initialized at {settings.ollama_settings.base_url}"
+        )
     else:
         logger.info("Ollama provider disabled in settings")
-    
+
     # Set default provider based on preferences
     configured_providers = provider_registry.list_configured_providers()
     if not configured_providers:
         raise ValueError("No LLM providers are configured")
-    
+
     # Set preferred provider if available
     preferred = settings.preferred_provider.lower()
     for provider in configured_providers:
@@ -173,76 +169,87 @@ def initialize_llm_providers():
         # Use first available provider as default
         default_provider = configured_providers[0]
         provider_registry.set_default_provider(default_provider.provider_type)
-        logger.info(f"Set {default_provider.name} as default provider (no preferred provider found)")
-    
+        logger.info(
+            f"Set {default_provider.name} as default provider (no preferred provider found)"
+        )
+
     return provider_registry
 
 
 async def get_llm(model_name: Optional[str] = None, **kwargs):
     """
     Factory function to create LLM instances with multi-provider support
-    
+
     Args:
         model_name: Model name (supports format "provider:model" or just "model")
         **kwargs: Additional LLM parameters (temperature, max_tokens, etc.)
-    
+
     Returns:
         LangChain LLM instance
     """
     from .llm_providers import provider_registry
-    
+
     if not provider_registry.list_providers():
         # Initialize providers if not already done
         initialize_llm_providers()
-    
+
     # Use default model if none specified
     if not model_name:
         model_name = settings.default_model
-    
+
     try:
         # Resolve model to provider and actual model name
         provider, actual_model = await provider_registry.resolve_model(model_name)
-        
+
         # Create LLM instance
         llm = await provider.create_llm(actual_model, **kwargs)
-        
+
         logger.info(f"Created {provider.name} LLM with model '{actual_model}'")
         return llm
-        
+
     except Exception as e:
         if settings.enable_fallback:
             # Try fallback providers
             logger.warning(f"Failed to create LLM for model '{model_name}': {str(e)}")
-            
+
             configured_providers = provider_registry.list_configured_providers()
             for fallback_provider in configured_providers:
-                if fallback_provider.provider_type.value == settings.preferred_provider.lower():
+                if (
+                    fallback_provider.provider_type.value
+                    == settings.preferred_provider.lower()
+                ):
                     continue  # Skip the one that already failed
-                
+
                 try:
                     # Try provider's default model
                     models = await fallback_provider.list_models()
                     if models:
                         fallback_model = models[0].name
-                        llm = await fallback_provider.create_llm(fallback_model, **kwargs)
-                        logger.info(f"Created fallback {fallback_provider.name} LLM with model '{fallback_model}'")
+                        llm = await fallback_provider.create_llm(
+                            fallback_model, **kwargs
+                        )
+                        logger.info(
+                            f"Created fallback {fallback_provider.name} LLM with model '{fallback_model}'"
+                        )
                         return llm
                 except Exception as fallback_error:
-                    logger.warning(f"Fallback to {fallback_provider.name} failed: {str(fallback_error)}")
+                    logger.warning(
+                        f"Fallback to {fallback_provider.name} failed: {str(fallback_error)}"
+                    )
                     continue
-        
+
         raise ValueError(f"Failed to create LLM for model '{model_name}': {str(e)}")
 
 
 def get_available_models():
     """Get all available models from all configured providers"""
     from .llm_providers import provider_registry
-    
+
     if not provider_registry.list_providers():
         initialize_llm_providers()
-    
+
     import asyncio
-    
+
     # Run async function in sync context
     loop = None
     try:
@@ -250,7 +257,7 @@ def get_available_models():
     except RuntimeError:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-    
+
     return loop.run_until_complete(provider_registry.list_all_models())
 
 
@@ -269,7 +276,7 @@ def initialize_agent_system():
 
     # Create default agent
     import asyncio
-    
+
     # Get LLM asynchronously
     loop = None
     try:
@@ -277,9 +284,9 @@ def initialize_agent_system():
     except RuntimeError:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
-    
+
     llm = loop.run_until_complete(get_llm())
-    
+
     tool_agent = ToolAgent(
         tool_registry=tool_registry,
         llm=llm,

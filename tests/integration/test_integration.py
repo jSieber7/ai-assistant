@@ -89,7 +89,7 @@ class TestConfigurationIntegration:
         """Test error handling when API key is missing."""
         # Test that get_llm raises ValueError when API key is missing
         from unittest.mock import patch
-        from app.core.config import get_llm, initialize_llm_providers
+        from app.core.config import initialize_llm_providers
         from app.core.llm_providers import provider_registry
 
         # Reset the provider registry to ensure no providers are registered
