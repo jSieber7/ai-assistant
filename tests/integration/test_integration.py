@@ -102,7 +102,7 @@ class TestConfigurationIntegration:
         mock_settings.ollama_settings.enabled = False
         mock_settings.preferred_provider = "openrouter"
         mock_settings.enable_fallback = False
-        
+
         # Mock the new OpenAI-compatible settings
         mock_openai_settings = MagicMock()
         mock_openai_settings.enabled = True  # Default is True
