@@ -7,7 +7,8 @@ A comprehensive, extensible tool system foundation for AI assistants built with 
 ### Prerequisites
 - Python 3.12
 - UV package manager
-- OpenRouter API key
+- OpenRouter API key (for cloud models)
+- Ollama server (optional, for local models)
 
 ### Installation
 ```bash
@@ -38,7 +39,7 @@ uvicorn app.main:app --reload
 ```python
 import httpx
 
-# Test the API
+# Test the API with OpenRouter (cloud)
 response = httpx.post(
     "http://localhost:8000/v1/chat/completions",
     json={
@@ -46,6 +47,82 @@ response = httpx.post(
         "messages": [{"role": "user", "content": "What's 15 * 25?"}]
     }
 )
+
+## 🦙 Ollama Integration
+
+The system now supports local Ollama models alongside cloud-based OpenRouter models, providing flexibility for different use cases:
+
+### Setting Up Ollama
+
+1. **Install Ollama**:
+   ```bash
+   curl -fsSL https://ollama.ai/install.sh | sh
+   ```
+
+2. **Start Ollama Server**:
+   ```bash
+   ollama serve
+   ```
+
+3. **Pull Models**:
+   ```bash
+   ollama pull llama2
+   ollama pull codellama
+   ollama pull mistral
+   ```
+
+4. **Configure in .env**:
+   ```bash
+   PREFERRED_PROVIDER=ollama
+   OLLAMA_ENABLED=true
+   OLLAMA_BASE_URL=http://localhost:11434
+   OLLAMA_DEFAULT_MODEL=llama2
+   ```
+
+### Using Ollama Models
+
+```python
+# Use specific Ollama model
+response = httpx.post(
+    "http://localhost:8000/v1/chat/completions",
+    json={
+        "model": "ollama:llama2",
+        "messages": [{"role": "user", "content": "Hello!"}]
+    }
+)
+
+# List available Ollama models
+response = httpx.get("http://localhost:8000/v1/providers/ollama/models")
+models = response.json()
+
+# Check provider status
+response = httpx.get("http://localhost:8000/v1/providers")
+providers = response.json()
+```
+
+### Provider Features
+
+- **Automatic Fallback**: Falls back to other providers if preferred fails
+- **Health Monitoring**: Continuous health checks for all providers
+- **Model Discovery**: Automatic detection of available models
+- **Mixed Usage**: Use both cloud and local models in the same application
+
+For detailed setup instructions, see [Ollama Integration Guide](docs/ollama-integration.md).
+
+print(response.json())
+
+# Test the API with Ollama (local)
+response = httpx.post(
+    "http://localhost:8000/v1/chat/completions",
+    json={
+        "model": "ollama:llama2",
+        "messages": [{"role": "user", "content": "What's 15 * 25?"}]
+    }
+)
+print(response.json())
+
+# List available models
+response = httpx.get("http://localhost:8000/v1/models")
 print(response.json())
 ```
 
