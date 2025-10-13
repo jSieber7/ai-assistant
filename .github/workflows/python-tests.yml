@@ -58,17 +58,17 @@ jobs:
     - name: Set test environment variables
       run: |
         echo "OPENROUTER_API_KEY=test-key-ci-123" >> $GITHUB_ENV
-        echo "DEFAULT_MODEL=test-model" >> $GITHUB_ENV
+        echo "OLLAMA_SETTINGS_DEFAULT_MODEL=llama2" >> $GITHUB_ENV
         echo "ENVIRONMENT=testing" >> $GITHUB_ENV
 
     - name: Run tests and generate reports
       run: |
-        uv run pytest -m "not slow" --junitxml=junit.xml --cov=app --cov-report=xml
+        uv run pytest --junitxml=junit.xml --cov=app --cov-report=xml
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
-        token: ${{ secrets.CODECOV_TOKEN }} 
+        token: ${{ secrets.CODECOV_TOKEN }}
         file: ./coverage.xml
         flags: unittests
         name: codecov-umbrella
