@@ -64,28 +64,25 @@ Returns a list of available models. Currently supports the LangChain agent hub m
 curl http://localhost:8000/v1/models
 ```
 
-### POST /v1/chat/completions
-**Chat completions endpoint**
+### Chat Completions (OpenAI-Compatible)
+```http
+POST /v1/chat/completions
+Content-Type: application/json
 
-Main endpoint for interacting with the AI assistant. Supports both streaming and non-streaming responses.
-
-**Request Body:**
-```json
 {
-  "messages": [
-    {
-      "role": "system",
-      "content": "You are a helpful AI assistant."
-    },
-    {
-      "role": "user", 
-      "content": "Hello, how are you?"
-    }
-  ],
   "model": "anthropic/claude-3.5-sonnet",
-  "stream": false,
-  "temperature": 0.7,
-  "max_tokens": 1000
+  "messages": [
+    {"role": "user", "content": "What's 15 * 25?"}
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "calculator",
+        "description": "Perform mathematical calculations"
+      }
+    }
+  ]
 }
 ```
 
@@ -95,6 +92,7 @@ Main endpoint for interacting with the AI assistant. Supports both streaming and
 - `stream` (boolean): Whether to stream the response (default: false)
 - `temperature` (number): Sampling temperature (default: 0.7)
 - `max_tokens` (number, optional): Maximum tokens to generate
+- `tools` (array, optional): Array of tool definitions for tool calling
 
 **Response (non-streaming):**
 ```json
@@ -131,6 +129,30 @@ curl -X POST http://localhost:8000/v1/chat/completions \
     ],
     "model": "anthropic/claude-3.5-sonnet"
   }'
+```
+
+### Tool Management
+```http
+GET /api/v1/tools
+# List all registered tools
+
+POST /api/v1/tools/execute
+# Execute a specific tool
+
+GET /api/v1/tools/{tool_name}/stats
+# Get tool usage statistics
+```
+
+### Monitoring Endpoints
+```http
+GET /health
+# System health check
+
+GET /metrics
+# Performance metrics
+
+GET /api/v1/monitoring/stats
+# Detailed system statistics
 ```
 
 ## Error Handling
@@ -182,10 +204,11 @@ http://localhost:8000/docs
 
 This interactive documentation allows you to test endpoints directly from the browser.
 
-## Next Steps
+### Complete API Documentation
+See the full API documentation at `http://localhost:8000/docs` when the server is running.
 
-- [ ] Add authentication middleware
-- [ ] Implement rate limiting
-- [ ] Add more model options
-- [ ] Implement tool calling endpoints
-- [ ] Add batch processing support
+## Related Documentation
+
+- [Core Components](../architecture/core-components.md)
+- [Development Guide](../development/development-guide.md)
+- [Architecture Overview](../architecture/overview.md)
