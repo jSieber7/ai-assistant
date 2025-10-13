@@ -6,7 +6,7 @@ A comprehensive, extensible tool system foundation for AI assistants built with 
 
 ### Prerequisites
 - UV package manager
-- OpenRouter API key (for cloud models)
+- API key for any OpenAI-compatible provider (OpenRouter, OpenAI, Together AI, etc.)
 - Ollama server (optional, for local models)
 
 ### Installation
@@ -16,11 +16,17 @@ git clone https://github.com/jSieber7/ai_assistant.git
 cd ai_assistant
 
 # Set up environment
-cp .env.template .env 
+cp .env.template .env
 uv venv .venv
 uv sync
 
-# Configure your OpenRouter API key in .env
+# Configure your API key in .env (choose one option)
+
+# Option 1: Generic OpenAI-compatible provider (recommended)
+echo "OPENAI_COMPATIBLE_API_KEY=your_key_here" >> .env
+echo "OPENAI_COMPATIBLE_BASE_URL=https://your-provider.com/api/v1" >> .env
+
+# Option 2: OpenRouter (backward compatible)
 echo "OPENROUTER_API_KEY=your_key_here" >> .env
 ```
 
@@ -65,6 +71,11 @@ The LLM Tool System Foundation is built on a modular architecture that enables s
 - **🔄 LangChain Integration**: Seamless compatibility with LangChain ecosystem
 
 ## 📚 Documentation
+
+### [OpenAI-Compatible Provider Refactoring](docs/openai-compatible-provider-refactoring.md)
+- Migration guide from OpenRouter to generic provider
+- Supported providers and configuration options
+- Backward compatibility information
 
 ### [Architecture Overview](docs/architecture/overview.md)
 - System design and components
@@ -131,10 +142,42 @@ response = httpx.post(
 ## ⚙️ Configuration
 
 ### Environment Variables
+
+#### Option 1: Generic OpenAI-Compatible Provider (Recommended)
+```bash
+# Core Settings
+OPENAI_COMPATIBLE_ENABLED=true
+OPENAI_COMPATIBLE_API_KEY=your_api_key_here
+OPENAI_COMPATIBLE_BASE_URL=https://your-provider.com/api/v1
+OPENAI_COMPATIBLE_DEFAULT_MODEL=your-preferred-model
+PREFERRED_PROVIDER=openai_compatible
+
+# Optional: Custom headers and settings
+OPENAI_COMPATIBLE_CUSTOM_HEADERS={"X-Custom-Header": "value"}
+OPENAI_COMPATIBLE_TIMEOUT=30
+OPENAI_COMPATIBLE_MAX_RETRIES=3
+```
+
+#### Option 2: OpenRouter (Backward Compatible)
 ```bash
 # Core Settings
 OPENROUTER_API_KEY=your_openrouter_api_key
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 DEFAULT_MODEL=anthropic/claude-3.5-sonnet
+PREFERRED_PROVIDER=openrouter
+```
+
+#### Option 3: Ollama (Local Models)
+```bash
+# Ollama Settings
+OLLAMA_SETTINGS_ENABLED=true
+OLLAMA_SETTINGS_BASE_URL=http://localhost:11434
+OLLAMA_SETTINGS_DEFAULT_MODEL=llama2
+```
+
+#### General Settings
+```bash
+# Server Configuration
 HOST=127.0.0.1
 PORT=8000
 
@@ -148,6 +191,18 @@ MEMORY_CACHE_ENABLED=true
 REDIS_CACHE_ENABLED=false
 CACHE_COMPRESSION_ENABLED=true
 ```
+
+### Supported Providers
+
+The generic OpenAI-compatible provider works with:
+
+- **OpenRouter**: `https://openrouter.ai/api/v1`
+- **OpenAI**: `https://api.openai.com/v1`
+- **Together AI**: `https://api.together.xyz/v1`
+- **Azure OpenAI**: `https://your-resource.openai.azure.com/`
+- **Any OpenAI-compatible API**: Custom endpoints
+
+For detailed migration instructions, see [OpenAI-Compatible Provider Refactoring](docs/openai-compatible-provider-refactoring.md).
 
 For complete configuration details, see [Development Guide](docs/development/development-guide.md).
 
