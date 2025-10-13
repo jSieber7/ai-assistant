@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from typing import Optional, List
+from typing import Optional, List, Dict
 from pydantic import SecretStr
 import logging
 
@@ -78,13 +78,35 @@ class OllamaSettings(BaseSettings):
     auto_health_check: bool = True
 
 
+class OpenAISettings(BaseSettings):
+    """Generic OpenAI-compatible API configuration"""
+
+    enabled: bool = True
+    api_key: Optional[SecretStr] = None
+    base_url: str = "https://openrouter.ai/api/v1"  # Default for backward compatibility
+    default_model: str = "anthropic/claude-3.5-sonnet"
+    provider_name: Optional[str] = None  # Auto-detected from base_url if not provided
+    custom_headers: Dict[str, str] = {}
+    timeout: int = 30
+    max_retries: int = 3
+
+    class Config:
+        env_prefix = "OPENAI_COMPATIBLE_"
+
+
 class Settings(BaseSettings):
+    # OpenAI-compatible provider settings (new generic approach)
+    openai_settings: OpenAISettings = OpenAISettings()
+
+    # Backward compatibility settings
     openrouter_api_key: Optional[SecretStr] = None
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     default_model: str = "anthropic/claude-3.5-sonnet"
 
     # Provider selection
-    preferred_provider: str = "openrouter"  # "openrouter", "ollama", or "auto"
+    preferred_provider: str = (
+        "openai_compatible"  # "openai_compatible", "ollama", or "auto"
+    )
     enable_fallback: bool = True  # Fall back to other providers if preferred fails
 
     # Server settings
@@ -129,19 +151,40 @@ settings = Settings()
 
 
 def initialize_llm_providers():
-    """Initialize all configured LLM providers"""
-    from .llm_providers import OpenRouterProvider, OllamaProvider, provider_registry
+    """Initialize all configured LLM providers with backward compatibility"""
+    from .llm_providers import (
+        OpenAICompatibleProvider,
+        OpenRouterProvider,
+        OllamaProvider,
+        provider_registry,
+    )
 
-    # Initialize OpenRouter provider if API key is available
-    if settings.openrouter_api_key:
+    # Initialize generic OpenAI-compatible provider
+    openai_provider = None
+
+    # Check for new generic settings first
+    if settings.openai_settings.enabled and settings.openai_settings.api_key:
+        openai_provider = OpenAICompatibleProvider(
+            api_key=settings.openai_settings.api_key.get_secret_value(),
+            base_url=settings.openai_settings.base_url,
+            provider_name=settings.openai_settings.provider_name,
+            custom_headers=settings.openai_settings.custom_headers,
+        )
+        provider_registry.register_provider(openai_provider)
+        logger.info(f"OpenAI-compatible provider initialized: {openai_provider.name}")
+
+    # Backward compatibility: check for OpenRouter settings
+    elif settings.openrouter_api_key:
+        # Create OpenRouter provider using the new generic class
         openrouter_provider = OpenRouterProvider(
             api_key=settings.openrouter_api_key.get_secret_value(),
             base_url=settings.openrouter_base_url,
         )
         provider_registry.register_provider(openrouter_provider)
-        logger.info("OpenRouter provider initialized")
+        logger.info("OpenRouter provider initialized (backward compatibility mode)")
+        openai_provider = openrouter_provider
     else:
-        logger.warning("OpenRouter provider not initialized - missing API key")
+        logger.warning("No OpenAI-compatible provider configured - missing API key")
 
     # Initialize Ollama provider if enabled
     if settings.ollama_settings.enabled:
@@ -158,10 +201,20 @@ def initialize_llm_providers():
     if not configured_providers:
         raise ValueError("No LLM providers are configured")
 
-    # Set preferred provider if available
+    # Handle provider preference with backward compatibility
     preferred = settings.preferred_provider.lower()
+
+    # Map old provider names to new ones for backward compatibility
+    provider_mapping = {
+        "openrouter": "openai_compatible",
+        "openai_compatible": "openai_compatible",
+        "ollama": "ollama",
+    }
+
+    mapped_preferred = provider_mapping.get(preferred, preferred)
+
     for provider in configured_providers:
-        if provider.provider_type.value == preferred:
+        if provider.provider_type.value == mapped_preferred:
             provider_registry.set_default_provider(provider.provider_type)
             logger.info(f"Set {provider.name} as default provider")
             break
