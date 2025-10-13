@@ -88,7 +88,7 @@ class TestConfigurationIntegration:
     async def test_missing_api_key_handling(self):
         """Test error handling when API key is missing."""
         # Test that get_llm raises ValueError when API key is missing
-        from unittest.mock import patch
+        from unittest.mock import patch, MagicMock
         from app.core.config import initialize_llm_providers
         from app.core.llm_providers import provider_registry
 
@@ -96,13 +96,21 @@ class TestConfigurationIntegration:
         provider_registry._providers.clear()
         provider_registry._default_provider = None
 
-        # Mock the settings to have no API key and disable Ollama
-        with patch("app.core.config.settings") as mock_settings:
-            mock_settings.openrouter_api_key = None
-            mock_settings.ollama_settings.enabled = False
-            mock_settings.preferred_provider = "openrouter"
-            mock_settings.enable_fallback = False
+        # Create proper mock settings with all required attributes
+        mock_settings = MagicMock()
+        mock_settings.openrouter_api_key = None
+        mock_settings.ollama_settings.enabled = False
+        mock_settings.preferred_provider = "openrouter"
+        mock_settings.enable_fallback = False
 
+        # Mock the new OpenAI-compatible settings
+        mock_openai_settings = MagicMock()
+        mock_openai_settings.enabled = True  # Default is True
+        mock_openai_settings.api_key = None  # No API key set
+        mock_settings.openai_settings = mock_openai_settings
+
+        # Mock initialize_llm_providers to use our mock settings
+        with patch("app.core.config.settings", mock_settings):
             # Test that initialize_llm_providers raises ValueError when no providers are configured
             with pytest.raises(ValueError, match="No LLM providers are configured"):
                 initialize_llm_providers()
