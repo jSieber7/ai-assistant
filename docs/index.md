@@ -31,15 +31,26 @@ uv run uvicorn app.main:app --reload # For the current build in development
 - Agent workflow and tool orchestration
 - Integration patterns and extensibility
 
+### [Core Components](architecture/core-components.md)
+- Detailed component documentation
+- Tool system and agent orchestration
+- Caching and monitoring systems
+
 ### [API Reference](api/endpoints.md)
 - OpenAI-compatible endpoints
 - Request/response formats
 - Authentication and error handling
+- Tool management endpoints
 
 ### [Development](development/setup.md)
 - Setup instructions and environment configuration
 - Contributing guidelines
 - Testing and code quality standards
+
+### [Development Guide](development/development-guide.md)
+- Creating custom tools
+- Testing and deployment
+- Best practices and examples
 
 ### [Tools](tools/searx.md)
 - Tool integrations and extensions
