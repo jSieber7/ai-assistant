@@ -5,7 +5,7 @@ from .api.routes import router
 from .api.tool_routes import router as tool_router
 from .api.agent_routes import router as agent_router
 from .api.monitoring_routes import router as monitoring_router
-from .core.config import settings, initialize_agent_system
+from .core.config import settings, initialize_agent_system, initialize_llm_providers
 from .core.tools import tool_registry
 from .core.agents.registry import agent_registry
 from .core.monitoring.middleware import MonitoringMiddleware
@@ -15,7 +15,7 @@ from app import __version__
 # Create FastAPI app
 app = FastAPI(
     title="LangChain Agent Hub",
-    description="Multi-agent system with FastAPI interface for OpenWebUI",
+    description="Multi-agent system with FastAPI interface for an OpenAI Compatible API",
     version=__version__,
 )
 
@@ -30,6 +30,9 @@ app.add_middleware(
 
 # Add monitoring middleware
 app.add_middleware(MonitoringMiddleware)
+
+# Initialize LLM providers
+initialize_llm_providers()
 
 # Initialize agent system
 if settings.agent_system_enabled:
