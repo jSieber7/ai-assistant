@@ -99,7 +99,8 @@ class TestOllamaProvider:
             display_name="Llama 2"
         ))
         
-        with patch('app.core.llm_providers.ChatOllama') as mock_chat_ollama:
+        # Mock the ChatOllama import from langchain_community
+        with patch('langchain_community.chat_models.ChatOllama') as mock_chat_ollama:
             mock_llm = Mock()
             mock_chat_ollama.return_value = mock_llm
             
