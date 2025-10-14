@@ -1,7 +1,10 @@
 from pydantic_settings import BaseSettings
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, ClassVar
 from pydantic import SecretStr
 import logging
+
+# Import MultiWriterSettings before using it
+from .multi_writer_config import MultiWriterSettings
 
 logger = logging.getLogger(__name__)
 
@@ -133,8 +136,7 @@ class Settings(BaseSettings):
     ollama_settings: OllamaSettings = OllamaSettings()
 
     # Multi-writer system settings
-    from .config.multi_writer_config import MultiWriterSettings
-    multi_writer_settings: MultiWriterSettings = MultiWriterSettings()
+    multi_writer_settings: ClassVar[MultiWriterSettings] = MultiWriterSettings()
 
     # Models unused in the current stage of development
     router_model: str = "deepseek/deepseek-chat"
@@ -149,6 +151,9 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        ignored_types = (
+            MultiWriterSettings,
+        )  # Ignore the class itself, not an instance
 
 
 settings = Settings()
