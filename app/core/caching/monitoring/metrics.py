@@ -298,7 +298,7 @@ class PerformanceMonitor:
         # Error analysis
         error_samples = [s for s in recent_samples if not s.success]
         if error_samples:
-            errors_by_type = defaultdict(int)
+            errors_by_type: Dict[str, int] = defaultdict(int)
             for sample in error_samples:
                 errors_by_type[sample.error or "unknown"] += 1
 
@@ -359,7 +359,7 @@ class PerformanceMonitor:
         for alert in alerts:
             for handler in self.alert_handlers:
                 try:
-                    handler(alert["type"], alert)
+                    handler(alert["type"], alert)  # type: ignore[arg-type]
                 except Exception as e:
                     logger.error(f"Error in alert handler: {e}")
 
@@ -399,7 +399,7 @@ class PerformanceMonitor:
 
     def get_historical_trends(self) -> Dict[str, List[float]]:
         """Get historical trends for key metrics."""
-        trends = {
+        trends: Dict[str, List[float]] = {
             "hit_rate": [],
             "average_get_time": [],
             "utilization_rate": [],
@@ -451,14 +451,14 @@ class CacheMetricsCollector:
 
             for name, monitor in self.monitors.items():
                 metrics = monitor.metrics
-                aggregated["total_operations"] += (
+                aggregated["total_operations"] += int(
                     metrics.hits + metrics.misses + metrics.sets + metrics.deletes
                 )
-                aggregated["total_hits"] += metrics.hits
-                aggregated["total_misses"] += metrics.misses
-                aggregated["total_sets"] += metrics.sets
-                aggregated["total_deletes"] += metrics.deletes
-                aggregated["total_errors"] += metrics.errors
+                aggregated["total_hits"] += int(metrics.hits)
+                aggregated["total_misses"] += int(metrics.misses)
+                aggregated["total_sets"] += int(metrics.sets)
+                aggregated["total_deletes"] += int(metrics.deletes)
+                aggregated["total_errors"] += int(metrics.errors)
 
                 aggregated["monitors"][name] = {
                     "hits": metrics.hits,
@@ -474,7 +474,9 @@ class CacheMetricsCollector:
             # Calculate overall hit rate
             total_requests = aggregated["total_hits"] + aggregated["total_misses"]
             aggregated["overall_hit_rate"] = (
-                aggregated["total_hits"] / total_requests if total_requests > 0 else 0.0
+                float(aggregated["total_hits"]) / float(total_requests)
+                if total_requests > 0
+                else 0.0
             )
 
             return aggregated

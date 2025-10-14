@@ -121,7 +121,24 @@ class MonitoringConfig(BaseSettings):
 
 
 # Global monitoring configuration instance
-monitoring_config = MonitoringConfig()
+monitoring_config = MonitoringConfig(
+    monitoring_enabled=True,
+    monitoring_level=MonitoringLevel.STANDARD,
+    metrics_backend=MetricsBackend.PROMETHEUS,
+    metrics_collection_interval=30,
+    metrics_retention_days=7,
+    health_check_interval=60,
+    health_check_timeout=10,
+    performance_tracking_enabled=True,
+    track_tool_performance=True,
+    track_agent_performance=True,
+    track_api_performance=True,
+    alerting_enabled=False,
+    prometheus_port=9090,
+    prometheus_path="/metrics",
+    log_metrics=False,
+    log_level="INFO",
+)
 
 
 def get_monitoring_config() -> MonitoringConfig:
@@ -134,7 +151,7 @@ def update_monitoring_config(**kwargs) -> MonitoringConfig:
     global monitoring_config
 
     # Create a new config with updated values
-    updated_config = monitoring_config.copy(update=kwargs)
+    updated_config = monitoring_config.model_copy(update=kwargs)
     monitoring_config = updated_config
 
     return monitoring_config
@@ -143,19 +160,23 @@ def update_monitoring_config(**kwargs) -> MonitoringConfig:
 def disable_monitoring() -> None:
     """Disable the entire monitoring system"""
     global monitoring_config
-    monitoring_config = monitoring_config.copy(update={"monitoring_enabled": False})
+    monitoring_config = monitoring_config.model_copy(
+        update={"monitoring_enabled": False}
+    )
 
 
 def enable_monitoring() -> None:
     """Enable the entire monitoring system"""
     global monitoring_config
-    monitoring_config = monitoring_config.copy(update={"monitoring_enabled": True})
+    monitoring_config = monitoring_config.model_copy(
+        update={"monitoring_enabled": True}
+    )
 
 
 def set_monitoring_level(level: MonitoringLevel) -> None:
     """Set the monitoring detail level"""
     global monitoring_config
-    monitoring_config = monitoring_config.copy(update={"monitoring_level": level})
+    monitoring_config = monitoring_config.model_copy(update={"monitoring_level": level})
 
 
 def configure_for_environment(environment: str) -> MonitoringConfig:
@@ -195,5 +216,5 @@ def configure_for_environment(environment: str) -> MonitoringConfig:
             "metrics_retention_days": 1,
         }
 
-    monitoring_config = monitoring_config.copy(update=config_updates)
+    monitoring_config = monitoring_config.model_copy(update=config_updates)
     return monitoring_config

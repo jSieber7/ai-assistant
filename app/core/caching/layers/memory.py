@@ -292,12 +292,12 @@ class MemoryCache(CacheBackend):
                     entry_ages.append(current_time - entry.created_at)
 
                 if access_counts:
-                    entry_stats["average_access_count"] = sum(access_counts) / len(
-                        access_counts
+                    entry_stats["average_access_count"] = int(
+                        sum(access_counts) / len(access_counts)
                     )
                 if entry_ages:
-                    entry_stats["oldest_entry_age"] = max(entry_ages)
-                    entry_stats["newest_entry_age"] = min(entry_ages)
+                    entry_stats["oldest_entry_age"] = int(max(entry_ages))
+                    entry_stats["newest_entry_age"] = int(min(entry_ages))
 
             stats["entry_stats"] = entry_stats
             return stats
