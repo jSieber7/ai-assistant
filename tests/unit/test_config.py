@@ -110,7 +110,7 @@ class TestSettings:
         """Test settings default values"""
         settings = Settings()
         
-        assert settings.host == "0.0.0.0"
+        assert settings.host == "127.0.0.1"
         assert settings.port == 8000
         assert settings.environment == "testing"
         assert settings.tool_system_enabled is True
