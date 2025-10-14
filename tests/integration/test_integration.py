@@ -3,21 +3,28 @@ import subprocess
 import time
 import requests
 import os
+import socket
 from pathlib import Path
 
 
 @pytest.fixture
 def test_server_process():
     """Start the FastAPI server in a subprocess for integration testing."""
+    # Find a random available port
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('', 0))
+        s.listen(1)
+        port = s.getsockname()[1]
+    
     # Set test environment variables
     env = os.environ.copy()
     env["OPENROUTER_API_KEY"] = "test-key-integration"
     env["ENVIRONMENT"] = "testing"
     env["DEBUG"] = "true"
 
-    # Start the server on a different port to avoid conflicts
+    # Start the server on the available port
     process = subprocess.Popen(
-        ["uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8001"],
+        ["uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(port)],
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -34,7 +41,8 @@ def test_server_process():
         error_msg = f"Server failed to start. Stdout: {stdout.decode()}. Stderr: {stderr.decode()}"
         pytest.fail(error_msg)
 
-    yield process
+    # Return both process and port as a tuple
+    yield process, port
 
     # Cleanup - terminate the server
     process.terminate()
@@ -51,18 +59,19 @@ class TestApplicationIntegration:
 
     def test_server_starts_successfully(self, test_server_process):
         """Test that the server starts without errors."""
+        process, port = test_server_process
         # Check if process is still running
         assert (
-            test_server_process.poll() is None
+            process.poll() is None
         ), "Server process terminated unexpectedly"
 
         # Try to connect to the server
         try:
-            response = requests.get("http://127.0.0.1:8001/", timeout=5)
+            response = requests.get(f"http://127.0.0.1:{port}/", timeout=5)
             assert response.status_code == 200
         except requests.exceptions.ConnectionError as e:
             # Get server output for debugging
-            stdout, stderr = test_server_process.communicate()
+            stdout, stderr = process.communicate()
             pytest.fail(
                 f"Server failed to start or is not accessible. Error: {str(e)}\n"
                 f"Server stdout: {stdout.decode()}\n"
@@ -71,14 +80,15 @@ class TestApplicationIntegration:
 
     def test_health_endpoint_integration(self, test_server_process):
         """Test health endpoint in integrated environment."""
+        process, port = test_server_process
         try:
-            response = requests.get("http://127.0.0.1:8001/health", timeout=5)
+            response = requests.get(f"http://127.0.0.1:{port}/health", timeout=5)
             assert response.status_code == 200
             data = response.json()
             assert data["status"] == "healthy"
         except requests.exceptions.ConnectionError as e:
             # Get server output for debugging
-            stdout, stderr = test_server_process.communicate()
+            stdout, stderr = process.communicate()
             pytest.fail(
                 f"Failed to connect to health endpoint. Error: {str(e)}\n"
                 f"Server stdout: {stdout.decode()}\n"
@@ -87,15 +97,16 @@ class TestApplicationIntegration:
 
     def test_models_endpoint_integration(self, test_server_process):
         """Test models endpoint in integrated environment."""
+        process, port = test_server_process
         try:
-            response = requests.get("http://127.0.0.1:8001/v1/models", timeout=5)
+            response = requests.get(f"http://127.0.0.1:{port}/v1/models", timeout=5)
             assert response.status_code == 200
             data = response.json()
             assert data["object"] == "list"
             assert len(data["data"]) > 0
         except requests.exceptions.ConnectionError as e:
             # Get server output for debugging
-            stdout, stderr = test_server_process.communicate()
+            stdout, stderr = process.communicate()
             pytest.fail(
                 f"Failed to connect to models endpoint. Error: {str(e)}\n"
                 f"Server stdout: {stdout.decode()}\n"
@@ -226,11 +237,12 @@ class TestErrorRecovery:
 
     def test_server_recovery_after_error(self, test_server_process):
         """Test that server recovers after an error condition."""
+        process, port = test_server_process
         # Send a malformed request that might cause an error
         malformed_data = '{"invalid": "json"'
         try:
             response = requests.post(
-                "http://127.0.0.1:8001/v1/chat/completions",
+                f"http://127.0.0.1:{port}/v1/chat/completions",
                 data=malformed_data,
                 headers={"Content-Type": "application/json"},
                 timeout=5,
@@ -243,7 +255,7 @@ class TestErrorRecovery:
 
         # Verify server is still responsive after error
         time.sleep(1)  # Give server time to recover
-        response = requests.get("http://127.0.0.1:8001/health", timeout=5)
+        response = requests.get(f"http://127.0.0.1:{port}/health", timeout=5)
         assert response.status_code == 200
 
 
