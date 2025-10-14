@@ -5,7 +5,7 @@ This module provides a web-based UI for configuring settings and testing queries
 """
 
 import gradio as gr
-import requests
+import httpx
 from typing import List, Optional
 from ..core.config import settings, get_available_models
 from ..core.tools import tool_registry
@@ -89,11 +89,12 @@ async def test_query(
 
         # Make the request to the FastAPI endpoint
         base_url = f"http://{settings.host}:{settings.port}"
-        response = requests.post(
-            f"{base_url}/v1/chat/completions",
-            json=payload,
-            headers={"Content-Type": "application/json"},
-        )
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{base_url}/v1/chat/completions",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
 
         if response.status_code == 200:
             result = response.json()
@@ -297,7 +298,8 @@ def create_gradio_app() -> gr.Blocks:
                         )
 
                 submit_btn.click(
-                    test_query,
+                    # Wrapper to handle async function
+                    lambda *args, **kwargs: gr.run_sync(test_query(*args, **kwargs)),
                     inputs=[
                         query_input,
                         model_dropdown,
