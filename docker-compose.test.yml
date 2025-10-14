@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  ai-assistant-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - ENVIRONMENT=testing
+      - DEBUG=true
+      - OPENROUTER_API_KEY=test-key-for-testing
+    command: uv run pytest tests/ -v
+    volumes:
+      - ./tests:/app/tests
+    depends_on:
+      - redis-test
+
+  redis-test:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
