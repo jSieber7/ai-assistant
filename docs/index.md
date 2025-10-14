@@ -1,75 +1,125 @@
-# AI Agent Workflow Documentation
+# AI Assistant System Documentation
 
-Welcome to the AI Assistant project documentation! This project provides an OpenAI-compatible API interface for LLM agents with tool-calling capabilities.
+Welcome to the comprehensive documentation for the LLM Tool System Foundation! This project provides a production-ready, OpenAI-compatible API interface for LLM agents with advanced tool-calling capabilities, multi-provider support, and extensible architecture.
 
-## Quick Start
+## 🚀 Quick Start
 
-### Prerequisites
-- UV package manager
-- OpenRouter API key
-
-### Installation
+### Option 1: Docker (Recommended)
 ```bash
+# Clone and setup
+git clone https://github.com/jSieber7/ai_assistant.git
+cd ai_assistant
+cp .env.docker .env
+
+# Configure your API key
+echo "OPENAI_COMPATIBLE_API_KEY=your_key_here" >> .env
+echo "SECRET_KEY=your_secret_key_here" >> .env
+
+# Start all services
+docker-compose up -d
+
+# Access the application
+open http://localhost:8000
+```
+
+### Option 2: Local Development
+```bash
+# Clone and setup
 git clone https://github.com/jSieber7/ai_assistant.git
 cd ai_assistant
 cp .env.template .env
 
+# Setup environment
 uv venv .venv
 uv sync
-uv run uvicorn app.main:app --reload # For the current build in development
+
+# Configure API key
+echo "OPENAI_COMPATIBLE_API_KEY=your_key_here" >> .env
+
+# Start development server
+uv run uvicorn app.main:app --reload
 ```
 
 ### First Steps
-1. Get your OpenRouter API key from [openrouter.ai](https://openrouter.ai)
-2. Add it to your `.env` file: `OPENROUTER_API_KEY=your_key_here`
-3. Visit the API documentation at `http://localhost:8000/docs`
+1. **Get an API key** from any OpenAI-compatible provider:
+   - [OpenRouter](https://openrouter.ai) (recommended for variety)
+   - [OpenAI](https://platform.openai.com)
+   - [Together AI](https://together.ai)
+2. **Configure your environment** with the API key
+3. **Visit the interactive API docs** at `http://localhost:8000/docs`
+4. **Try a simple chat completion** to verify setup
 
-## Documentation Sections
+## 📚 Documentation Sections
 
-### [Architecture](architecture/overview.md)
+### 🏗️ [Architecture](architecture/overview.md)
 - System design and components
 - Agent workflow and tool orchestration
 - Integration patterns and extensibility
+- [Core Components](architecture/core-components.md)
+- [Tool System Design](architecture/tools.md)
+- [Agent Workflow](architecture/workflow.md)
 
-### [Core Components](architecture/core-components.md)
-- Detailed component documentation
-- Tool system and agent orchestration
-- Caching and monitoring systems
-
-### [API Reference](api/endpoints.md)
+### 🔌 [API Reference](api/endpoints.md)
 - OpenAI-compatible endpoints
 - Request/response formats
 - Authentication and error handling
 - Tool management endpoints
+- Streaming and batch processing
 
-### [Development](development/setup.md)
-- Setup instructions and environment configuration
-- Contributing guidelines
-- Testing and code quality standards
+### 🛠️ [Development](development/setup.md)
+- [Setup Guide](development/setup.md)
+- [Development Guide](development/development-guide.md)
+- [Contributing Guidelines](development/contributing.md)
+- [Testing Strategy](development/testing.md)
+- [Security Practices](development/security-and-api-key-handling.md)
+- [Branch Protection](development/branch-protection.md)
 
-### [Development Guide](development/development-guide.md)
-- Creating custom tools
-- Testing and deployment
-- Best practices and examples
+### 🔧 [Tools & Integrations](tools/searx.md)
+- [SearXNG Search Integration](tools/searx.md)
+- [RAG Knowledge Base](tools/rag.md)
+- Tool development framework
+- Custom tool examples
 
-### [Tools](tools/searx.md)
-- Tool integrations and extensions
-- SearX web search integration
-- RAG knowledge base system
+### 🐳 [Deployment](docker-integration.md)
+- [Docker Integration Guide](docker-integration.md)
+- [Docker Testing](docker-testing.md)
+- [Ollama Integration](ollama-integration.md)
+- Production deployment patterns
 
-## Key Features
+### 🔄 [Provider Configuration](openai-compatible-provider-refactoring.md)
+- [OpenAI-Compatible Provider Refactoring](openai-compatible-provider-refactoring.md)
+- Multi-provider setup
+- Migration guides
+- Backward compatibility
 
-### OpenAI API Compatibility
-Full compatibility with the OpenAI API specification, allowing integration with various LLM frontends and tools.
+## ✨ Key Features
 
-### Tool-Calling Agents
-Extensible architecture for adding new tools and capabilities to the AI assistant.
+### 🌐 OpenAI API Compatibility
+Full compatibility with the OpenAI API specification, allowing seamless integration with various LLM frontends and tools.
 
-### Real-time Streaming
-Support for streaming responses for interactive chat experiences.
+### 🤖 Intelligent Tool-Calling Agents
+Extensible architecture for adding new tools and capabilities to the AI assistant with context-aware selection.
 
-### Comprehensive Testing
-Robust test suite with unit tests, integration tests, and security scanning.
+### ⚡ Real-time Streaming
+Support for streaming responses for interactive chat experiences with minimal latency.
+
+### 🔍 Multi-Provider Support
+Unified interface for OpenAI, OpenRouter, Together AI, Azure OpenAI, and custom providers with automatic fallback.
+
+### 🗄️ Advanced Caching System
+Multi-layer caching with compression, batching, and intelligent cache invalidation strategies.
+
+### 📊 Comprehensive Monitoring
+Built-in Prometheus metrics, health checks, and performance monitoring with Grafana dashboards.
+
+### 🐳 Container-Ready
+Complete Docker support with docker-compose configurations for development, testing, and production.
+
+### 🔒 Security-First Design
+Input validation, API key security, dependency scanning, and secure development practices.
+
+### 🧪 Comprehensive Testing
+Robust test suite with unit tests, integration tests, system tests, and security scanning.
 
 ## 🔧 Technology Stack
 
