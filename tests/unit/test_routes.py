@@ -3,6 +3,7 @@ import json
 from fastapi.testclient import TestClient
 
 
+@pytest.mark.unit
 class TestChatCompletions:
     """Test chat completions endpoint functionality."""
 
@@ -71,6 +72,7 @@ class TestChatCompletions:
         assert data["model"] == "deepseek/deepseek-v3.1-terminus"
 
 
+@pytest.mark.unit
 class TestStreamingChatCompletions:
     """Test streaming chat completions endpoint functionality."""
 
@@ -129,6 +131,7 @@ class TestStreamingChatCompletions:
                     assert isinstance(choice["delta"]["content"], str)
 
 
+@pytest.mark.unit
 class TestChatCompletionErrorHandling:
     """Test error handling for chat completions endpoint."""
 
@@ -202,6 +205,7 @@ class TestChatCompletionErrorHandling:
         assert response.status_code in [200, 415, 422]
 
 
+@pytest.mark.unit
 class TestMessageValidation:
     """Test message validation in chat completions."""
 

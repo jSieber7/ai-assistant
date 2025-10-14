@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  ai-assistant-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-assistant-test
+    environment:
+      - ENVIRONMENT=testing
+      - DEBUG=true
+      - OPENROUTER_API_KEY=test-key-for-testing
+      - REDIS_HOST=redis-test
+      - REDIS_PORT=6379
+    command: uv run pytest tests/ -v
+    volumes:
+      - ./tests:/app/tests
+    depends_on:
+      - redis-test
+    networks:
+      - test-network
+
+  redis-test:
+    image: redis:7-alpine
+    container_name: redis-test
+    ports:
+      - "6380:6379"  # Different port to avoid conflicts
+    networks:
+      - test-network
+
+networks:
+  test-network:
+    driver: bridge
