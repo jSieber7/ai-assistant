@@ -16,7 +16,7 @@ def test_server_process():
 
     # Start the server
     process = subprocess.Popen(
-        ["uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8001"],
+        ["uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000"],
         env=env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -46,21 +46,21 @@ class TestApplicationIntegration:
 
         # Try to connect to the server
         try:
-            response = requests.get("http://127.0.0.1:8001/", timeout=5)
+            response = requests.get("http://127.0.0.1:8000/", timeout=5)
             assert response.status_code == 200
         except requests.exceptions.ConnectionError:
             pytest.fail("Server failed to start or is not accessible")
 
     def test_health_endpoint_integration(self, test_server_process):
         """Test health endpoint in integrated environment."""
-        response = requests.get("http://127.0.0.1:8001/health", timeout=5)
+        response = requests.get("http://127.0.0.1:8000/health", timeout=5)
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "healthy"
 
     def test_models_endpoint_integration(self, test_server_process):
         """Test models endpoint in integrated environment."""
-        response = requests.get("http://127.0.0.1:8001/v1/models", timeout=5)
+        response = requests.get("http://127.0.0.1:8000/v1/models", timeout=5)
         assert response.status_code == 200
         data = response.json()
         assert data["object"] == "list"
@@ -194,7 +194,7 @@ class TestErrorRecovery:
         malformed_data = '{"invalid": "json"'
         try:
             response = requests.post(
-                "http://127.0.0.1:8001/v1/chat/completions",
+                "http://127.0.0.1:8000/v1/chat/completions",
                 data=malformed_data,
                 headers={"Content-Type": "application/json"},
                 timeout=5,
@@ -207,7 +207,7 @@ class TestErrorRecovery:
 
         # Verify server is still responsive after error
         time.sleep(1)  # Give server time to recover
-        response = requests.get("http://127.0.0.1:8001/health", timeout=5)
+        response = requests.get("http://127.0.0.1:8000/health", timeout=5)
         assert response.status_code == 200
 
 

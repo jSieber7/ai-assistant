@@ -14,7 +14,7 @@ def main():
     user_args = sys.argv[2:]  # Capture all additional arguments
 
     if command == "serve":
-        default_args = ["-a", "localhost:8001", "-o"]
+        default_args = ["-a", "localhost:8000", "-o"]
         cmd = ["uv", "run", "mkdocs", "serve"] + merge_arguments(
             default_args, user_args
         )
