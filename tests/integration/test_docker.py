@@ -9,7 +9,7 @@ import pytest
 import subprocess
 import time
 import requests
-from typing import Dict, Tuple
+from typing import Tuple
 
 
 @pytest.mark.integration
@@ -48,6 +48,7 @@ class TestDockerIntegration:
         """Check Redis connectivity."""
         try:
             import redis
+
             r = redis.Redis(host="localhost", port=6379, db=0, socket_connect_timeout=5)
             r.ping()
             return True
@@ -69,19 +70,19 @@ class TestDockerIntegration:
     def test_service_status(self):
         """Test if all Docker services are running."""
         success, output = self.run_command("docker compose ps")
-        
+
         # Skip test if Docker is not available or no services are running
         if not success:
             pytest.skip("Docker compose command failed - Docker may not be available")
-        
+
         services = {}
         lines = output.split("\n")
-        
+
         for line in lines[1:]:  # Skip header
             if line.strip():
                 # Find the service name and status
                 # Split by multiple spaces to handle variable spacing
-                parts = re.split(r'\s{2,}', line.strip())
+                parts = re.split(r"\s{2,}", line.strip())
                 if len(parts) >= 6:
                     service_name = parts[3]
                     status = parts[5].split()[0]  # Get just the first word of status
@@ -91,8 +92,10 @@ class TestDockerIntegration:
 
         # Skip test if no services are found (Docker not running in CI)
         if not services:
-            pytest.skip("No Docker services found - likely running in CI environment without Docker")
-        
+            pytest.skip(
+                "No Docker services found - likely running in CI environment without Docker"
+            )
+
         for service_name, status in services.items():
             assert status, f"{service_name} is not running"
 
@@ -103,23 +106,25 @@ class TestDockerIntegration:
         success, output = self.run_command("docker compose ps")
         if not success:
             pytest.skip("Docker compose command failed - Docker may not be available")
-        
+
         # Check if any services are running
         services_running = False
         lines = output.split("\n")
         for line in lines[1:]:  # Skip header
             if line.strip():
-                parts = re.split(r'\s{2,}', line.strip())
+                parts = re.split(r"\s{2,}", line.strip())
                 if len(parts) >= 6:
                     service_name = parts[3]
                     status = parts[5].split()[0]
                     if service_name != "searxng" and "Up" in status:
                         services_running = True
                         break
-        
+
         if not services_running:
-            pytest.skip("No Docker services running - likely running in CI environment without Docker")
-        
+            pytest.skip(
+                "No Docker services running - likely running in CI environment without Docker"
+            )
+
         results = {}
 
         for service, config in self.services.items():
@@ -139,11 +144,11 @@ class TestDockerIntegration:
         success, output = self.run_command("docker compose ps")
         if not success:
             pytest.skip("Docker services are not running")
-        
+
         # Check if Redis container is running
         if "redis" not in output or "Up" not in output:
             pytest.skip("Redis service is not running")
-            
+
         # Test AI Assistant can reach Redis
         success, output = self.run_command(
             'docker compose exec ai-assistant uv run python -c "'
@@ -156,16 +161,21 @@ class TestDockerIntegration:
             "    print(f'Error: {e}', file=sys.stderr); "
             "    sys.exit(1)" + '"'
         )
-        
+
         # If connectivity fails, check if Redis is accessible from host
         if not success:
             # Try to connect to Redis from the host
             try:
                 import redis
-                r = redis.Redis(host="localhost", port=6379, db=0, socket_connect_timeout=5)
+
+                r = redis.Redis(
+                    host="localhost", port=6379, db=0, socket_connect_timeout=5
+                )
                 r.ping()
                 # If we can connect from host but not from container, it's a network issue
-                pytest.skip("Redis is accessible from host but not from container - network configuration issue")
+                pytest.skip(
+                    "Redis is accessible from host but not from container - network configuration issue"
+                )
             except Exception:
                 pytest.fail("Redis is not accessible from either host or container")
 
@@ -185,23 +195,25 @@ class TestDockerIntegration:
         success, output = self.run_command("docker compose ps")
         if not success:
             pytest.skip("Docker compose command failed - Docker may not be available")
-        
+
         # Check if ai-assistant service is running
         ai_assistant_running = False
         lines = output.split("\n")
         for line in lines[1:]:  # Skip header
             if line.strip():
-                parts = re.split(r'\s{2,}', line.strip())
+                parts = re.split(r"\s{2,}", line.strip())
                 if len(parts) >= 6:
                     service_name = parts[3]
                     status = parts[5].split()[0]
                     if service_name == "ai-assistant" and "Up" in status:
                         ai_assistant_running = True
                         break
-        
+
         if not ai_assistant_running:
-            pytest.skip("AI Assistant service is not running - likely running in CI environment without Docker")
-        
+            pytest.skip(
+                "AI Assistant service is not running - likely running in CI environment without Docker"
+            )
+
         endpoints = [
             ("/", "Root endpoint"),
             ("/docs", "API documentation"),
@@ -212,8 +224,13 @@ class TestDockerIntegration:
         for endpoint, description in endpoints:
             try:
                 response = requests.get(f"{self.base_url}:8001{endpoint}", timeout=10)
-                success = response.status_code in [200, 404]  # 404 is acceptable for some endpoints
-                assert success, f"{description} ({endpoint}) returned status {response.status_code}"
+                success = response.status_code in [
+                    200,
+                    404,
+                ]  # 404 is acceptable for some endpoints
+                assert (
+                    success
+                ), f"{description} ({endpoint}) returned status {response.status_code}"
             except Exception as e:
                 pytest.fail(f"{description} ({endpoint}) failed with error: {str(e)}")
 

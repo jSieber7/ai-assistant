@@ -3,8 +3,6 @@ Unit tests for agent routes functionality
 """
 
 import pytest
-from unittest.mock import patch, AsyncMock
-from fastapi.testclient import TestClient
 from app.api.agent_routes import (
     AgentChatRequest,
     AgentChatMessage,
@@ -23,16 +21,16 @@ class TestAgentRoutesDataModels:
         # Valid request
         messages = [
             AgentChatMessage(role="user", content="Hello"),
-            AgentChatMessage(role="assistant", content="Hi there!")
+            AgentChatMessage(role="assistant", content="Hi there!"),
         ]
         request = AgentChatRequest(
             messages=messages,
             agent_name="test_agent",
             stream=False,
             temperature=0.7,
-            max_tokens=100
+            max_tokens=100,
         )
-        
+
         assert request.messages == messages
         assert request.agent_name == "test_agent"
         assert request.stream is False
@@ -53,21 +51,16 @@ class TestAgentRoutesDataModels:
             created=1234567890,
             model="test_agent",
             agent_name="test_agent",
-            choices=[{
-                "index": 0,
-                "message": {
-                    "role": "assistant",
-                    "content": "Test response"
-                },
-                "finish_reason": "stop"
-            }],
-            usage={
-                "prompt_tokens": 10,
-                "completion_tokens": 5,
-                "total_tokens": 15
-            }
+            choices=[
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "Test response"},
+                    "finish_reason": "stop",
+                }
+            ],
+            usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         )
-        
+
         assert response.id == "resp_123"
         assert response.object == "chat.completion"
         assert response.model == "test_agent"
@@ -83,9 +76,9 @@ class TestAgentRoutesDataModels:
             version="1.0.0",
             state="active",
             usage_count=10,
-            categories=["text_generation", "tool_use"]
+            categories=["text_generation", "tool_use"],
         )
-        
+
         assert agent_info.name == "test_agent"
         assert agent_info.description == "Test agent description"
         assert agent_info.version == "1.0.0"
@@ -100,12 +93,9 @@ class TestAgentRoutesDataModels:
             active_agents=3,
             default_agent="test_agent",
             categories=["search", "scraping", "analysis"],
-            agents_by_category={
-                "search": 1,
-                "scraping": 2
-            }
+            agents_by_category={"search": 1, "scraping": 2},
         )
-        
+
         assert registry_info.total_agents == 5
         assert registry_info.active_agents == 3
         assert registry_info.default_agent == "test_agent"
@@ -122,9 +112,9 @@ class TestAgentRoutesErrorHandling:
         # Missing required fields
         invalid_request = {
             "messages": [],  # Empty messages
-            "agent_name": ""  # Empty agent name
+            "agent_name": "",  # Empty agent name
         }
-        
+
         response = client.post("/agents/chat/completions", json=invalid_request)
         # Should return validation error or 404 if endpoint doesn't exist
         assert response.status_code in [422, 400, 404]
@@ -148,13 +138,13 @@ class TestAgentRoutesBasicFunctionality:
             {"role": "assistant", "content": "Hi there!"},
             {"role": "user", "content": "How are you?"},
         ]
-        
+
         request = AgentChatRequest(
             messages=[AgentChatMessage(**msg) for msg in messages],
             agent_name="test_agent",
-            stream=False
+            stream=False,
         )
-        
+
         assert len(request.messages) == 4
         assert request.messages[0].role == "system"
         assert request.messages[1].role == "user"
@@ -168,9 +158,9 @@ class TestAgentRoutesBasicFunctionality:
             agent_name="test_agent",
             stream=False,
             temperature=0.5,
-            max_tokens=100
+            max_tokens=100,
         )
-        
+
         assert request.temperature == 0.5
         assert request.max_tokens == 100
 
@@ -178,9 +168,9 @@ class TestAgentRoutesBasicFunctionality:
         """Test agent chat request with minimal parameters"""
         request = AgentChatRequest(
             messages=[AgentChatMessage(role="user", content="Hello")],
-            agent_name="test_agent"
+            agent_name="test_agent",
         )
-        
+
         assert len(request.messages) == 1
         assert request.messages[0].role == "user"
         assert request.messages[0].content == "Hello"

@@ -24,11 +24,11 @@ async def test_agent_system():
     """Test the agent system functionality"""
     print("🧪 Testing Agent System Integration")
     print("=" * 50)
-    
+
     # Test messages for the agent system
     test_messages = [
         {"role": "user", "content": "Hello, how are you?"},
-        {"role": "user", "content": "What can you help me with?"}
+        {"role": "user", "content": "What can you help me with?"},
     ]
 
     # Ensure agent system is enabled
@@ -126,12 +126,12 @@ async def test_tool_selection_strategies():
     print("=" * 50)
 
     from app.core.agents.strategies import KeywordStrategy, ToolSelectionManager
-    
+
     # Test queries for tool selection
     test_queries = [
         "Calculate 42 * 3.14",
         "Search for information about Python",
-        "What is the weather like today?"
+        "What is the weather like today?",
     ]
 
     try:
