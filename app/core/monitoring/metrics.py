@@ -35,7 +35,7 @@ class ToolMetrics:
     failure_count: int = 0
     total_execution_time: float = 0.0
     last_execution_time: Optional[datetime] = None
-    error_types: Dict[str, int] = None
+    error_types: Optional[Dict[str, int]] = None
 
     def __post_init__(self):
         if self.error_types is None:
@@ -65,7 +65,7 @@ class AgentMetrics:
     success_count: int = 0
     failure_count: int = 0
     total_execution_time: float = 0.0
-    tools_used: Dict[str, int] = None
+    tools_used: Optional[Dict[str, int]] = None
     conversation_count: int = 0
 
     def __post_init__(self):
@@ -181,7 +181,7 @@ class MetricsCollector:
         tool_name: str,
         success: bool,
         execution_time: float,
-        error_type: str = None,
+        error_type: Optional[str] = None,
     ):
         """Record tool execution metrics"""
         if not monitoring_config.monitoring_enabled:
@@ -201,9 +201,10 @@ class MetricsCollector:
         else:
             metrics.failure_count += 1
             if error_type:
-                metrics.error_types[error_type] = (
-                    metrics.error_types.get(error_type, 0) + 1
-                )
+                if metrics.error_types is not None:
+                    metrics.error_types[error_type] = (
+                        metrics.error_types.get(error_type, 0) + 1
+                    )
 
         # Update Prometheus metrics
         status = "success" if success else "failure"
@@ -221,7 +222,7 @@ class MetricsCollector:
         agent_name: str,
         success: bool,
         execution_time: float,
-        tools_used: List[str] = None,
+        tools_used: Optional[List[str]] = None,
     ):
         """Record agent execution metrics"""
         if not monitoring_config.monitoring_enabled:
@@ -243,7 +244,10 @@ class MetricsCollector:
         # Track tools used
         if tools_used:
             for tool_name in tools_used:
-                metrics.tools_used[tool_name] = metrics.tools_used.get(tool_name, 0) + 1
+                if metrics.tools_used is not None:
+                    metrics.tools_used[tool_name] = (
+                        metrics.tools_used.get(tool_name, 0) + 1
+                    )
 
         # Update Prometheus metrics
         status = "success" if success else "failure"
@@ -291,7 +295,7 @@ class MetricsCollector:
         self.active_agents.set(active_agents)
         self.system_uptime.set(uptime_seconds)
 
-    def get_tool_metrics(self, tool_name: str = None) -> Dict[str, Any]:
+    def get_tool_metrics(self, tool_name: Optional[str] = None) -> Dict[str, Any]:
         """Get metrics for specific tool or all tools"""
         if tool_name:
             metrics = self._tool_metrics.get(tool_name)
@@ -299,7 +303,7 @@ class MetricsCollector:
 
         return {name: metrics.__dict__ for name, metrics in self._tool_metrics.items()}
 
-    def get_agent_metrics(self, agent_name: str = None) -> Dict[str, Any]:
+    def get_agent_metrics(self, agent_name: Optional[str] = None) -> Dict[str, Any]:
         """Get metrics for specific agent or all agents"""
         if agent_name:
             metrics = self._agent_metrics.get(agent_name)
