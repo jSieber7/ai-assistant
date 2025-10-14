@@ -62,6 +62,8 @@ services:
       - BIND_ADDRESS=0.0.0.0
       - PORT=8080
       - BASE_URL=http://localhost:8080/
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/"]
       interval: 30s
