@@ -63,6 +63,7 @@ class TestDockerIntegration:
         except Exception:
             return False
 
+    @pytest.mark.slow
     def test_service_status(self):
         """Test if all Docker services are running."""
         success, output = self.run_command("docker compose ps")
@@ -82,6 +83,7 @@ class TestDockerIntegration:
         for service_name, status in services.items():
             assert status, f"{service_name} is not running"
 
+    @pytest.mark.slow
     def test_service_health(self):
         """Test health of all services."""
         results = {}
@@ -96,6 +98,7 @@ class TestDockerIntegration:
         for service, healthy in results.items():
             assert healthy, f"{service} health check failed"
 
+    @pytest.mark.slow
     def test_connectivity(self):
         """Test connectivity between services."""
         # Test AI Assistant can reach Redis
@@ -116,6 +119,7 @@ class TestDockerIntegration:
         )
         assert success, "AI Assistant -> SearXNG connectivity failed"
 
+    @pytest.mark.slow
     def test_application_endpoints(self):
         """Test AI Assistant application endpoints."""
         endpoints = [
@@ -133,6 +137,7 @@ class TestDockerIntegration:
             except Exception as e:
                 pytest.fail(f"{description} ({endpoint}) failed with error: {str(e)}")
 
+    @pytest.mark.slow
     def test_searxng_functionality(self):
         """Test SearXNG search functionality."""
         # Test basic search
