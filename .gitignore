@@ -32,3 +32,4 @@ bandit-results.json
 # MkDocs
 site/
 .cache/
+.coverage
