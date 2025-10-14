@@ -22,6 +22,7 @@ tool_registry.register(EchoTool(), "testing")
 
 # Register SearXNG search tool if URL is configured
 from ..core.config import settings
+
 if settings.searxng_url:
     tool_registry.register(SearXNGTool(), "search")
 
