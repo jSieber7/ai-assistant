@@ -27,12 +27,12 @@ help:
 # Build all images
 build:
 	@echo "Building Docker images..."
-	docker-compose build
+	docker compose build
 
 # Start all services (production)
 up:
 	@echo "Starting all services..."
-	docker-compose up -d
+	docker compose up -d
 	@echo "Services started. Access:"
 	@echo "  AI Assistant: http://localhost:8000"
 	@echo "  SearXNG: http://localhost:8080"
@@ -41,20 +41,20 @@ up:
 # Start in development mode
 dev:
 	@echo "Starting in development mode..."
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 	@echo "Development mode started with hot reload"
 
 # Start with development tools
 tools:
 	@echo "Starting with development tools..."
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml --profile tools up
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile tools up
 	@echo "Development tools started:"
 	@echo "  Redis Commander: http://localhost:8081"
 
 # Start with monitoring
 monitor:
 	@echo "Starting with monitoring tools..."
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml --profile monitoring up
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile monitoring up
 	@echo "Monitoring tools started:"
 	@echo "  Prometheus: http://localhost:9090"
 	@echo "  Grafana: http://localhost:3000 (admin/admin)"
@@ -62,54 +62,54 @@ monitor:
 # Start with PostgreSQL
 db:
 	@echo "Starting with PostgreSQL..."
-	docker-compose --profile postgres up -d
+	docker compose --profile postgres up -d
 	@echo "PostgreSQL started on localhost:5432"
 
 # Stop all services
 down:
 	@echo "Stopping all services..."
-	docker-compose down
+	docker compose down
 
 # Show logs
 logs:
-	docker-compose logs -f
+	docker compose logs -f
 
 # Show application logs
 logs-app:
-	docker-compose logs -f ai-assistant
+	docker compose logs -f ai-assistant
 
 # Clean up
 clean:
 	@echo "Cleaning up Docker resources..."
-	docker-compose down -v --rmi all
+	docker compose down -v --rmi all
 	docker system prune -f
 
 # Run tests
 test:
 	@echo "Running tests in Docker..."
-	docker-compose -f docker-compose.yml -f docker-compose.test.yml up --abort-on-container-exit
+	docker compose -f docker-compose.yml -f docker-compose.test.yml up --abort-on-container-exit
 
 # Open shell in container
 shell:
-	docker-compose exec ai-assistant bash
+	docker compose exec ai-assistant bash
 
 # Check status
 status:
 	@echo "Service status:"
-	docker-compose ps
+	docker compose ps
 
 # Backup Redis
 backup-redis:
 	@echo "Backing up Redis data..."
 	mkdir -p backups
-	docker-compose exec redis redis-cli BGSAVE
+	docker compose exec redis redis-cli BGSAVE
 	docker cp ai-assistant-redis:/data/dump.rdb ./backups/redis-$(shell date +%Y%m%d-%H%M%S).rdb
 
 # Restore Redis
 restore-redis:
 	@echo "Available backups:"
 	@ls -la backups/
-	@echo "Run: docker cp ./backups/FILENAME ai-assistant-redis:/data/dump.rdb && docker-compose restart redis"
+	@echo "Run: docker cp ./backups/FILENAME ai-assistant-redis:/data/dump.rdb && docker compose restart redis"
 
 # Quick setup for new users
 setup:
