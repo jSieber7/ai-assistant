@@ -14,6 +14,7 @@ from app.core.multi_writer_config import (
 )
 
 
+@pytest.mark.unit
 class TestMultiWriterSettings:
     """Test multi-writer configuration settings"""
 
@@ -42,6 +43,7 @@ class TestMultiWriterSettings:
             assert any("Firecrawl API key not configured" in issue for issue in issues)
 
 
+@pytest.mark.unit
 class TestWriterAgent:
     """Test writer agent functionality"""
 
@@ -85,6 +87,7 @@ class TestWriterAgent:
         assert 0.0 <= score <= 1.0
 
 
+@pytest.mark.unit
 class TestCheckerAgent:
     """Test checker agent functionality"""
 
@@ -120,6 +123,7 @@ class TestCheckerAgent:
         assert parsed["improved_content"] == result
 
 
+@pytest.mark.unit
 class TestMultiWriterOrchestrator:
     """Test multi-writer orchestrator"""
 
@@ -136,6 +140,7 @@ class TestMultiWriterOrchestrator:
         assert "analytical_1" in orchestrator.writers
 
 
+@pytest.mark.unit
 class TestMultiCheckerOrchestrator:
     """Test multi-checker orchestrator"""
 
@@ -181,6 +186,7 @@ class TestMultiCheckerOrchestrator:
         assert best["checker_id"] == "checker2"
 
 
+@pytest.mark.unit
 class TestContentProcessor:
     """Test content processor"""
 
@@ -230,6 +236,7 @@ class TestContentProcessor:
         assert any("First important point" in point for point in key_points)
 
 
+@pytest.mark.unit
 class TestJinjaProcessor:
     """Test Jinja processor"""
 

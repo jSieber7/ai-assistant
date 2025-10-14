@@ -15,6 +15,7 @@ from app.core.llm_providers import (
 from app.core.config import OllamaSettings
 
 
+@pytest.mark.unit
 class TestOllamaProvider:
     """Test Ollama provider functionality"""
 
@@ -117,6 +118,7 @@ class TestOllamaProvider:
             )
 
 
+@pytest.mark.unit
 class TestLLMProviderRegistry:
     """Test LLM provider registry functionality"""
 
@@ -234,6 +236,7 @@ class TestLLMProviderRegistry:
         assert openrouter_provider.is_healthy()
 
 
+@pytest.mark.unit
 class TestOllamaSettings:
     """Test Ollama settings configuration"""
 
@@ -269,6 +272,7 @@ class TestOllamaSettings:
         assert not settings.streaming
 
 
+@pytest.mark.unit
 class TestModelInfo:
     """Test ModelInfo data class"""
 
@@ -307,6 +311,7 @@ class TestModelInfo:
         assert model.supports_tools  # Default
 
 
+@pytest.mark.unit
 class TestOpenAICompatibleProvider:
     """Test OpenAI-compatible provider functionality"""
 
@@ -493,6 +498,7 @@ class TestOpenAICompatibleProvider:
             )
 
 
+@pytest.mark.unit
 class TestOpenRouterBackwardCompatibility:
     """Test OpenRouter backward compatibility"""
 

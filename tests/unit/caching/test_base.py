@@ -12,6 +12,7 @@ from app.core.caching.base import (
 )
 
 
+@pytest.mark.unit
 class TestCacheBackend:
     """Test CacheBackend interface."""
 
@@ -83,6 +84,7 @@ class TestCacheBackend:
         mock_backend.get_stats.assert_called_once()
 
 
+@pytest.mark.unit
 class TestCacheLayer:
     """Test CacheLayer class."""
 
@@ -213,6 +215,7 @@ class TestCacheLayer:
         }
 
 
+@pytest.mark.unit
 class TestMultiLayerCache:
     """Test MultiLayerCache class."""
 
@@ -374,6 +377,7 @@ class TestMultiLayerCache:
         assert result["read_through"] is True
 
 
+@pytest.mark.unit
 class TestCacheMetrics:
     """Test CacheMetrics class."""
 

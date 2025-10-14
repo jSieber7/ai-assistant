@@ -8,6 +8,7 @@ import pytest
 from unittest.mock import patch
 
 
+@pytest.mark.unit
 class TestGradioInterface:
     """Test class for Gradio interface functionality."""
 
