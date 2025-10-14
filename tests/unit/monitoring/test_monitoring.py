@@ -21,6 +21,7 @@ from app.core.tools.base import BaseTool
 from app.core.agents.base import BaseAgent, AgentResult
 
 
+@pytest.mark.unit
 class TestMetricsCollector:
     """Test metrics collection functionality"""
 
@@ -137,6 +138,7 @@ class TestMetricsCollector:
         assert "tool_execution_duration_seconds" in metrics_text
 
 
+@pytest.mark.unit
 class TestHealthMonitor:
     """Test health monitoring functionality"""
 
@@ -241,6 +243,7 @@ class TestHealthMonitor:
         assert any(key in system_info for key in expected_keys)
 
 
+@pytest.mark.unit
 class TestMonitoringAPI:
     """Test monitoring API endpoints"""
 
@@ -335,6 +338,7 @@ class TestMonitoringAPI:
         assert "metrics_backend" in data
 
 
+@pytest.mark.unit
 class TestMonitoringIntegration:
     """Test monitoring system integration with tools and agents"""
 
@@ -406,6 +410,7 @@ class TestMonitoringIntegration:
         assert result.agent_name == "mock_agent"
 
 
+@pytest.mark.unit
 class TestMonitoringConfiguration:
     """Test monitoring configuration functionality"""
 

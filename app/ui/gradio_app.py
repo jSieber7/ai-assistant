@@ -15,7 +15,27 @@ from ..core.llm_providers import provider_registry
 def get_models_list() -> List[str]:
     """Get list of available models for the dropdown"""
     try:
-        models = get_available_models()
+        import asyncio
+
+        try:
+            # Try to get the current event loop
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If loop is running, we can't use run_until_complete
+                # Return default model for now
+                return [settings.default_model]
+            else:
+                # If loop exists but not running, use it
+                models = loop.run_until_complete(get_available_models())
+        except RuntimeError:
+            # No event loop, create a new one
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                models = loop.run_until_complete(get_available_models())
+            finally:
+                loop.close()
+
         return [
             (
                 f"{model.provider.value}:{model.name}"

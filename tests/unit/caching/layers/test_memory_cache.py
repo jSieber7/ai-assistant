@@ -7,6 +7,7 @@ import asyncio
 from app.core.caching.layers.memory import MemoryCache, MemoryCacheLayer
 
 
+@pytest.mark.unit
 class TestMemoryCache:
     """Test MemoryCache class."""
 
@@ -234,6 +235,7 @@ class TestMemoryCache:
         assert memory_cache._cache == {}
 
 
+@pytest.mark.unit
 class TestMemoryCacheLayer:
     """Test MemoryCacheLayer class."""
 
@@ -383,6 +385,7 @@ class TestMemoryCacheLayer:
         assert "sets" in backend_stats
 
 
+@pytest.mark.unit
 class TestMemoryCacheIntegration:
     """Integration tests for memory cache."""
 

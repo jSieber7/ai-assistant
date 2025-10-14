@@ -18,6 +18,7 @@ from app.core.caching import (
 )
 
 
+@pytest.mark.unit
 class TestCachingSystem:
     """Test the main CachingSystem class."""
 
@@ -226,6 +227,7 @@ class TestCachingSystem:
         assert caching_system._initialized is False
 
 
+@pytest.mark.unit
 class TestGlobalCachingFunctions:
     """Test the global caching functions."""
 
@@ -344,6 +346,7 @@ class TestGlobalCachingFunctions:
         assert "compression_enabled" in stats
 
 
+@pytest.mark.unit
 class TestCachingContext:
     """Test the CachingContext context manager."""
 
@@ -382,6 +385,7 @@ class TestCachingContext:
         assert result is None
 
 
+@pytest.mark.unit
 class TestCachingSystemIntegration:
     """Integration tests for the caching system."""
 
@@ -502,6 +506,7 @@ class TestCachingSystemIntegration:
         await system.shutdown()
 
 
+@pytest.mark.unit
 class TestCachingSystemEdgeCases:
     """Test edge cases and error conditions."""
 

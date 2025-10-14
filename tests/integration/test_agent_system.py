@@ -16,7 +16,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "app"))
 from app.core.config import initialize_agent_system, settings
 from app.core.agents.registry import agent_registry
 from app.core.tools.registry import tool_registry
-from tests.test_utils import TEST_MESSAGES, TEST_QUERIES
 
 
 @pytest.mark.integration
@@ -25,6 +24,12 @@ async def test_agent_system():
     """Test the agent system functionality"""
     print("🧪 Testing Agent System Integration")
     print("=" * 50)
+
+    # Test messages for the agent system
+    test_messages = [
+        {"role": "user", "content": "Hello, how are you?"},
+        {"role": "user", "content": "What can you help me with?"},
+    ]
 
     # Ensure agent system is enabled
     if not settings.agent_system_enabled:
@@ -65,7 +70,7 @@ async def test_agent_system():
         # Test simple message processing
         print("\n💬 Testing message processing...")
 
-        for message in TEST_MESSAGES:
+        for message in test_messages:
             print(f"\n📨 Testing: '{message}'")
             try:
                 result = await agent_registry.process_message(message)
@@ -122,11 +127,18 @@ async def test_tool_selection_strategies():
 
     from app.core.agents.strategies import KeywordStrategy, ToolSelectionManager
 
+    # Test queries for tool selection
+    test_queries = [
+        "Calculate 42 * 3.14",
+        "Search for information about Python",
+        "What is the weather like today?",
+    ]
+
     try:
         # Test keyword strategy
         keyword_strategy = KeywordStrategy()
 
-        for query in TEST_QUERIES:
+        for query in test_queries:
             print(f"\n🔍 Testing query: '{query}'")
             tools = await keyword_strategy.select_tools(query, None, tool_registry)
             print(f"   Selected tools: {[tool.name for tool in tools]}")
