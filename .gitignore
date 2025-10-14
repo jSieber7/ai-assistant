@@ -5,31 +5,112 @@ build/
 dist/
 wheels/
 *.egg-info
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.nox/
 
 # Virtual environments
 .venv
+venv/
+env/
+ENV/
 
-# Personal environment file
+# Environment files
 .env
+.env.local
+.env.*.local
 
 # Local implementation notes
-development_notes
-development_notes_2
-ai_notes
-examples
+development_notes/
+development_notes_2/
+ai_notes/
+examples/
 
 # Test reports
 *.xml
 junit*.xml
 test-results/
 reports/
-.ruff_cache
-.pytest_cache
-.mypy_cache
-.uv-cache
+.ruff_cache/
+.mypy_cache/
+.uv-cache/
 bandit-results.json
+.nyc_output/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker
+.dockerignore
 
 # MkDocs
 site/
 .cache/
+
+# Monitoring and metrics
+prometheus_data/
+grafana_data/
+
+# Backup files
+backups/
+*.bak
+*.backup
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# UV
+.uv-cache
+
+# Coverage files
 .coverage
+coverage.xml
+*.cover
+.hypothesis/
+
+# Profiling
+*.prof
+*.profile
+
+# Local configuration overrides
+config.local.*
+settings.local.*
