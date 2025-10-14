@@ -82,7 +82,6 @@ class RedisCache(CacheBackend):
         retry_attempts: int = 3,
         retry_delay: float = 0.1,
     ):
-
         if not _redis_available:
             raise ImportError(
                 "Redis is not installed. Please install the 'redis' package to use RedisCache. "

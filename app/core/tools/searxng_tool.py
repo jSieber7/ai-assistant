@@ -5,10 +5,8 @@ This module provides a tool for performing web searches using SearXNG.
 """
 
 import aiohttp
-import asyncio
-from typing import Dict, Any, List, Optional
-from urllib.parse import urlencode, quote_plus
-from bs4 import BeautifulSoup
+from typing import Dict, Any, List
+from urllib.parse import urlencode
 from .base import BaseTool, ToolExecutionError
 
 
@@ -158,7 +156,6 @@ class SearXNGTool(BaseTool):
                             )
 
                     # Get query information
-                    query_info = results.get("query", "")
                     search_time = results.get("search", {}).get("time", 0)
                     total_results = len(results.get("results", []))
 
