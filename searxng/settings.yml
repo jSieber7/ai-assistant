@@ -1,0 +1,28 @@
+# SearXNG configuration for AI Assistant
+# See https://docs.searxng.org/admin/engines.html for engine configuration
+
+general:
+  debug: false
+  instance_name: "AI Assistant Search"
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  formats:
+    - html
+    - json
+
+server:
+  port: 8080
+  bind_address: "0.0.0.0"
+  secret_key: "ultrasecretkey"
+  base_url: "http://searxng:8080/"
+
+ui:
+  default_theme: simple
+
+engines:
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: ddg
+    disabled: false

@@ -2,14 +2,53 @@
 
 A comprehensive, extensible tool system foundation for AI assistants built with FastAPI and LangChain. This project provides a robust framework for integrating tool-calling capabilities into LLM applications, featuring advanced caching, monitoring, and agent orchestration.
 
+## 🎯 Current Status
+
+**Version**: 0.3.2 | **Status**: Active Development | **License**: MIT
+
+This is a production-ready foundation for building AI assistants with tool-calling capabilities. The system provides OpenAI-compatible API endpoints, multi-provider LLM support, and an extensible tool architecture.
+
 ## 🚀 Quick Start
 
-### Prerequisites
+### Option 1: Docker (Recommended)
+
+#### Prerequisites
+- Docker and Docker Compose installed
+- API key for any OpenAI-compatible provider (OpenRouter, OpenAI, Together AI, etc.)
+
+#### Quick Setup
+```bash
+# Clone the repository
+git clone https://github.com/jSieber7/ai_assistant.git
+cd ai_assistant
+
+# Set up environment
+cp .env.docker .env
+
+# Configure your API key in .env
+nano .env  # Set OPENAI_COMPATIBLE_API_KEY and SECRET_KEY
+
+# Start all services
+docker-compose up -d
+
+# Check status
+docker-compose ps
+```
+
+Access the application:
+- AI Assistant: http://localhost:8000
+- SearXNG Search: http://localhost:8080
+
+For detailed Docker setup, see [Docker Integration Guide](docs/docker-integration.md).
+
+### Option 2: Local Development
+
+#### Prerequisites
 - UV package manager
 - API key for any OpenAI-compatible provider (OpenRouter, OpenAI, Together AI, etc.)
 - Ollama server (optional, for local models)
 
-### Installation
+#### Installation
 ```bash
 # Clone the repository
 git clone https://github.com/jSieber7/ai_assistant.git
@@ -30,7 +69,7 @@ echo "OPENAI_COMPATIBLE_BASE_URL=https://your-provider.com/api/v1" >> .env
 echo "OPENROUTER_API_KEY=your_key_here" >> .env
 ```
 
-### Running the System
+#### Running the System
 ```bash
 # Start the development server
 uv run uvicorn app.main:app --reload
@@ -62,13 +101,17 @@ The LLM Tool System Foundation is built on a modular architecture that enables s
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
-### Key Features
+### ✅ Implemented Features
 - **🔧 Extensible Tool System**: Dynamic tool registration and discovery
 - **🤖 Intelligent Agent Orchestration**: Context-aware tool selection and execution
 - **⚡ Advanced Caching**: Multi-layer caching with compression and batching
 - **📊 Comprehensive Monitoring**: Real-time metrics and health checks
 - **🔒 Security-First Design**: Input validation and access control
 - **🔄 LangChain Integration**: Seamless compatibility with LangChain ecosystem
+- **🌐 Multi-Provider Support**: OpenAI, OpenRouter, Together AI, and custom providers
+- **🐳 Docker Support**: Complete containerization with docker-compose
+- **🔍 SearXNG Integration**: Privacy-focused web search capabilities
+- **📈 Prometheus Metrics**: Built-in monitoring and alerting
 
 ## 📚 Documentation
 
@@ -216,25 +259,84 @@ python run_tests.py
 python run_tests.py --unit
 python run_tests.py --integration
 python run_tests.py --coverage
+
+# Run with Docker
+docker-compose -f docker-compose.yml -f docker-compose.test.yml up --abort-on-container-exit
 ```
+
+### Test Coverage
+- **Unit Tests**: Core functionality, tool execution, caching
+- **Integration Tests**: API endpoints, provider integration, tool workflows
+- **System Tests**: Docker deployment, monitoring, end-to-end scenarios
+- **Security Tests**: Input validation, API key handling, dependency scanning
 
 ## 🚀 Deployment
 
 ### Production Deployment
+
+#### Option 1: Docker Compose (Recommended)
+```bash
+# Production with all services
+docker-compose --profile postgres up -d
+
+# Check logs
+docker-compose logs -f
+
+# Scale application
+docker-compose up -d --scale ai-assistant=3
+```
+
+#### Option 2: Local Production
 ```bash
 uv sync
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
 ```
 
-### Docker Deployment
-```dockerfile
-FROM python:3.12-slim
-WORKDIR /app
-COPY . .
-RUN uv sync
-EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+### Docker Services
+
+The Docker setup includes:
+
+- **AI Assistant**: Main application (port 8000)
+- **Redis**: Caching and session storage (port 6379)
+- **SearXNG**: Privacy-focused search (port 8080)
+- **PostgreSQL**: Optional database (port 5432)
+
+### Development with Docker
+
+#### Development Mode
+```bash
+# Start with hot reload
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+# With debugging tools
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml --profile debug up
+
+# With monitoring tools
+docker-compose -f docker-compose.yml -f docker-compose.dev.yml --profile monitoring up
 ```
+
+#### Development Tools
+
+- **Redis Commander**: Redis GUI (port 8081)
+- **Prometheus**: Metrics collection (port 9090)
+- **Grafana**: Metrics visualization (port 3000)
+
+### Environment Configuration
+
+#### Docker Environment
+Copy `.env.docker` to `.env` and configure:
+
+```bash
+# Required
+OPENAI_COMPATIBLE_API_KEY=your_api_key_here
+SECRET_KEY=your_secret_key_here
+
+# Optional service URLs
+REDIS_URL=redis://redis:6379/0
+SEARXNG_URL=http://searxng:8080
+```
+
+For detailed Docker setup, see [Docker Integration Guide](docs/docker-integration.md).
 
 ## 🤝 Contributing
 

@@ -6,17 +6,25 @@ This document describes the high-level architecture of the AI Assistant project,
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Client Apps   │◄──►│   FastAPI API    │◄──►│   LLM Agents    │
+│   Client Apps   │◄──►│   FastAPI API    │◄──►│   Agent System  │
 │ (OpenWebUI,     │    │  (OpenAI-compat) │    │   (LangChain)   │
-│  Chat Apps)     │    │                  │    │                 │
+│  Custom Apps)   │    │                  │    │                 │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
          │                       │                       │
          │                       │                       │
          ▼                       ▼                       ▼
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Web Frontend  │    │   Tool System    │◄──►│  External APIs  │
-│   (Optional)    │    │  (Extensible)    │    │ (OpenRouter,    │
-│                 │    │                  │    │   SearX, RAG)   │
+│   Monitoring    │    │   Tool System    │◄──►│  Provider Layer │
+│  (Prometheus,   │    │  (Extensible)    │    │ (Multi-Provider)│
+│   Grafana)      │    │                  │    │                 │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+         │                       │                       │
+         │                       │                       │
+         ▼                       ▼                       ▼
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Caching Layer │    │   Storage Layer  │    │  External APIs  │
+│  (Multi-layer)  │    │ (Redis, Session) │    │ (OpenRouter,    │
+│                 │    │                  │    │  OpenAI, etc.)  │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
@@ -25,36 +33,63 @@ This document describes the high-level architecture of the AI Assistant project,
 ### 1. API Layer (FastAPI)
 - **Purpose**: Provide OpenAI-compatible interface
 - **Technology**: FastAPI with Pydantic models<br><br>
-<u>**Features**</u> 
+<u>**Features**</u>
+  - Full OpenAI API compatibility
+  - Streaming and non-streaming responses
+  - Comprehensive error handling
   - OpenAPI documentation
-  - Streaming responses
   - CORS support
-  - Authentication (planned)
+  - Request validation and sanitization
 
-### 2. LLM Agent Layer (LangChain)
-- **Purpose**: Orchestrate LLM interactions and tool calling
+### 2. Agent System (LangChain)
+- **Purpose**: Orchestrate LLM interactions and intelligent tool calling
 - **Technology**: LangChain with custom agents<br><br>
 <u>**Features**</u>
-  - Multi-model support via OpenRouter
-  - Tool calling capabilities
-  - Conversation memory
+  - Multi-provider model support
+  - Advanced tool calling capabilities
+  - Context-aware tool selection
+  - Conversation memory management
   - Response streaming
+  - Fallback and error recovery
 
 ### 3. Tool System (Extensible)
-- **Purpose**: Extend AI capabilities with external tools
-- **Technology**: Modular tool architecture<br><br>
-<u>**Current Tools**</u>
-  - Web search (SearX integration - planned)
-  - Knowledge base (RAG system - planned)
+- **Purpose**: Extend AI capabilities with specialized tools
+- **Technology**: Modular tool architecture with registry<br><br>
+<u>**Built-in Tools**</u>
+  - Calculator (mathematical operations)
+  - Time Tool (current time and date functions)
+  - SearXNG Search (privacy-focused web search)
+  - Echo Tool (testing and debugging)
   - Custom tool development framework
 
-### 4. Data Layer
-- **Purpose**: Manage application data and vector storage
-- **Technology**: PostgreSQL with pgvector (planned)<br><br>
+### 4. Provider Layer
+- **Purpose**: Abstract multiple LLM providers behind unified interface
+- **Technology**: Provider abstraction with fallback mechanisms<br><br>
+<u>**Supported Providers**</u>
+  - OpenAI (GPT models)
+  - OpenRouter (multiple models)
+  - Anthropic (Claude models)
+  - Together AI (open-source models)
+  - Ollama (local models)
+  - Any OpenAI-compatible API
+
+### 5. Caching Layer
+- **Purpose**: Optimize performance and reduce API costs
+- **Technology**: Multi-layer caching with compression<br><br>
 <u>**Features**</u>
-  - Vector embeddings for RAG
-  - Document storage and retrieval
-  - Conversation history (planned)
+  - In-memory caching (Redis)
+  - Response compression
+  - Intelligent cache invalidation
+  - Cache statistics and monitoring
+
+### 6. Monitoring Layer
+- **Purpose**: System observability and performance tracking
+- **Technology**: Prometheus metrics with Grafana dashboards<br><br>
+<u>**Features**</u>
+  - Real-time metrics collection
+  - Custom dashboards
+  - Health checks and alerts
+  - Performance analytics
 
 ## Data Flow
 

@@ -193,7 +193,7 @@ def tool_selection_prompt(tool_descriptions: List[Dict[str, Any]]) -> str:
             ]
         )
         prompt_lines.append(
-            f"- {tool['name']}: {tool['description']} " f"[Parameters: {param_desc}]"
+            f"- {tool['name']}: {tool['description']} [Parameters: {param_desc}]"
         )
 
     return "\n".join(prompt_lines)

@@ -9,7 +9,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import logging
-from ..core.tools import tool_registry, CalculatorTool, TimeTool, EchoTool
+from ..core.tools import tool_registry, CalculatorTool, TimeTool, EchoTool, SearXNGTool
 from ..core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -19,6 +19,11 @@ router = APIRouter(prefix="/v1/tools", tags=["tools"])
 tool_registry.register(CalculatorTool(), "utility")
 tool_registry.register(TimeTool(), "utility")
 tool_registry.register(EchoTool(), "testing")
+
+# Register SearXNG search tool if URL is configured
+
+if settings.searxng_url:
+    tool_registry.register(SearXNGTool(), "search")
 
 
 class ToolExecutionRequest(BaseModel):

@@ -15,6 +15,7 @@ from .base import (
 )
 from .registry import ToolRegistry
 from .examples import CalculatorTool, TimeTool, EchoTool
+from .searxng_tool import SearXNGTool
 from .config import ToolSystemSettings, tool_settings
 from .langchain_integration import (
     LangChainToolWrapper,
@@ -42,6 +43,7 @@ __all__ = [
     "CalculatorTool",
     "TimeTool",
     "EchoTool",
+    "SearXNGTool",
     "ToolSystemSettings",
     "tool_settings",
     "LangChainToolWrapper",
