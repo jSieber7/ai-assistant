@@ -1,5 +1,5 @@
 # SearXNG configuration for AI Assistant
-# Minimal configuration to avoid errors
+# See https://docs.searxng.org/admin/engines.html for engine configuration
 
 general:
   debug: false
