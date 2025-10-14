@@ -176,7 +176,7 @@ class BatchProcessor(Generic[T, R]):
             # Check queue size limit
             if len(self._queue) >= self.max_queue_size:
                 self._stats["queue_overflows"] += 1
-                error_result = BatchResult(
+                error_result: BatchResult[R] = BatchResult(
                     request_id=request_id,
                     error="Queue overflow - request rejected",
                     processed_at=time.time(),
@@ -241,7 +241,7 @@ class BatchProcessor(Generic[T, R]):
             batch_requests = self._queue[: self.max_batch_size]
             self._queue = self._queue[self.max_batch_size :]
 
-            batch = Batch(
+            batch: Batch[T, R] = Batch(
                 batch_id=str(uuid.uuid4()),
                 requests=batch_requests,
                 created_at=time.time(),
@@ -271,7 +271,7 @@ class BatchProcessor(Generic[T, R]):
         # Match results to requests
         batch.results = []
         for i, request in enumerate(batch.requests):
-            result = BatchResult(
+            result: BatchResult[R] = BatchResult(
                 request_id=request.request_id,
                 processed_at=time.time(),
                 metadata=request.metadata,
@@ -338,9 +338,9 @@ class BatchProcessor(Generic[T, R]):
                     )  # Exponential backoff
                 else:
                     # Return exceptions for all requests
-                    return [e] * len(request_data)
+                    return [e] * len(request_data)  # type: ignore[list-item]
 
-        return [last_exception] * len(request_data)  # Should not reach here
+        return [last_exception] * len(request_data)  # type: ignore[list-item]  # Should not reach here
 
     async def _set_batch_results(self, batch: Batch[T, R]) -> None:
         """Set results for all requests in the batch."""
@@ -465,7 +465,7 @@ class BatchProcessorManager:
         if processor:
             return await processor.submit_request(data, priority, metadata)
         else:
-            error_result = BatchResult(
+            error_result: BatchResult[Any] = BatchResult(
                 request_id=str(uuid.uuid4()),
                 error=f"Processor '{processor_name}' not found",
                 processed_at=time.time(),
@@ -481,7 +481,7 @@ class BatchProcessorManager:
             }
 
             for name, processor in self.processors.items():
-                stats["processors"][name] = processor.get_stats()
+                stats["processors"][name] = await processor.get_stats()
 
             return stats
 

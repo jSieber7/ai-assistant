@@ -21,8 +21,8 @@ try:
     from app.core.monitoring.config import monitoring_config
 except ImportError:
     # Fallback for when monitoring is not available
-    metrics_collector = None
-    monitoring_config = None
+    metrics_collector = None  # type: ignore
+    monitoring_config = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +132,7 @@ class BaseAgent(ABC):
         """
         start_time = time.time()
         success = False
-        tools_used = []
+        tools_used: list[str] = []
 
         try:
             # Call the actual implementation

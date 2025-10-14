@@ -76,7 +76,7 @@ class ResultCompressor:
         self.default_algorithm = default_algorithm
         self.min_size_for_compression = min_size_for_compression
         self.compression_level = compression_level
-        self._stats = {
+        self._stats: Dict[str, Any] = {
             "total_compressions": 0,
             "total_decompressions": 0,
             "total_bytes_saved": 0,
@@ -143,7 +143,7 @@ class ResultCompressor:
         # Update statistics
         self._stats["total_compressions"] += 1
         self._stats["compressions_by_algorithm"][algorithm.value] += 1
-        self._stats["total_bytes_saved"] += result.space_saved
+        self._stats["total_bytes_saved"] += int(result.space_saved)
 
         logger.debug(
             f"Compressed {original_size} bytes to {compressed_size} bytes "
@@ -262,9 +262,9 @@ class ResultCompressor:
             "total_decompressions": total_decompressions,
             "total_bytes_saved": self._stats["total_bytes_saved"],
             "average_bytes_saved_per_compression": (
-                self._stats["total_bytes_saved"] / total_compressions
+                float(self._stats["total_bytes_saved"]) / float(total_compressions)
                 if total_compressions > 0
-                else 0
+                else 0.0
             ),
             "compressions_by_algorithm": self._stats["compressions_by_algorithm"],
             "decompressions_by_algorithm": self._stats["decompressions_by_algorithm"],
@@ -459,7 +459,7 @@ async def decompress_string(
     """Decompress data back to a string."""
     compressor = get_default_compressor()
     result = await compressor.decompress(compressed_data, algorithm)
-    return result
+    return str(result)
 
 
 # Example usage and testing
