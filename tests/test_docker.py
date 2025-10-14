@@ -8,7 +8,7 @@ import subprocess
 import time
 import requests
 import sys
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
 
 
 class DockerTester:
@@ -63,7 +63,7 @@ class DockerTester:
             r = redis.Redis(host="localhost", port=6379, db=0, socket_connect_timeout=5)
             r.ping()
             return True
-        except:
+        except Exception:
             return False
 
     def check_http_service(self, service: str, path: str = "/") -> bool:
@@ -74,7 +74,7 @@ class DockerTester:
         try:
             response = requests.get(url, timeout=10)
             return response.status_code == 200
-        except:
+        except Exception:
             return False
 
     def test_service_health(self) -> Dict[str, bool]:
