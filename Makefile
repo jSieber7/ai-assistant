@@ -87,7 +87,9 @@ clean:
 # Run tests
 test:
 	@echo "Running tests in Docker..."
-	docker compose -f docker-compose.yml -f docker-compose.test.yml up --abort-on-container-exit
+	docker compose -f docker-compose.test.yml up --abort-on-container-exit --build
+	@echo "Cleaning up test containers..."
+	docker compose -f docker-compose.test.yml down -v --remove-orphans
 
 # Open shell in container
 shell:

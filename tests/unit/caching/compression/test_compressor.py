@@ -17,6 +17,7 @@ from app.core.caching.compression.compressor import (
 )
 
 
+@pytest.mark.unit
 class TestCompressionAlgorithm:
     """Test CompressionAlgorithm enum."""
 
@@ -31,6 +32,7 @@ class TestCompressionAlgorithm:
         assert len(algorithms) == len(expected_algorithms)
 
 
+@pytest.mark.unit
 class TestCompressionResult:
     """Test CompressionResult class."""
 
@@ -87,6 +89,7 @@ class TestCompressionResult:
         assert result.compression_percentage == 0.0
 
 
+@pytest.mark.unit
 class TestResultCompressor:
     """Test ResultCompressor class."""
 
@@ -328,6 +331,7 @@ class TestResultCompressor:
         assert stats["total_bytes_saved"] == 0
 
 
+@pytest.mark.unit
 class TestCompressedCacheBackend:
     """Test CompressedCacheBackend class."""
 
@@ -541,6 +545,7 @@ class TestCompressedCacheBackend:
         assert "total_decompressions" in stats
 
 
+@pytest.mark.unit
 class TestCompressionIntegration:
     """Integration tests for compression system."""
 
