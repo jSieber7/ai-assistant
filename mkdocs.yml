@@ -1,6 +1,7 @@
-site_name: AI Agent Workflow
-site_description: FastAPI LLM Agent with Tool Integration
+site_name: AI Assistant System
+site_description: Production-ready LLM Tool System Foundation with Advanced Caching and Monitoring
 site_url: https://jSieber7.github.io/ai-assistant/
+repo_url: https://github.com/jSieber7/ai_assistant
 
 theme:
   name: material
@@ -10,33 +11,85 @@ theme:
     - toc.integrate
     - search.suggest
     - search.highlight
+    - content.code.copy
+    - content.tabs.link
   palette:
     - scheme: default
       primary: teal
       accent: deep orange
+    - scheme: slate
+      primary: teal
+      accent: deep orange
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
 
 plugins:
   - search
+  - minify:
+      minify_html: true
 
 nav:
   - Home: index.md
+  - Getting Started:
+    - Quick Start: quick-start.md
+    - Docker Setup: docker-integration.md
+    - Local Development: development/setup.md
+    - Configuration Guide: configuration.md
   - Architecture:
     - Overview: architecture/overview.md
+    - Core Components: architecture/core-components.md
     - Agent Workflow: architecture/workflow.md
     - Tool System: architecture/tools.md
-  - API Reference: api/endpoints.md
+    - Caching Architecture: architecture/caching.md
+  - API Reference:
+    - Endpoints: api/endpoints.md
+    - OpenAI Compatibility: api/openai-compatibility.md
+    - Tool Management: api/tool-management.md
+    - Streaming and Batching: api/streaming.md
   - Development:
     - Setup Guide: development/setup.md
+    - Development Guide: development/development-guide.md
     - Contributing: development/contributing.md
+    - Testing Strategy: development/testing.md
+    - Security Practices: development/security-and-api-key-handling.md
     - Branch Protection: development/branch-protection.md
-    - Security and API Key Handling: development/security-and-api-key-handling.md
-    - Testing: development/testing.md
-  - Tools:
-    - SearX Integration: tools/searx.md
+  - Tools & Integrations:
+    - Tool Development: tools/tool-development.md
+    - SearXNG Search: tools/searx.md
     - RAG System: tools/rag.md
+    - Custom Tools: tools/custom-tools.md
+  - Deployment:
+    - Docker Integration: docker-integration.md
+    - Docker Testing: docker-testing.md
+    - Production Deployment: deployment/production.md
+    - Monitoring Setup: deployment/monitoring.md
+  - Provider Configuration:
+    - OpenAI-Compatible Providers: openai-compatible-provider-refactoring.md
+    - Ollama Integration: ollama-integration.md
+    - Multi-Provider Setup: providers/multi-provider.md
+    - Provider Comparison: providers/comparison.md
+  - AI & Optimization:
+    - Model Integration: ai/model-integration.md
+    - Prompt Engineering: ai/prompt-engineering.md
+    - Performance Optimization: ai/optimization.md
+    - Cost Management: ai/cost-management.md
+  - Troubleshooting:
+    - Common Issues: troubleshooting/common-issues.md
+    - Debugging Guide: troubleshooting/debugging.md
+    - FAQ: troubleshooting/faq.md
+    - Performance Issues: troubleshooting/performance.md
 
 markdown_extensions:
   - admonition
   - codehilite
   - toc:
       permalink: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.details

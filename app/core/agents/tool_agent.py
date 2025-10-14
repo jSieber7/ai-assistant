@@ -333,7 +333,7 @@ Provide a helpful and informative response."""
 
             tool_info.append(
                 f"""
-Tool {i+1}: {result.tool_name}
+Tool {i + 1}: {result.tool_name}
 Execution Time: {result.execution_time:.2f}s
 Result: {formatted_data}
 """

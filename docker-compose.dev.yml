@@ -1,0 +1,90 @@
+# Development Docker Compose override
+# Use with: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+services:
+  ai-assistant:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - RELOAD=true
+    volumes:
+      - .:/app
+      - /app/__pycache__  # Exclude pycache
+      - /app/.pytest_cache
+      - /app/htmlcov
+      - /app/.coverage
+      - /app/.mypy_cache
+      - /app/dist
+      - /app/build
+    command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    ports:
+      - "5678:5678"  # Debugpy port for debugging
+    depends_on:
+      - redis
+      - searxng
+
+  # Add development tools
+  debug-tools:
+    image: python:3.12-slim
+    container_name: ai-assistant-debug-tools
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: tail -f /dev/null  # Keep container running
+    profiles:
+      - debug
+
+  # Redis Commander for Redis GUI
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: ai-assistant-redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    profiles:
+      - tools
+
+  # Prometheus for monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ai-assistant-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    profiles:
+      - monitoring
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ai-assistant-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring
+
+volumes:
+  prometheus_data:
+  grafana_data:

@@ -1,56 +1,124 @@
-.PHONY: run test test-unit test-integration test-system test-all test-slow test-coverage test-parallel test-ci test-failed dev ci help lint format clean
+# Makefile for AI Assistant Docker operations
 
-##@ Running
-run:
-	uv run uvicorn app.main:app --reload
+.PHONY: help build up down logs clean test dev prod
 
-##@ Testing
-test:  ## Run all tests
-	uv run pytest
+# Default target
+help:
+	@echo "AI Assistant Docker Commands:"
+	@echo ""
+	@echo "  build     Build all Docker images"
+	@echo "  up        Start all services in production mode"
+	@echo "  dev       Start services in development mode with hot reload"
+	@echo "  tools     Start services with development tools"
+	@echo "  monitor   Start services with monitoring tools"
+	@echo "  down      Stop all services"
+	@echo "  logs      Show logs for all services"
+	@echo "  logs-app  Show logs for AI Assistant only"
+	@echo "  clean     Remove containers, images, and volumes"
+	@echo "  test      Run tests in Docker"
+	@echo "  shell     Open shell in AI Assistant container"
+	@echo "  db        Start with PostgreSQL database"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make dev          # Start in development mode"
+	@echo "  make logs-app     # View application logs"
+	@echo "  make shell        # Access container shell"
 
-test-unit:  ## Run only unit tests
-	uv run pytest -m "unit and not slow" -v
+# Build all images
+build:
+	@echo "Building Docker images..."
+	docker-compose build
 
-test-integration:  ## Run only integration tests
-	uv run pytest -m "integration and not slow" -v
+# Start all services (production)
+up:
+	@echo "Starting all services..."
+	docker-compose up -d
+	@echo "Services started. Access:"
+	@echo "  AI Assistant: http://localhost:8000"
+	@echo "  SearXNG: http://localhost:8080"
+	@echo "  Redis: localhost:6379"
 
-test-system:  ## Run only system tests
-	uv run pytest -m "system and not slow" -v
+# Start in development mode
+dev:
+	@echo "Starting in development mode..."
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+	@echo "Development mode started with hot reload"
 
-test-all:  ## Run all tests except slow ones
-	uv run pytest -m "not slow" -v
+# Start with development tools
+tools:
+	@echo "Starting with development tools..."
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml --profile tools up
+	@echo "Development tools started:"
+	@echo "  Redis Commander: http://localhost:8081"
 
-test-slow:  ## Run only slow tests
-	uv run pytest -m "slow" -v
+# Start with monitoring
+monitor:
+	@echo "Starting with monitoring tools..."
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml --profile monitoring up
+	@echo "Monitoring tools started:"
+	@echo "  Prometheus: http://localhost:9090"
+	@echo "  Grafana: http://localhost:3000 (admin/admin)"
 
-test-coverage:  ## Run tests with coverage report
-	uv run pytest --cov=app --cov-report=term --cov-report=html:coverage_html --cov-report=xml:coverage.xml
+# Start with PostgreSQL
+db:
+	@echo "Starting with PostgreSQL..."
+	docker-compose --profile postgres up -d
+	@echo "PostgreSQL started on localhost:5432"
 
-test-parallel:  ## Run tests in parallel
-	uv run pytest -n auto
+# Stop all services
+down:
+	@echo "Stopping all services..."
+	docker-compose down
 
-test-ci:  ## Run tests in CI mode
-	uv run pytest --junitxml=junit.xml --cov-report=xml -q
+# Show logs
+logs:
+	docker-compose logs -f
 
-test-failed:  ## Run failed tests first
-	uv run pytest --failed-first
+# Show application logs
+logs-app:
+	docker-compose logs -f ai-assistant
 
-##@ Development
-dev: test-unit test-integration  ## Run development test suite (unit + integration)
+# Clean up
+clean:
+	@echo "Cleaning up Docker resources..."
+	docker-compose down -v --rmi all
+	docker system prune -f
 
-ci: test-ci  ## Run CI test suite
+# Run tests
+test:
+	@echo "Running tests in Docker..."
+	docker-compose -f docker-compose.yml -f docker-compose.test.yml up --abort-on-container-exit
 
-##@ Code Quality
-lint:  ## Run linting
-	uv run ruff check .
+# Open shell in container
+shell:
+	docker-compose exec ai-assistant bash
 
-format:  ## Format code
-	uv run ruff format .
+# Check status
+status:
+	@echo "Service status:"
+	docker-compose ps
 
-##@ Utility
-clean:  ## Clean up temporary files
-	rm -rf .coverage coverage_html junit.xml bandit-results.json .ruff_cache .pytest_cache .mypy_cache ai_assistant.egg-info
+# Backup Redis
+backup-redis:
+	@echo "Backing up Redis data..."
+	mkdir -p backups
+	docker-compose exec redis redis-cli BGSAVE
+	docker cp ai-assistant-redis:/data/dump.rdb ./backups/redis-$(shell date +%Y%m%d-%H%M%S).rdb
 
-##@ Help
-help:  ## Display this help
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+# Restore Redis
+restore-redis:
+	@echo "Available backups:"
+	@ls -la backups/
+	@echo "Run: docker cp ./backups/FILENAME ai-assistant-redis:/data/dump.rdb && docker-compose restart redis"
+
+# Quick setup for new users
+setup:
+	@echo "Setting up AI Assistant..."
+	@if [ ! -f .env ]; then \
+		echo "Creating .env from template..."; \
+		cp .env.docker .env; \
+		echo "Please edit .env and add your API key"; \
+	else \
+		echo ".env already exists"; \
+	fi
+	@echo "Setup complete! Edit .env and run 'make up' to start"

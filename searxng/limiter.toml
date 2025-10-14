@@ -1,0 +1,15 @@
+[botdetection]
+# Disable bot detection for internal requests
+enabled = false
+
+[redis]
+# Redis configuration for rate limiting (not needed if disabled)
+url = "redis://redis:6379/1"
+
+[limiter]
+# Disable rate limiting
+enabled = false
+
+# If enabled, these would be the settings
+[limiter.rules]
+# No rules when disabled

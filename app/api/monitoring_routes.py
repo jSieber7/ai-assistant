@@ -21,7 +21,7 @@ router = APIRouter(prefix="/monitoring", tags=["monitoring"])
 
 @router.get("/health", summary="System Health Check")
 async def health_check(
-    detailed: bool = Query(False, description="Return detailed health information")
+    detailed: bool = Query(False, description="Return detailed health information"),
 ) -> Dict[str, Any]:
     """
     Perform a comprehensive health check of the system.
@@ -141,7 +141,7 @@ async def get_metrics_summary() -> Dict[str, Any]:
 async def get_tool_metrics(
     tool_name: Optional[str] = Query(
         None, description="Specific tool name to filter by"
-    )
+    ),
 ) -> Dict[str, Any]:
     """
     Get detailed metrics for tools.
@@ -170,7 +170,7 @@ async def get_tool_metrics(
 async def get_agent_metrics(
     agent_name: Optional[str] = Query(
         None, description="Specific agent name to filter by"
-    )
+    ),
 ) -> Dict[str, Any]:
     """
     Get detailed metrics for agents.
