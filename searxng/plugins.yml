@@ -1,0 +1,17 @@
+# Disable plugins that might interfere with API access
+# This file is used to configure which plugins are loaded
+
+plugins:
+  # Disable rate limiter plugin
+  - name: limiter
+    enabled: false
+  
+  # Disable other plugins that might interfere
+  - name: hash_plugin
+    enabled: true
+  - name: search_on_category_select
+    enabled: true
+  - name: self_info
+    enabled: false
+  - name: tracker_url_remover
+    enabled: true
