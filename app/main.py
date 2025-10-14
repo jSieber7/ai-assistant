@@ -13,7 +13,7 @@ from .core.multi_writer_config import (
     initialize_multi_writer_system,
     is_multi_writer_enabled,
 )
-from .ui import create_gradio_app
+from .ui import create_gradio_app, mount_gradio_app
 from app import __version__
 
 
@@ -62,7 +62,6 @@ if is_multi_writer_enabled():
 
 # Initialize and mount Gradio interface
 gradio_app = create_gradio_app()
-from .ui import mount_gradio_app
 app = mount_gradio_app(app, gradio_app, path="/gradio")
 
 
