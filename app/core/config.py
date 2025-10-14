@@ -132,6 +132,10 @@ class Settings(BaseSettings):
     # Ollama settings
     ollama_settings: OllamaSettings = OllamaSettings()
 
+    # Multi-writer system settings
+    from .config.multi_writer_config import MultiWriterSettings
+    multi_writer_settings: MultiWriterSettings = MultiWriterSettings()
+
     # Models unused in the current stage of development
     router_model: str = "deepseek/deepseek-chat"
     logic_model: str = "anthropic/claude-3.5-sonnet"

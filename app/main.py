@@ -9,6 +9,7 @@ from .core.config import settings, initialize_agent_system, initialize_llm_provi
 from .core.tools import tool_registry
 from .core.agents.registry import agent_registry
 from .core.monitoring.middleware import MonitoringMiddleware
+from .core.config.multi_writer_config import initialize_multi_writer_system, is_multi_writer_enabled
 from app import __version__
 
 
@@ -38,11 +39,21 @@ initialize_llm_providers()
 if settings.agent_system_enabled:
     initialize_agent_system()
 
+# Initialize multi-writer system (optional)
+multi_writer_config = None
+if is_multi_writer_enabled():
+    multi_writer_config = initialize_multi_writer_system()
+
 # Include API routes
 app.include_router(router)
 app.include_router(tool_router)
 app.include_router(agent_router)
 app.include_router(monitoring_router)
+
+# Include multi-writer routes if enabled
+if is_multi_writer_enabled():
+    from .api.multi_writer_routes import router as multi_writer_router
+    app.include_router(multi_writer_router)
 
 
 @app.get("/")
@@ -52,7 +63,7 @@ async def root():
         agent_registry.get_registry_stats() if settings.agent_system_enabled else {}
     )
 
-    return {
+    response = {
         "message": "AI Assistant Tool System is running!",
         "version": __version__,
         "status": "ready",
@@ -70,6 +81,21 @@ async def root():
             "categories": agent_registry_stats.get("categories", []),
         },
     }
+
+    # Add multi-writer system info if enabled
+    if is_multi_writer_enabled():
+        response["multi_writer_system"] = {
+            "enabled": True,
+            "config": multi_writer_config if multi_writer_config else {},
+            "api_prefix": settings.multi_writer_settings.api_prefix
+        }
+    else:
+        response["multi_writer_system"] = {
+            "enabled": False,
+            "message": "Multi-writer system is disabled"
+        }
+
+    return response
 
 
 if __name__ == "__main__":
