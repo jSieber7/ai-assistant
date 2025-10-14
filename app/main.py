@@ -9,7 +9,10 @@ from .core.config import settings, initialize_agent_system, initialize_llm_provi
 from .core.tools import tool_registry
 from .core.agents.registry import agent_registry
 from .core.monitoring.middleware import MonitoringMiddleware
-from .core.config.multi_writer_config import initialize_multi_writer_system, is_multi_writer_enabled
+from .core.multi_writer_config import (
+    initialize_multi_writer_system,
+    is_multi_writer_enabled,
+)
 from app import __version__
 
 
@@ -53,6 +56,7 @@ app.include_router(monitoring_router)
 # Include multi-writer routes if enabled
 if is_multi_writer_enabled():
     from .api.multi_writer_routes import router as multi_writer_router
+
     app.include_router(multi_writer_router)
 
 
@@ -87,12 +91,12 @@ async def root():
         response["multi_writer_system"] = {
             "enabled": True,
             "config": multi_writer_config if multi_writer_config else {},
-            "api_prefix": settings.multi_writer_settings.api_prefix
+            "api_prefix": settings.multi_writer_settings.api_prefix,
         }
     else:
         response["multi_writer_system"] = {
             "enabled": False,
-            "message": "Multi-writer system is disabled"
+            "message": "Multi-writer system is disabled",
         }
 
     return response

@@ -5,7 +5,9 @@ from langchain.schema import AIMessage, HumanMessage, SystemMessage
 import json
 import asyncio
 import uuid
-from ..core.config import get_llm, settings
+
+# Import directly from the config module to avoid circular imports
+from app.core.config import get_llm, settings
 from ..core.agents.registry import agent_registry
 
 router = APIRouter()
@@ -39,7 +41,7 @@ class ChatResponse(BaseModel):
 @router.get("/v1/models")
 async def list_models():
     """OpenAI Compatible API compatible models endpoint"""
-    from ..core.config import get_available_models
+    from app.core.config import get_available_models
 
     try:
         models = get_available_models()
