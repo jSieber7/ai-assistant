@@ -210,7 +210,7 @@ class MultiWriterMetricsCollector:
     def get_workflow_duration(self, workflow_id: str) -> Optional[float]:
         """Get workflow duration if it's still active"""
         if workflow_id in self._workflow_start_times:
-            return time.time() - self._workflow_start_times[workflow_id]
+            return float(time.time() - self._workflow_start_times[workflow_id])
         return None
 
     def get_active_workflow_count(self) -> int:
