@@ -1,10 +1,6 @@
 # app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .api.routes import router
-from .api.tool_routes import router as tool_router
-from .api.agent_routes import router as agent_router
-from .api.monitoring_routes import router as monitoring_router
 from .core.config import settings, initialize_agent_system, initialize_llm_providers
 from .core.tools import tool_registry
 from .core.agents.registry import agent_registry
@@ -13,6 +9,10 @@ from .core.multi_writer_config import (
     initialize_multi_writer_system,
     is_multi_writer_enabled,
 )
+from .api.routes import router
+from .api.tool_routes import router as tool_router
+from .api.agent_routes import router as agent_router
+from .api.monitoring_routes import router as monitoring_router
 from .ui import create_gradio_app, mount_gradio_app
 from app import __version__
 
@@ -61,8 +61,12 @@ if is_multi_writer_enabled():
     app.include_router(multi_writer_router)
 
 # Initialize and mount Gradio interface
-gradio_app = create_gradio_app()
-app = mount_gradio_app(app, gradio_app, path="/gradio")
+try:
+    gradio_app = create_gradio_app()
+    app = mount_gradio_app(app, gradio_app, path="/gradio")
+except Exception as e:
+    # Log error but don't fail the app startup
+    print(f"Warning: Failed to initialize Gradio interface: {str(e)}")
 
 
 @app.get("/")

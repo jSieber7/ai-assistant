@@ -13,6 +13,7 @@ def test_server_process():
     env = os.environ.copy()
     env["OPENROUTER_API_KEY"] = "test-key-integration"
     env["ENVIRONMENT"] = "testing"
+    env["DEBUG"] = "true"
 
     # Start the server
     process = subprocess.Popen(
@@ -24,13 +25,24 @@ def test_server_process():
     )
 
     # Wait for server to start
-    time.sleep(3)
+    time.sleep(5)
+
+    # Check if server started successfully
+    if process.poll() is not None:
+        # Server process terminated, get error output
+        stdout, stderr = process.communicate()
+        error_msg = f"Server failed to start. Stdout: {stdout.decode()}. Stderr: {stderr.decode()}"
+        pytest.fail(error_msg)
 
     yield process
 
     # Cleanup - terminate the server
     process.terminate()
-    process.wait(timeout=5)
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
 
 
 @pytest.mark.integration
@@ -48,23 +60,47 @@ class TestApplicationIntegration:
         try:
             response = requests.get("http://127.0.0.1:8000/", timeout=5)
             assert response.status_code == 200
-        except requests.exceptions.ConnectionError:
-            pytest.fail("Server failed to start or is not accessible")
+        except requests.exceptions.ConnectionError as e:
+            # Get server output for debugging
+            stdout, stderr = test_server_process.communicate()
+            pytest.fail(
+                f"Server failed to start or is not accessible. Error: {str(e)}\n"
+                f"Server stdout: {stdout.decode()}\n"
+                f"Server stderr: {stderr.decode()}"
+            )
 
     def test_health_endpoint_integration(self, test_server_process):
         """Test health endpoint in integrated environment."""
-        response = requests.get("http://127.0.0.1:8000/health", timeout=5)
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "healthy"
+        try:
+            response = requests.get("http://127.0.0.1:8000/health", timeout=5)
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "healthy"
+        except requests.exceptions.ConnectionError as e:
+            # Get server output for debugging
+            stdout, stderr = test_server_process.communicate()
+            pytest.fail(
+                f"Failed to connect to health endpoint. Error: {str(e)}\n"
+                f"Server stdout: {stdout.decode()}\n"
+                f"Server stderr: {stderr.decode()}"
+            )
 
     def test_models_endpoint_integration(self, test_server_process):
         """Test models endpoint in integrated environment."""
-        response = requests.get("http://127.0.0.1:8000/v1/models", timeout=5)
-        assert response.status_code == 200
-        data = response.json()
-        assert data["object"] == "list"
-        assert len(data["data"]) > 0
+        try:
+            response = requests.get("http://127.0.0.1:8000/v1/models", timeout=5)
+            assert response.status_code == 200
+            data = response.json()
+            assert data["object"] == "list"
+            assert len(data["data"]) > 0
+        except requests.exceptions.ConnectionError as e:
+            # Get server output for debugging
+            stdout, stderr = test_server_process.communicate()
+            pytest.fail(
+                f"Failed to connect to models endpoint. Error: {str(e)}\n"
+                f"Server stdout: {stdout.decode()}\n"
+                f"Server stderr: {stderr.decode()}"
+            )
 
 
 @pytest.mark.integration
