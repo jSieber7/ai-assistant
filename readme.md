@@ -36,7 +36,8 @@ docker-compose ps
 ```
 
 Access the application:
-- AI Assistant: http://localhost:8000
+- AI Assistant API: http://localhost:8000
+- Gradio Interface: http://localhost:8000/gradio
 - SearXNG Search: http://localhost:8080
 
 For detailed Docker setup, see [Docker Integration Guide](docs/docker-integration.md).
@@ -112,6 +113,7 @@ The LLM Tool System Foundation is built on a modular architecture that enables s
 - **🐳 Docker Support**: Complete containerization with docker-compose
 - **🔍 SearXNG Integration**: Privacy-focused web search capabilities
 - **📈 Prometheus Metrics**: Built-in monitoring and alerting
+- **🖥️ Gradio Interface**: Web-based UI for configuration and testing
 
 ## 📚 Documentation
 
@@ -145,6 +147,11 @@ The LLM Tool System Foundation is built on a modular architecture that enables s
 - Installation and configuration
 - Environment setup
 - Getting started quickly
+
+### [Gradio Interface](docs/ui/gradio-interface.md)
+- Web-based UI for configuration and testing
+- System information and status monitoring
+- Query testing with different models and parameters
 
 ## 🌐 API Usage
 
