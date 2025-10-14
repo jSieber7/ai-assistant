@@ -3,8 +3,6 @@ Unit tests for tool routes functionality
 """
 
 import pytest
-from unittest.mock import patch, AsyncMock
-from fastapi.testclient import TestClient
 from app.api.tool_routes import (
     ToolExecutionRequest,
     ToolExecutionResponse,
@@ -23,10 +21,10 @@ class TestToolRoutesDataModels:
             parameters={
                 "query": "Python testing",
                 "engine": "google",
-                "max_results": 10
-            }
+                "max_results": 10,
+            },
         )
-        
+
         assert request.tool_name == "search_tool"
         assert request.parameters["query"] == "Python testing"
         assert request.parameters["engine"] == "google"
@@ -38,14 +36,12 @@ class TestToolRoutesDataModels:
             tool_name="search_tool",
             success=True,
             data={
-                "results": [
-                    {"title": "Result 1", "url": "https://example.com/1"}
-                ],
-                "count": 1
+                "results": [{"title": "Result 1", "url": "https://example.com/1"}],
+                "count": 1,
             },
-            execution_time=1.5
+            execution_time=1.5,
         )
-        
+
         assert response.tool_name == "search_tool"
         assert response.success is True
         assert response.data["count"] == 1
@@ -58,9 +54,9 @@ class TestToolRoutesDataModels:
             success=False,
             data=None,
             error="API rate limit exceeded",
-            execution_time=0.5
+            execution_time=0.5,
         )
-        
+
         assert response.success is False
         assert response.error == "API rate limit exceeded"
         assert response.execution_time == 0.5
@@ -80,17 +76,17 @@ class TestToolRoutesDataModels:
                 "query": {
                     "type": "string",
                     "required": True,
-                    "description": "Search query"
+                    "description": "Search query",
                 },
                 "engine": {
                     "type": "string",
                     "required": False,
                     "description": "Search engine to use",
-                    "default": "google"
-                }
-            }
+                    "default": "google",
+                },
+            },
         )
-        
+
         assert response.name == "search_tool"
         assert response.enabled is True
         assert response.version == "1.0.0"
@@ -108,9 +104,9 @@ class TestToolRoutesErrorHandling:
         # Missing required fields
         invalid_request = {
             "tool_name": "",  # Empty tool name
-            "parameters": {}  # Empty parameters
+            "parameters": {},  # Empty parameters
         }
-        
+
         response = client.post("/tools/execute", json=invalid_request)
         # Should return validation error or 404 if endpoint doesn't exist
         assert response.status_code in [422, 400, 404]
@@ -135,10 +131,10 @@ class TestToolRoutesBasicFunctionality:
                 "selector": ".content",
                 "wait_for": 2,
                 "screenshot": True,
-                "format": "json"
-            }
+                "format": "json",
+            },
         )
-        
+
         assert request.tool_name == "web_scrape_tool"
         assert request.parameters["url"] == "https://example.com"
         assert request.parameters["selector"] == ".content"
@@ -148,11 +144,8 @@ class TestToolRoutesBasicFunctionality:
 
     def test_tool_execution_request_minimal(self):
         """Test tool execution request with minimal parameters"""
-        request = ToolExecutionRequest(
-            tool_name="test_tool",
-            parameters={}
-        )
-        
+        request = ToolExecutionRequest(tool_name="test_tool", parameters={})
+
         assert request.tool_name == "test_tool"
         assert request.parameters == {}
 
@@ -167,9 +160,9 @@ class TestToolRoutesBasicFunctionality:
             categories=["test"],
             keywords=["test"],
             timeout=30,
-            parameters={}
+            parameters={},
         )
-        
+
         assert response.name == "test_tool"
         assert response.description == "Test tool"
         assert response.enabled is True
@@ -178,18 +171,18 @@ class TestToolRoutesBasicFunctionality:
     def test_tool_execution_response_with_large_data(self):
         """Test tool execution response with large data"""
         # Create a large response
-        large_results = [{"title": f"Result {i}", "url": f"https://example.com/{i}"} for i in range(100)]
-        
+        large_results = [
+            {"title": f"Result {i}", "url": f"https://example.com/{i}"}
+            for i in range(100)
+        ]
+
         response = ToolExecutionResponse(
             tool_name="search_tool",
             success=True,
-            data={
-                "results": large_results,
-                "count": len(large_results)
-            },
-            execution_time=5.2
+            data={"results": large_results, "count": len(large_results)},
+            execution_time=5.2,
         )
-        
+
         assert response.success is True
         assert len(response.data["results"]) == 100
         assert response.data["count"] == 100
@@ -209,16 +202,16 @@ class TestToolRoutesParameters:
                 "method": "POST",
                 "headers": {
                     "Content-Type": "application/json",
-                    "Authorization": "Bearer token123"
+                    "Authorization": "Bearer token123",
                 },
                 "body": {
                     "query": "test",
                     "limit": 10,
-                    "filters": ["active", "verified"]
-                }
-            }
+                    "filters": ["active", "verified"],
+                },
+            },
         )
-        
+
         assert request.parameters["method"] == "POST"
         assert request.parameters["headers"]["Content-Type"] == "application/json"
         assert request.parameters["body"]["filters"] == ["active", "verified"]
@@ -230,10 +223,10 @@ class TestToolRoutesParameters:
             parameters={
                 "items": ["item1", "item2", "item3"],
                 "options": ["fast", "verbose"],
-                "exclude": ["test", "demo"]
-            }
+                "exclude": ["test", "demo"],
+            },
         )
-        
+
         assert len(request.parameters["items"]) == 3
         assert len(request.parameters["options"]) == 2
         assert len(request.parameters["exclude"]) == 2

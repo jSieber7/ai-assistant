@@ -19,7 +19,7 @@ class TestCacheSettings:
     def test_cache_settings_defaults(self):
         """Test cache settings default values"""
         settings = CacheSettings()
-        
+
         assert settings.caching_enabled is True
         assert settings.default_ttl == 300
         assert settings.max_cache_size == 1000
@@ -27,11 +27,9 @@ class TestCacheSettings:
     def test_cache_settings_custom_values(self):
         """Test cache settings with custom values"""
         settings = CacheSettings(
-            caching_enabled=False,
-            default_ttl=600,
-            max_cache_size=2000
+            caching_enabled=False, default_ttl=600, max_cache_size=2000
         )
-        
+
         assert settings.caching_enabled is False
         assert settings.default_ttl == 600
         assert settings.max_cache_size == 2000
@@ -44,7 +42,7 @@ class TestOllamaSettings:
     def test_ollama_settings_defaults(self):
         """Test Ollama settings default values"""
         settings = OllamaSettings()
-        
+
         assert settings.enabled is True
         assert settings.base_url == "http://localhost:11434"
         assert settings.default_model == "llama2"
@@ -60,9 +58,9 @@ class TestOllamaSettings:
             default_model="codellama",
             timeout=60,
             temperature=0.5,
-            streaming=False
+            streaming=False,
         )
-        
+
         assert settings.enabled is False
         assert settings.base_url == "http://custom:11434"
         assert settings.default_model == "codellama"
@@ -78,7 +76,7 @@ class TestOpenAISettings:
     def test_openai_settings_defaults(self):
         """Test OpenAI settings default values"""
         settings = OpenAISettings()
-        
+
         assert settings.enabled is True
         assert settings.api_key is None
         assert settings.base_url == "https://openrouter.ai/api/v1"
@@ -92,9 +90,9 @@ class TestOpenAISettings:
             api_key="sk-test-key",
             base_url="https://api.custom.com/v1",
             default_model="gpt-4",
-            timeout=60
+            timeout=60,
         )
-        
+
         assert settings.enabled is False
         assert settings.api_key.get_secret_value() == "sk-test-key"
         assert settings.base_url == "https://api.custom.com/v1"
@@ -109,7 +107,7 @@ class TestSettings:
     def test_settings_defaults(self):
         """Test settings default values"""
         settings = Settings()
-        
+
         assert settings.host == "127.0.0.1"
         assert settings.port == 8000
         assert settings.environment == "testing"
@@ -117,33 +115,28 @@ class TestSettings:
 
     def test_settings_from_env(self):
         """Test settings loaded from environment variables"""
-        with patch.dict("os.environ", {
-            "HOST": "127.0.0.1",
-            "PORT": "9000",
-            "ENVIRONMENT": "production"
-        }):
+        with patch.dict(
+            "os.environ",
+            {"HOST": "127.0.0.1", "PORT": "9000", "ENVIRONMENT": "production"},
+        ):
             settings = Settings()
-            
+
             assert settings.host == "127.0.0.1"
             assert settings.port == 9000
             assert settings.environment == "production"
 
     def test_settings_openrouter_api_key(self):
         """Test OpenRouter API key setting"""
-        with patch.dict("os.environ", {
-            "OPENROUTER_API_KEY": "sk-or-test-key"
-        }):
+        with patch.dict("os.environ", {"OPENROUTER_API_KEY": "sk-or-test-key"}):
             settings = Settings()
-            
+
             assert settings.openrouter_api_key.get_secret_value() == "sk-or-test-key"
 
     def test_settings_default_model(self):
         """Test default model setting"""
-        with patch.dict("os.environ", {
-            "DEFAULT_MODEL": "gpt-4"
-        }):
+        with patch.dict("os.environ", {"DEFAULT_MODEL": "gpt-4"}):
             settings = Settings()
-            
+
             assert settings.default_model == "gpt-4"
 
 
@@ -181,25 +174,22 @@ class TestConfigurationEnvironmentOverrides:
 
     def test_environment_override_precedence(self):
         """Test that environment variables take precedence"""
-        with patch.dict("os.environ", {
-            "DEFAULT_MODEL": "gpt-4",
-            "OPENROUTER_API_KEY": "sk-env-key"
-        }):
+        with patch.dict(
+            "os.environ", {"DEFAULT_MODEL": "gpt-4", "OPENROUTER_API_KEY": "sk-env-key"}
+        ):
             settings = Settings()
-            
+
             assert settings.default_model == "gpt-4"
             assert settings.openrouter_api_key.get_secret_value() == "sk-env-key"
 
     def test_nested_settings_environment_override(self):
         """Test environment variable override for nested settings"""
-        with patch.dict("os.environ", {
-            "OLLAMA_DEFAULT_MODEL": "codellama"
-        }):
+        with patch.dict("os.environ", {"OLLAMA_DEFAULT_MODEL": "codellama"}):
             settings = Settings()
-            
+
             # This might work depending on how Pydantic handles nested env vars
             # If it doesn't work, that's also a valid test result
-            assert hasattr(settings.ollama_settings, 'default_model')
+            assert hasattr(settings.ollama_settings, "default_model")
 
 
 @pytest.mark.unit
@@ -208,23 +198,19 @@ class TestConfigurationSecretHandling:
 
     def test_api_key_secret_handling(self):
         """Test that API keys are properly handled as secrets"""
-        with patch.dict("os.environ", {
-            "OPENROUTER_API_KEY": "sk-secret-key"
-        }):
+        with patch.dict("os.environ", {"OPENROUTER_API_KEY": "sk-secret-key"}):
             settings = Settings()
-            
+
             # Should be Pydantic SecretStr object
             assert hasattr(settings.openrouter_api_key, "get_secret_value")
-            
+
             # Should not expose the secret in string representation
             assert "sk-secret-key" not in str(settings.openrouter_api_key)
 
     def test_secret_value_access(self):
         """Test accessing secret values"""
-        with patch.dict("os.environ", {
-            "OPENROUTER_API_KEY": "sk-test-key"
-        }):
+        with patch.dict("os.environ", {"OPENROUTER_API_KEY": "sk-test-key"}):
             settings = Settings()
-            
+
             # Should be able to get the actual value
             assert settings.openrouter_api_key.get_secret_value() == "sk-test-key"

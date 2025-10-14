@@ -16,6 +16,7 @@ def get_models_list() -> List[str]:
     """Get list of available models for the dropdown"""
     try:
         import asyncio
+
         try:
             # Try to get the current event loop
             loop = asyncio.get_event_loop()
@@ -34,7 +35,7 @@ def get_models_list() -> List[str]:
                 models = loop.run_until_complete(get_available_models())
             finally:
                 loop.close()
-        
+
         return [
             (
                 f"{model.provider.value}:{model.name}"

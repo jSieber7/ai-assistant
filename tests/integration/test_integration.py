@@ -12,10 +12,10 @@ def test_server_process():
     """Start the FastAPI server in a subprocess for integration testing."""
     # Find a random available port
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('', 0))
+        s.bind(("", 0))
         s.listen(1)
         port = s.getsockname()[1]
-    
+
     # Set test environment variables
     env = os.environ.copy()
     env["OPENROUTER_API_KEY"] = "test-key-integration"
@@ -61,9 +61,7 @@ class TestApplicationIntegration:
         """Test that the server starts without errors."""
         process, port = test_server_process
         # Check if process is still running
-        assert (
-            process.poll() is None
-        ), "Server process terminated unexpectedly"
+        assert process.poll() is None, "Server process terminated unexpectedly"
 
         # Try to connect to the server
         try:
