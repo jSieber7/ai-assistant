@@ -26,6 +26,7 @@ reports/
 .ruff_cache
 .pytest_cache
 .mypy_cache
+.uv-cache
 bandit-results.json
 
 # MkDocs
