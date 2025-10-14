@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
     container_name: ai-assistant
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       - HOST=0.0.0.0
       - PORT=8000
@@ -62,10 +62,6 @@ services:
       - BIND_ADDRESS=0.0.0.0
       - PORT=8080
       - BASE_URL=http://localhost:8080/
-    volumes:
-      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
-      - ./searxng/limiter.toml:/etc/searxng/limiter.toml:ro
-      - ./searxng/plugins.yml:/etc/searxng/plugins.yml:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/"]
       interval: 30s
