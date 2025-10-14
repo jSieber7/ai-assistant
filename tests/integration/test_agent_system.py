@@ -20,10 +20,16 @@ from app.core.tools.registry import tool_registry
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_agent_system(test_messages):
+async def test_agent_system():
     """Test the agent system functionality"""
     print("🧪 Testing Agent System Integration")
     print("=" * 50)
+    
+    # Test messages for the agent system
+    test_messages = [
+        {"role": "user", "content": "Hello, how are you?"},
+        {"role": "user", "content": "What can you help me with?"}
+    ]
 
     # Ensure agent system is enabled
     if not settings.agent_system_enabled:
@@ -114,12 +120,19 @@ async def test_agent_system(test_messages):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_tool_selection_strategies(test_queries):
+async def test_tool_selection_strategies():
     """Test different tool selection strategies"""
     print("\n🎯 Testing Tool Selection Strategies")
     print("=" * 50)
 
     from app.core.agents.strategies import KeywordStrategy, ToolSelectionManager
+    
+    # Test queries for tool selection
+    test_queries = [
+        "Calculate 42 * 3.14",
+        "Search for information about Python",
+        "What is the weather like today?"
+    ]
 
     try:
         # Test keyword strategy
