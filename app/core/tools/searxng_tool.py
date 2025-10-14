@@ -8,6 +8,7 @@ import aiohttp
 import asyncio
 from typing import Dict, Any, List, Optional
 from urllib.parse import urlencode, quote_plus
+from bs4 import BeautifulSoup
 from .base import BaseTool, ToolExecutionError
 
 
@@ -99,10 +100,9 @@ class SearXNGTool(BaseTool):
         if safesearch not in [0, 1, 2]:
             safesearch = 0
 
-        # Prepare search parameters for GET request
+        # Prepare search parameters for POST request (HTML format)
         params = {
             "q": query,
-            "format": "json",
             "language": language,
             "safesearch": str(safesearch),
             "theme": "simple",
@@ -118,8 +118,8 @@ class SearXNGTool(BaseTool):
         if time_range:
             params["time_range"] = time_range
 
-        # Construct search URL with query parameters
-        search_url = f"{searxng_url.rstrip('/')}/search?{urlencode(params)}"
+        # Construct search URL
+        search_url = f"{searxng_url.rstrip('/')}/search"
 
         try:
             headers = {
@@ -133,48 +133,59 @@ class SearXNGTool(BaseTool):
                 "X-Real-IP": "127.0.0.1",
             }
             async with aiohttp.ClientSession(headers=headers) as session:
-                async with session.get(search_url) as response:
+                async with session.post(search_url, data=params) as response:
                     if response.status != 200:
                         error_text = await response.text()
                         raise ToolExecutionError(
                             f"SearXNG search failed with status {response.status}: {error_text}"
                         )
 
-                    results = await response.json()
-
-                    # Process results
+                    # Parse HTML response
+                    html = await response.text()
+                    soup = BeautifulSoup(html, 'html.parser')
+                    
+                    # Extract search results from HTML
                     processed_results = []
-                    if results.get("results"):
-                        for result in results["results"][:results_count]:
-                            processed_results.append(
-                                {
-                                    "title": result.get("title", ""),
-                                    "url": result.get("url", ""),
-                                    "content": result.get("content", ""),
-                                    "engine": result.get("engine", ""),
-                                    "category": result.get("category", ""),
-                                    "score": result.get("score", 0),
-                                }
-                            )
-
-                    # Get query information
-                    query_info = results.get("query", "")
-                    search_time = results.get("search", {}).get("time", 0)
-                    total_results = len(results.get("results", []))
+                    result_elements = soup.find_all('article', class_='result')
+                    
+                    for element in result_elements[:results_count]:
+                        title_elem = element.find('h3')
+                        if not title_elem:
+                            continue
+                            
+                        title_link = title_elem.find('a')
+                        if not title_link:
+                            continue
+                            
+                        title = title_link.get_text(strip=True)
+                        url = title_link.get('href', '')
+                        
+                        # Extract content/description
+                        content_elem = element.find('p', class_='content')
+                        content = content_elem.get_text(strip=True) if content_elem else ""
+                        
+                        # Extract engine information
+                        engine_elem = element.find('div', class_='engines')
+                        engine = engine_elem.get_text(strip=True) if engine_elem else ""
+                        
+                        processed_results.append({
+                            "title": title,
+                            "url": url,
+                            "content": content,
+                            "engine": engine,
+                            "category": category,
+                            "score": 0,  # Not available in HTML
+                        })
 
                     return {
                         "query": query,
                         "results": processed_results,
-                        "total_results": total_results,
-                        "search_time": search_time,
-                        "engines": [
-                            engine.get("name", "")
-                            for engine in results.get("engines", [])
-                            if engine.get("name")
-                        ],
-                        "answers": results.get("answers", []),
-                        "infoboxes": results.get("infoboxes", []),
-                        "suggestions": results.get("suggestions", []),
+                        "total_results": len(processed_results),
+                        "search_time": 0,  # Not available in HTML
+                        "engines": [],  # Not easily extracted from HTML
+                        "answers": [],  # Not easily extracted from HTML
+                        "infoboxes": [],  # Not easily extracted from HTML
+                        "suggestions": [],  # Not easily extracted from HTML
                     }
 
         except aiohttp.ClientError as e:
