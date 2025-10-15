@@ -392,7 +392,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- **Documentation**: [docs/](docs/)
+- **Documentation**: [docs/](https://jsieber7.github.io/ai-assistant/)
 - **Issues**: [GitHub Issues](https://github.com/jSieber7/ai_assistant/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/jSieber7/ai_assistant/discussions)
 
