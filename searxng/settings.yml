@@ -4,25 +4,79 @@
 general:
   debug: false
   instance_name: "AI Assistant Search"
+  contact_url: false
+  enable_metrics: false
 
 search:
   safe_search: 0
   autocomplete: ""
+  default_lang: ""
+  default_timezone: "UTC"
   formats:
     - html
     - json
+    - rss
 
 server:
   port: 8080
   bind_address: "0.0.0.0"
   secret_key: "ultrasecretkey"
   base_url: "http://searxng:8080/"
+  image_proxy: false
+  http_protocol_version: "1.1"
 
 ui:
   default_theme: simple
+  default_locale: ""
+  theme_args:
+    simple_style: auto
+
+redis:
+  url: redis://redis:6379/0
 
 engines:
   - name: duckduckgo
     engine: duckduckgo
     shortcut: ddg
     disabled: false
+    timeout: 3.0
+    weight: 1
+  
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wp
+    disabled: false
+  
+  - name: bing
+    engine: bing
+    shortcut: bi
+    disabled: false
+    timeout: 3.0
+    weight: 1
+
+doi_resolvers:
+  - oadoi.org
+  - doi.org
+  - sci-hub.se
+
+outgoing:
+  request_timeout: 3.0
+  max_request_timeout: 10.0
+  useragent_suffix: ""
+  enable_http2: true
+
+plugins:
+  - name: 'Hash plugin'
+    enabled: true
+  - name: 'Search on category select'
+    enabled: true
+  - name: 'Self Informations'
+    enabled: false
+  - name: 'Tracker URL remover'
+    enabled: true
+  - name: 'Ahmia blackhole'
+    enabled: false
+  - name: 'Infinite scroll'
+    enabled: false
+  - name: 'OSM theme'
+    enabled: false

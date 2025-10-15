@@ -1,6 +1,6 @@
 # Makefile for AI Assistant Docker operations
 
-.PHONY: help build up down logs clean test dev prod
+.PHONY: help build up down logs clean test dev prod tools monitor db logs-app shell status backup-redis restore-redis setup
 
 # Default target
 help:
@@ -34,27 +34,27 @@ up:
 	@echo "Starting all services..."
 	docker compose up -d
 	@echo "Services started. Access:"
-	@echo "  AI Assistant: http://localhost:8000"
+	@echo "  AI Assistant: http://localhost:8001"
 	@echo "  SearXNG: http://localhost:8080"
 	@echo "  Redis: localhost:6379"
 
 # Start in development mode
 dev:
 	@echo "Starting in development mode..."
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
 	@echo "Development mode started with hot reload"
 
 # Start with development tools
 tools:
 	@echo "Starting with development tools..."
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile tools up
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile tools up -d
 	@echo "Development tools started:"
 	@echo "  Redis Commander: http://localhost:8081"
 
 # Start with monitoring
 monitor:
 	@echo "Starting with monitoring tools..."
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile monitoring up
+	docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile monitoring up -d
 	@echo "Monitoring tools started:"
 	@echo "  Prometheus: http://localhost:9090"
 	@echo "  Grafana: http://localhost:3000 (admin/admin)"
@@ -87,7 +87,7 @@ clean:
 # Run tests
 test:
 	@echo "Running tests in Docker..."
-	docker compose -f docker-compose.test.yml up --abort-on-container-exit --build
+	docker compose -f docker-compose.test.yml up --abort-on-container-exit --build --remove-orphans
 	@echo "Cleaning up test containers..."
 	docker compose -f docker-compose.test.yml down -v --remove-orphans
 
