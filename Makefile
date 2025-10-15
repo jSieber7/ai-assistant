@@ -1,14 +1,15 @@
 # Makefile for AI Assistant Docker operations
 
-.PHONY: help build up down logs clean test dev tools monitor mongodb db shell status backup-redis restore-redis setup
+.PHONY: help build up down logs clean test dev dev-basic tools monitor mongodb db shell status backup-redis restore-redis setup
 
 # Default target
 help:
 	@echo "AI Assistant Docker Commands:"
 	@echo ""
 	@echo "  build     Build all Docker images"
-	@echo "  up        Start all services in production mode"
-	@echo "  dev       Start services in development mode with hot reload"
+	@echo "  up        Start all services in production mode (full stack)"
+	@echo "  dev       Start full development environment with all features"
+	@echo "  dev-basic Start minimal development environment (core services only)"
 	@echo "  tools     Start services with development tools"
 	@echo "  monitor   Start services with monitoring tools"
 	@echo "  mongodb   Start with MongoDB for multi-writer system"
@@ -23,8 +24,9 @@ help:
 	@echo "  setup     Quick setup for new users"
 	@echo ""
 	@echo "Examples:"
-	@echo "  make dev              # Start in development mode"
-	@echo "  make dev mongodb      # Development with MongoDB"
+	@echo "  make dev              # Start full development environment (recommended)"
+	@echo "  make dev-basic        # Start minimal development environment"
+	@echo "  make up               # Start full production environment"
 	@echo "  make up monitor       # Production with monitoring"
 	@echo "  make logs-app         # View application logs"
 	@echo "  make shell            # Access container shell"
@@ -37,17 +39,31 @@ build:
 # Start all services (production)
 up:
 	@echo "Starting all services in production mode..."
-	docker compose up -d
+	docker compose --profile mongodb up -d
 	@echo "Services started. Access:"
 	@echo "  AI Assistant: http://localhost"
 	@echo "  Traefik Dashboard: http://localhost:8080"
 	@echo "  SearXNG: http://localhost/search"
+	@echo "  MongoDB: localhost:27017"
+	@echo "  Mongo Express: http://localhost:8082"
 
-# Start in development mode
+# Start in development mode (full)
 dev:
-	@echo "Starting in development mode..."
+	@echo "Starting full development environment..."
+	docker compose --profile dev --profile mongodb up -d
+	@echo "Full development mode started with hot reload"
+	@echo "Access:"
+	@echo "  AI Assistant: http://localhost:8000"
+	@echo "  Redis Commander: http://localhost:8081"
+	@echo "  MongoDB: localhost:27017"
+	@echo "  Mongo Express: http://localhost:8082"
+	@echo "  SearXNG: http://localhost:8000/search"
+
+# Start minimal development mode
+dev-basic:
+	@echo "Starting minimal development environment..."
 	docker compose --profile dev up -d
-	@echo "Development mode started with hot reload"
+	@echo "Basic development mode started with hot reload"
 	@echo "Access:"
 	@echo "  AI Assistant: http://localhost:8000"
 	@echo "  Redis Commander: http://localhost:8081"

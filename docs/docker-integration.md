@@ -50,9 +50,11 @@ docker-compose ps
 ```
 
 6. Access the application:
-- AI Assistant: http://localhost:8000
-- SearXNG Search: http://localhost:8080
-- Redis: localhost:6379
+- AI Assistant: http://localhost (through Traefik)
+- Gradio Interface: http://localhost/gradio
+- Traefik Dashboard: http://localhost:8080
+- SearXNG Search: http://localhost/search
+- Redis: localhost:6379 (internal only)
 
 ### Stopping the Services
 
@@ -114,6 +116,17 @@ Key environment variables for Docker deployment:
 | `REDIS_URL` | Redis connection string | `redis://redis:6379/0` |
 | `SEARXNG_URL` | SearXNG URL | `http://searxng:8080` |
 | `SECRET_KEY` | Application secret key | Must be set |
+| `BASE_URL` | Base URL for the application | `http://localhost` |
+| `BEHIND_PROXY` | Whether running behind a proxy | `true` |
+
+### Traefik Configuration
+
+The project includes Traefik as a reverse proxy with configuration in `docker-configs/traefik.yml`. Key features:
+- Single entry point for all services
+- Automatic service discovery
+- Path-based routing
+- Development dashboard
+- Basic metrics and logging
 
 ### Customizing SearXNG
 
