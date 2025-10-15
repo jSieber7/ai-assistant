@@ -41,7 +41,11 @@ initialize_llm_providers()
 
 # Initialize agent system
 if settings.agent_system_enabled:
-    initialize_agent_system()
+    try:
+        initialize_agent_system()
+    except Exception as e:
+        print(f"Warning: Failed to initialize agent system: {str(e)}")
+        print("Agent system will be disabled until properly configured")
 
 # Initialize multi-writer system (optional)
 multi_writer_config = None
@@ -60,13 +64,38 @@ if is_multi_writer_enabled():
 
     app.include_router(multi_writer_router)
 
-# Initialize and mount Gradio interface
+# Initialize and mount Gradio interface with timeout
 try:
-    gradio_app = create_gradio_app()
-    app = mount_gradio_app(app, gradio_app, path="/gradio")
+    import signal
+
+    def timeout_handler(signum, frame):
+        raise TimeoutError("Gradio initialization timed out")
+
+    # Set a timeout for Gradio initialization
+    signal.signal(signal.SIGALRM, timeout_handler)
+    signal.alarm(30)  # 30 second timeout
+
+    try:
+        gradio_app = create_gradio_app()
+        app = mount_gradio_app(app, gradio_app, path="/gradio")
+        signal.alarm(0)  # Cancel the alarm
+    except TimeoutError:
+        print("Warning: Gradio interface initialization timed out after 30 seconds")
+        print("Continuing without Gradio interface...")
+    except Exception as e:
+        print(f"Warning: Failed to initialize Gradio interface: {str(e)}")
+        print("Continuing without Gradio interface...")
+    finally:
+        signal.alarm(0)  # Make sure to cancel the alarm
 except Exception as e:
     # Log error but don't fail the app startup
-    print(f"Warning: Failed to initialize Gradio interface: {str(e)}")
+    print(f"Warning: Failed to set up Gradio timeout handler: {str(e)}")
+    print("Attempting to initialize Gradio without timeout...")
+    try:
+        gradio_app = create_gradio_app()
+        app = mount_gradio_app(app, gradio_app, path="/gradio")
+    except Exception as e2:
+        print(f"Warning: Failed to initialize Gradio interface: {str(e2)}")
 
 
 @app.get("/")
