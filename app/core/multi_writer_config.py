@@ -3,8 +3,8 @@ Configuration for multi-writer/checker system
 """
 
 from pydantic_settings import BaseSettings
-from typing import Optional, List, Dict, Any
-from pydantic import SecretStr
+from typing import Optional, List, Dict, Any, Union
+from pydantic import SecretStr, field_validator
 import logging
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,11 @@ class MultiWriterSettings(BaseSettings):
     default_template: str = "article.html.jinja"
 
     # Writer configuration
-    default_writers: List[str] = ["technical_1", "creative_1", "analytical_1"]
+    default_writers: Union[List[str], str] = [
+        "technical_1",
+        "creative_1",
+        "analytical_1",
+    ]
     available_writers: Dict[str, Dict[str, Any]] = {
         "technical_1": {"specialty": "technical", "model": "claude-3.5-sonnet"},
         "technical_2": {"specialty": "technical", "model": "gpt-4-turbo"},
@@ -38,7 +42,7 @@ class MultiWriterSettings(BaseSettings):
     }
 
     # Checker configuration
-    default_checkers: List[str] = ["factual_1", "style_1", "structure_1"]
+    default_checkers: Union[List[str], str] = ["factual_1", "style_1", "structure_1"]
     available_checkers: Dict[str, Dict[str, Any]] = {
         "factual_1": {"focus_area": "factual", "model": "claude-3.5-sonnet"},
         "style_1": {"focus_area": "style", "model": "claude-3.5-sonnet"},
@@ -61,6 +65,20 @@ class MultiWriterSettings(BaseSettings):
     # API settings
     api_prefix: str = "/v1/multi-writer"
     enable_async_execution: bool = True
+
+    @field_validator("default_writers", mode="before")
+    @classmethod
+    def parse_default_writers(cls, v):
+        if isinstance(v, str):
+            return [item.strip() for item in v.split(",") if item.strip()]
+        return v
+
+    @field_validator("default_checkers", mode="before")
+    @classmethod
+    def parse_default_checkers(cls, v):
+        if isinstance(v, str):
+            return [item.strip() for item in v.split(",") if item.strip()]
+        return v
 
     class Config:
         env_prefix = "MULTI_WRITER_"
