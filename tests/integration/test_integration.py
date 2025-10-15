@@ -18,9 +18,22 @@ def test_server_process():
 
     # Set test environment variables
     env = os.environ.copy()
+    
+    # Load test environment file if it exists
+    env_file_path = Path(__file__).parent.parent / ".env.test"
+    if env_file_path.exists():
+        with open(env_file_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith('#') and '=' in line:
+                    key, value = line.split('=', 1)
+                    env[key] = value
+    
+    # Override with test-specific values
     env["OPENROUTER_API_KEY"] = "test-key-integration"
     env["ENVIRONMENT"] = "testing"
     env["DEBUG"] = "true"
+    env["AGENT_SYSTEM_ENABLED"] = "false"  # Disable agent system to prevent hanging
 
     # Start the server on the available port
     process = subprocess.Popen(
@@ -31,15 +44,42 @@ def test_server_process():
         cwd=Path(__file__).parent.parent,  # Project root directory
     )
 
-    # Wait for server to start
-    time.sleep(5)
-
-    # Check if server started successfully
-    if process.poll() is not None:
-        # Server process terminated, get error output
-        stdout, stderr = process.communicate()
-        error_msg = f"Server failed to start. Stdout: {stdout.decode()}. Stderr: {stderr.decode()}"
-        pytest.fail(error_msg)
+    # Wait for server to start with timeout
+    max_wait_time = 30  # Maximum 30 seconds
+    wait_interval = 1
+    elapsed_time = 0
+    
+    while elapsed_time < max_wait_time:
+        if process.poll() is not None:
+            # Server process terminated, get error output
+            stdout, stderr = process.communicate()
+            error_msg = f"Server failed to start. Stdout: {stdout.decode()}. Stderr: {stderr.decode()}"
+            pytest.fail(error_msg)
+        
+        # Try to connect to the server to check if it's ready
+        try:
+            test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            test_socket.settimeout(1)
+            result = test_socket.connect_ex(("127.0.0.1", port))
+            test_socket.close()
+            if result == 0:
+                # Server is ready
+                break
+        except Exception:
+            pass
+        
+        time.sleep(wait_interval)
+        elapsed_time += wait_interval
+    
+    if elapsed_time >= max_wait_time:
+        # Server didn't start in time, terminate it and fail
+        process.terminate()
+        try:
+            stdout, stderr = process.communicate(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            stdout, stderr = process.communicate()
+        pytest.fail(f"Server failed to start within {max_wait_time} seconds")
 
     # Return both process and port as a tuple
     yield process, port
@@ -54,6 +94,7 @@ def test_server_process():
 
 
 @pytest.mark.integration
+@pytest.mark.slow
 class TestApplicationIntegration:
     """Integration tests for the FastAPI application."""
 
@@ -156,9 +197,11 @@ class TestConfigurationIntegration:
 
         # Mock initialize_llm_providers to use our mock settings
         with patch("app.core.config.settings", mock_settings):
-            # Test that initialize_llm_providers raises ValueError when no providers are configured
-            with pytest.raises(ValueError, match="No LLM providers are configured"):
-                initialize_llm_providers()
+            # Test that initialize_llm_providers returns registry without providers when none are configured
+            # The function now logs a warning instead of raising an error
+            registry = initialize_llm_providers()
+            assert registry is not None
+            assert len(registry.list_configured_providers()) == 0
 
 
 @pytest.mark.integration
