@@ -19,7 +19,9 @@ echo "SECRET_KEY=your_secret_key_here" >> .env
 docker-compose up -d
 
 # Access the application
-open http://localhost:8000
+open http://localhost  # Main application through Traefik
+open http://localhost:8080  # Traefik dashboard
+open http://localhost/gradio  # Gradio interface
 ```
 
 ### Option 2: Local Development

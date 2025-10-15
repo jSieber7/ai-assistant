@@ -59,18 +59,15 @@ The main configuration file now includes:
 - Updated service labels for routing
 - Removed direct port exposures for internal services
 
-### traefik.yml
-Traefik configuration file with:
+### docker-configs/traefik.yml
+Traefik configuration file located in the docker-configs directory with:
 - Development-friendly settings
 - Dashboard enabled (insecure)
 - Docker provider configuration
 - Basic metrics enabled
-
-### .env.traefik
-Environment variables for Traefik:
-- API settings
-- Provider configuration
-- Entry point definitions
+- Entry points for web traffic (port 80) and dashboard (port 8080)
+- Prometheus metrics enabled
+- Access logging enabled
 
 ## Service Routing
 
