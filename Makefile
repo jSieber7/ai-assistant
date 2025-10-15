@@ -119,7 +119,7 @@ clean:
 # Run tests
 test:
 	@echo "Running tests in Docker..."
-	docker compose --profile dev run --rm ai-assistant uv run pytest tests/ -v
+	docker compose --profile dev run --rm ai-assistant .venv/bin/python -m pytest tests/ -v
 
 # Open shell in container
 shell:
