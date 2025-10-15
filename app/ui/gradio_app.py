@@ -710,62 +710,56 @@ def create_gradio_app() -> gr.Blocks:
                 def refresh_all_info():
                     """Refresh all system information with proper error handling"""
                     results = []
-
-                    # Refresh models
+                    
+                    # Start with all loading states visible
+                    loading_states = [True, True, True, True]
+                    
+                    # Try to refresh each component and capture results or errors
                     try:
-                        models_loading.update(visible=True)
                         models = "\n".join(get_models_list())
                         results.append(models)
                     except Exception as e:
                         logger.error(f"Error refreshing models: {e}")
                         results.append(f"Error loading models: {str(e)}")
-                    finally:
-                        models_loading.update(visible=False)
-
-                    # Refresh providers
+                    
                     try:
-                        providers_loading.update(visible=True)
                         providers = get_providers_info()
                         results.append(providers)
                     except Exception as e:
                         logger.error(f"Error refreshing providers: {e}")
                         results.append(f"Error loading providers: {str(e)}")
-                    finally:
-                        providers_loading.update(visible=False)
-
-                    # Refresh tools
+                    
                     try:
-                        tools_loading.update(visible=True)
                         tools = get_tools_info()
                         results.append(tools)
                     except Exception as e:
                         logger.error(f"Error refreshing tools: {e}")
                         results.append(f"Error loading tools: {str(e)}")
-                    finally:
-                        tools_loading.update(visible=False)
-
-                    # Refresh agents
+                    
                     try:
-                        agents_loading.update(visible=True)
                         agents = get_agents_info()
                         results.append(agents)
                     except Exception as e:
                         logger.error(f"Error refreshing agents: {e}")
                         results.append(f"Error loading agents: {str(e)}")
-                    finally:
-                        agents_loading.update(visible=False)
-
-                    return results
+                    
+                    # Hide all loading states
+                    loading_states = [False, False, False, False]
+                    
+                    # Return both the information and the loading states
+                    return results + loading_states
 
                 refresh_btn.click(
                     refresh_all_info,
-                    outputs=[models_info, providers_info, tools_info, agents_info],
+                    outputs=[models_info, providers_info, tools_info, agents_info,
+                             models_loading, providers_loading, tools_loading, agents_loading],
                 )
 
                 # Initial load
                 app.load(
                     refresh_all_info,
-                    outputs=[models_info, providers_info, tools_info, agents_info],
+                    outputs=[models_info, providers_info, tools_info, agents_info,
+                             models_loading, providers_loading, tools_loading, agents_loading],
                 )
 
             # Settings Configuration Tab

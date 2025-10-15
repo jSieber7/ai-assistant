@@ -39,7 +39,7 @@ COPY pyproject.toml uv.lock ./
 COPY app/ ./app/
 
 # Install dependencies with dev tools
-RUN uv sync --frozen
+RUN python -m venv .venv && .venv/bin/pip install --upgrade pip setuptools wheel && uv sync --frozen --reinstall
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash app && \
@@ -68,7 +68,7 @@ COPY pyproject.toml uv.lock ./
 COPY app/ ./app/
 
 # Install dependencies without dev tools
-RUN uv sync --frozen --no-dev
+RUN python -m venv .venv && .venv/bin/pip install --upgrade pip setuptools wheel && uv sync --frozen --no-dev --reinstall
 
 # Copy the rest of the application code
 COPY . .

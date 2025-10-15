@@ -59,7 +59,7 @@ services:
       retries: 3
       start_period: 40s
     profiles:
-      - dev
+      - production
     labels:
       # Production Traefik routing
       - "traefik.enable=true"
@@ -173,6 +173,8 @@ services:
       - ENVIRONMENT=development
       - DEBUG=true
       - RELOAD=true
+      - REDIS_URL=redis://redis:6379/0  # Override for Docker network
+      - SEARXNG_URL=http://searxng:8080   # Override for Docker network
     command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     profiles:
       - dev
