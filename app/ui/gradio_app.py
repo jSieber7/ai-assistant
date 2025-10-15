@@ -29,7 +29,7 @@ def get_models_list() -> List[str]:
         try:
             # Check if we're in an async context
             try:
-                loop = asyncio.get_running_loop()
+                asyncio.get_running_loop()
                 # We're in an async context, need to run in a thread
                 import concurrent.futures
 
@@ -424,7 +424,7 @@ async def test_query(
                     error_msg += f": {error_detail['detail']}"
                 else:
                     error_msg += f": {json.dumps(error_detail)}"
-            except:
+            except Exception:
                 error_msg += f": {response.text[:200]}"
 
             return f"Error: {error_msg}"
@@ -543,12 +543,15 @@ def update_settings(
                 reinit_results.append(f"✗ Provider reinitialization failed: {str(e)}")
 
         # Initialize agent system if newly enabled
-        if agent_system_enabled and not agent_registry.list_agents():
+        if agent_system_enabled:
             try:
-                from ..core.config import initialize_agent_system
+                from ..core.agents.registry import agent_registry
+                
+                if not agent_registry.list_agents():
+                    from ..core.config import initialize_agent_system
 
-                initialize_agent_system()
-                reinit_results.append("✓ Agent system initialized")
+                    initialize_agent_system()
+                    reinit_results.append("✓ Agent system initialized")
             except Exception as e:
                 logger.error(f"Failed to initialize agent system: {str(e)}")
                 reinit_results.append(f"✗ Agent system initialization failed: {str(e)}")
@@ -644,7 +647,7 @@ def create_gradio_app() -> gr.Blocks:
                 gr.Markdown("## Current Configuration Status")
 
                 # Add initialization status display
-                init_status_display = gr.Textbox(
+                gr.Textbox(
                     label="Initialization Status",
                     value=init_status,
                     interactive=False,

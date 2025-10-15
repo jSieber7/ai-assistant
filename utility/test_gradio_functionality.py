@@ -11,11 +11,11 @@ import sys
 import logging
 from pathlib import Path
 
-# Add the project root to the Python path
+# Add the project root to the Python path before importing app modules
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from app.ui.gradio_app import (
+from app.ui.gradio_app import (  # noqa: E402
     get_models_list,
     get_providers_info,
     get_tools_info,
@@ -25,7 +25,7 @@ from app.ui.gradio_app import (
     update_settings,
     create_gradio_app,
 )
-from app.core.config import settings
+from app.core.config import settings  # noqa: E402
 
 # Set up logging
 logging.basicConfig(
