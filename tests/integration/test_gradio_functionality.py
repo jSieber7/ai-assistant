@@ -70,7 +70,7 @@ PORT=8000
 
             # Should contain actual model names (not just placeholders)
             assert len(models) > 0, "No models returned"
-            
+
             # Check if any model looks like a real model (has a name)
             assert any(
                 len(model) > 3 and not model.startswith("placeholder")
@@ -89,12 +89,14 @@ PORT=8000
             assert providers_info, "No provider information returned"
 
             # Check if providers_info is a string
-            assert isinstance(providers_info, str), f"Expected string, got {type(providers_info)}"
+            assert isinstance(
+                providers_info, str
+            ), f"Expected string, got {type(providers_info)}"
 
             # Should contain provider status information
             has_configured = "Configured" in providers_info
             has_not_configured = "Not configured" in providers_info
-            
+
             has_status = has_configured or has_not_configured
             assert has_status, "No provider status found"
 
@@ -102,7 +104,7 @@ PORT=8000
             has_healthy = "Healthy" in providers_info
             has_unhealthy = "Unhealthy" in providers_info
             has_unknown = "Unknown" in providers_info
-            
+
             has_health = has_healthy or has_unhealthy or has_unknown
             assert has_health, "No provider health info found"
 

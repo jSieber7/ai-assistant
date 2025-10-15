@@ -18,17 +18,17 @@ def test_server_process():
 
     # Set test environment variables
     env = os.environ.copy()
-    
+
     # Load test environment file if it exists
     env_file_path = Path(__file__).parent.parent / ".env.test"
     if env_file_path.exists():
-        with open(env_file_path, 'r') as f:
+        with open(env_file_path, "r") as f:
             for line in f:
                 line = line.strip()
-                if line and not line.startswith('#') and '=' in line:
-                    key, value = line.split('=', 1)
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
                     env[key] = value
-    
+
     # Override with test-specific values
     env["OPENROUTER_API_KEY"] = "test-key-integration"
     env["ENVIRONMENT"] = "testing"
@@ -48,14 +48,14 @@ def test_server_process():
     max_wait_time = 30  # Maximum 30 seconds
     wait_interval = 1
     elapsed_time = 0
-    
+
     while elapsed_time < max_wait_time:
         if process.poll() is not None:
             # Server process terminated, get error output
             stdout, stderr = process.communicate()
             error_msg = f"Server failed to start. Stdout: {stdout.decode()}. Stderr: {stderr.decode()}"
             pytest.fail(error_msg)
-        
+
         # Try to connect to the server to check if it's ready
         try:
             test_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -67,10 +67,10 @@ def test_server_process():
                 break
         except Exception:
             pass
-        
+
         time.sleep(wait_interval)
         elapsed_time += wait_interval
-    
+
     if elapsed_time >= max_wait_time:
         # Server didn't start in time, terminate it and fail
         process.terminate()

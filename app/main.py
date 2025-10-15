@@ -67,14 +67,14 @@ if is_multi_writer_enabled():
 # Initialize and mount Gradio interface with timeout
 try:
     import signal
-    
+
     def timeout_handler(signum, frame):
         raise TimeoutError("Gradio initialization timed out")
-    
+
     # Set a timeout for Gradio initialization
     signal.signal(signal.SIGALRM, timeout_handler)
     signal.alarm(30)  # 30 second timeout
-    
+
     try:
         gradio_app = create_gradio_app()
         app = mount_gradio_app(app, gradio_app, path="/gradio")
