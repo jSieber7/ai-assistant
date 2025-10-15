@@ -106,14 +106,27 @@ class TestSettings:
 
     def test_settings_defaults(self):
         """Test settings default values"""
-        settings = Settings()
+        # Clear any existing ENVIRONMENT variable to test true defaults
+        import os
 
-        assert settings.host in ["127.0.0.1", "0.0.0.0"]  # Allow both values
-        assert settings.port == 8000
-        assert (
-            settings.environment == "development"
-        )  # Default environment is development
-        assert settings.tool_system_enabled is True
+        env_backup = os.environ.get("ENVIRONMENT")
+        if "ENVIRONMENT" in os.environ:
+            del os.environ["ENVIRONMENT"]
+
+        try:
+            # Create a new Settings instance after clearing the env var
+            settings = Settings()
+
+            assert settings.host in ["127.0.0.1", "0.0.0.0"]  # Allow both values
+            assert settings.port == 8000
+            assert (
+                settings.environment == "development"
+            )  # Default environment is development
+            assert settings.tool_system_enabled is True
+        finally:
+            # Restore the original ENVIRONMENT value
+            if env_backup is not None:
+                os.environ["ENVIRONMENT"] = env_backup
 
     def test_settings_from_env(self):
         """Test settings loaded from environment variables"""
