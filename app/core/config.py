@@ -120,6 +120,10 @@ class Settings(BaseSettings):
     debug: bool = True
     reload: bool = True
 
+    # Reverse proxy settings
+    base_url: str = "http://localhost"  # Base URL when behind reverse proxy
+    behind_proxy: bool = True  # Whether the app is behind a reverse proxy
+
     # Tool system settings
     tool_system_enabled: bool = True
     max_concurrent_tools: int = 5

@@ -1,12 +1,47 @@
+networks:
+  ai-assistant-network:
+    driver: bridge
+
 services:
+  # Traefik Reverse Proxy
+  traefik:
+    image: traefik:v3.0
+    container_name: ai-assistant-traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"        # HTTP entry point
+      - "8080:8080"    # Traefik Dashboard
+    command:
+      - "--api.insecure=true"  # Enable dashboard (development only)
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.traefik.address=:8080"
+      - "--log.level=INFO"
+      - "--accesslog=true"
+      - "--metrics.prometheus=true"
+      - "--ping=true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+    env_file:
+      - .env.traefik
+    networks:
+      - ai-assistant-network
+    healthcheck:
+      test: ["CMD", "traefik", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   # Main AI Assistant Application
   ai-assistant:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: ai-assistant
-    ports:
-      - "8001:8000"
+    # Remove direct port exposure - Traefik will handle this
     environment:
       - HOST=0.0.0.0
       - PORT=8000
@@ -14,11 +49,14 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - SEARXNG_URL=http://searxng:8080
       - TOOL_SYSTEM_ENABLED=true
+      # Update base URL for reverse proxy
+      - BASE_URL=http://localhost
     env_file:
       - .env
     depends_on:
       - redis
       - searxng
+      - traefik
     volumes:
       - ./logs:/app/logs
     networks:
@@ -30,13 +68,29 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      # Main API routing
+      - "traefik.http.routers.ai-assistant.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.ai-assistant.priority=1"
+      - "traefik.http.routers.ai-assistant.entrypoints=web"
+      
+      # Gradio UI routing (no prefix stripping since Gradio is mounted at /gradio)
+      - "traefik.http.routers.gradio.rule=PathPrefix(`/gradio`)"
+      - "traefik.http.routers.gradio.priority=2"
+      - "traefik.http.routers.gradio.entrypoints=web"
+      
+      # Basic security headers
+      - "traefik.http.routers.ai-assistant.middlewares=security-headers"
+      - "traefik.http.routers.gradio.middlewares=security-headers"
+      - "traefik.http.middlewares.security-headers.headers.customrequestheaders.X-Forwarded-Proto=http"
+      - "traefik.http.middlewares.security-headers.headers.customrequestheaders.X-Forwarded-Host=localhost"
 
   # Redis for caching
   redis:
     image: redis:7-alpine
     container_name: ai-assistant-redis
-    ports:
-      - "6379:6379"
+    # Remove port exposure - internal only
     volumes:
       - redis_data:/data
     networks:
@@ -48,20 +102,21 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    labels:
+      - "traefik.enable=false"  # Internal service only
 
   # SearXNG for web search capabilities
   searxng:
     image: searxng/searxng:latest
     container_name: ai-assistant-searxng
-    ports:
-      - "8080:8080"
+    # Remove port exposure - internal only
     networks:
       - ai-assistant-network
     restart: unless-stopped
     environment:
       - BIND_ADDRESS=0.0.0.0
       - PORT=8080
-      - BASE_URL=http://localhost:8080/
+      - BASE_URL=http://localhost/search/
     # volumes:
     #   - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
     healthcheck:
@@ -70,13 +125,22 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.searxng.rule=PathPrefix(`/search`)"
+      - "traefik.http.routers.searxng.priority=10"
+      - "traefik.http.services.searxng.loadbalancer.server.port=8080"
+      - "traefik.http.routers.searxng.entrypoints=web"
+      
+      # Middleware for stripping /search prefix
+      - "traefik.http.middlewares.searxng-stripprefix.stripprefix.prefixes=/search"
+      - "traefik.http.routers.searxng.middlewares=searxng-stripprefix"
 
   # Optional: PostgreSQL for future use
   postgres:
     image: postgres:15-alpine
     container_name: ai-assistant-postgres
-    ports:
-      - "5432:5432"
+    # Remove port exposure - internal only
     environment:
       - POSTGRES_DB=langchain_agent_hub
       - POSTGRES_USER=postgres
@@ -91,6 +155,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    labels:
+      - "traefik.enable=false"  # Internal service only
     profiles:
       - postgres  # Only start when explicitly requested
 
@@ -99,7 +165,3 @@ volumes:
     driver: local
   postgres_data:
     driver: local
-
-networks:
-  ai-assistant-network:
-    driver: bridge

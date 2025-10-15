@@ -1,0 +1,35 @@
+# Traefik Configuration for AI Assistant Development
+# Development setup with dashboard enabled
+
+# API and Dashboard Configuration
+api:
+  dashboard: true
+  insecure: true  # Enable dashboard without authentication (development only)
+
+# Entry Points
+entryPoints:
+  web:
+    address: ":80"
+  traefik:
+    address: ":8080"
+
+# Providers
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false
+    network: ai-assistant-network
+
+# Logging
+log:
+  level: INFO
+
+# Access Logging
+accessLog: {}
+
+# Metrics (optional for development)
+metrics:
+  prometheus: {}
+
+# Enable Ping
+ping: {}
