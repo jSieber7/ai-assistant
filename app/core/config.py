@@ -159,6 +159,7 @@ class Settings(BaseSettings):
         ignored_types = (
             MultiWriterSettings,
         )  # Ignore the class itself, not an instance
+        extra = "ignore"  # Allow extra fields to avoid validation errors
 
         @classmethod
         def customize_sources(cls, init_settings, env_settings, file_secret_settings):

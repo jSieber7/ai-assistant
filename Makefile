@@ -1,6 +1,6 @@
 # Makefile for AI Assistant Docker operations
 
-.PHONY: help build up down logs clean test dev prod tools monitor db logs-app shell status backup-redis restore-redis setup
+.PHONY: help build up down logs clean test dev tools monitor mongodb db shell status backup-redis restore-redis setup
 
 # Default target
 help:
@@ -11,18 +11,23 @@ help:
 	@echo "  dev       Start services in development mode with hot reload"
 	@echo "  tools     Start services with development tools"
 	@echo "  monitor   Start services with monitoring tools"
+	@echo "  mongodb   Start with MongoDB for multi-writer system"
+	@echo "  db        Start with PostgreSQL database"
 	@echo "  down      Stop all services"
 	@echo "  logs      Show logs for all services"
 	@echo "  logs-app  Show logs for AI Assistant only"
 	@echo "  clean     Remove containers, images, and volumes"
 	@echo "  test      Run tests in Docker"
 	@echo "  shell     Open shell in AI Assistant container"
-	@echo "  db        Start with PostgreSQL database"
+	@echo "  status    Check service status"
+	@echo "  setup     Quick setup for new users"
 	@echo ""
 	@echo "Examples:"
-	@echo "  make dev          # Start in development mode"
-	@echo "  make logs-app     # View application logs"
-	@echo "  make shell        # Access container shell"
+	@echo "  make dev              # Start in development mode"
+	@echo "  make dev mongodb      # Development with MongoDB"
+	@echo "  make up monitor       # Production with monitoring"
+	@echo "  make logs-app         # View application logs"
+	@echo "  make shell            # Access container shell"
 
 # Build all images
 build:
@@ -31,33 +36,44 @@ build:
 
 # Start all services (production)
 up:
-	@echo "Starting all services..."
+	@echo "Starting all services in production mode..."
 	docker compose up -d
 	@echo "Services started. Access:"
-	@echo "  AI Assistant: http://localhost:8001"
-	@echo "  SearXNG: http://localhost:8080"
-	@echo "  Redis: localhost:6379"
+	@echo "  AI Assistant: http://localhost"
+	@echo "  Traefik Dashboard: http://localhost:8080"
+	@echo "  SearXNG: http://localhost/search"
 
 # Start in development mode
 dev:
 	@echo "Starting in development mode..."
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+	docker compose --profile dev up -d
 	@echo "Development mode started with hot reload"
+	@echo "Access:"
+	@echo "  AI Assistant: http://localhost:8000"
+	@echo "  Redis Commander: http://localhost:8081"
 
 # Start with development tools
 tools:
 	@echo "Starting with development tools..."
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile tools up -d
+	docker compose --profile dev up -d
 	@echo "Development tools started:"
 	@echo "  Redis Commander: http://localhost:8081"
 
 # Start with monitoring
 monitor:
 	@echo "Starting with monitoring tools..."
-	docker compose -f docker-compose.yml -f docker-compose.dev.yml --profile monitoring up -d
+	docker compose --profile monitoring up -d
 	@echo "Monitoring tools started:"
 	@echo "  Prometheus: http://localhost:9090"
 	@echo "  Grafana: http://localhost:3000 (admin/admin)"
+
+# Start with MongoDB
+mongodb:
+	@echo "Starting with MongoDB..."
+	docker compose --profile mongodb up -d
+	@echo "MongoDB started:"
+	@echo "  MongoDB: localhost:27017"
+	@echo "  Mongo Express: http://localhost:8082"
 
 # Start with PostgreSQL
 db:
@@ -87,9 +103,7 @@ clean:
 # Run tests
 test:
 	@echo "Running tests in Docker..."
-	docker compose -f docker-compose.test.yml up --abort-on-container-exit --build --remove-orphans
-	@echo "Cleaning up test containers..."
-	docker compose -f docker-compose.test.yml down -v --remove-orphans
+	docker compose --profile dev run --rm ai-assistant uv run pytest tests/ -v
 
 # Open shell in container
 shell:
@@ -118,9 +132,9 @@ setup:
 	@echo "Setting up AI Assistant..."
 	@if [ ! -f .env ]; then \
 		echo "Creating .env from template..."; \
-		cp .env.docker .env; \
-		echo "Please edit .env and add your API key"; \
+		cp .env.example .env; \
+		echo "Please edit .env and add your API keys"; \
 	else \
 		echo ".env already exists"; \
 	fi
-	@echo "Setup complete! Edit .env and run 'make up' to start"
+	@echo "Setup complete! Edit .env and run 'make dev' to start"
