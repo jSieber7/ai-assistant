@@ -7,7 +7,7 @@ This module provides a web-based UI for configuring settings and testing queries
 import gradio as gr
 import httpx
 from typing import List, Optional
-from ..core.config import settings, get_available_models
+from ..core.config import settings, get_available_models, initialize_llm_providers
 from ..core.tools import tool_registry
 from ..core.llm_providers import provider_registry
 
@@ -36,6 +36,9 @@ def get_models_list() -> List[str]:
             finally:
                 loop.close()
 
+        if not models:
+            return [settings.default_model]
+
         return [
             (
                 f"{model.provider.value}:{model.name}"
@@ -44,7 +47,11 @@ def get_models_list() -> List[str]:
             )
             for model in models
         ]
-    except Exception:
+    except Exception as e:
+        # Log the error for debugging
+        import logging
+
+        logging.getLogger(__name__).error(f"Error getting models list: {str(e)}")
         return [settings.default_model]
 
 
@@ -72,6 +79,12 @@ def get_providers_info() -> str:
 def get_tools_info() -> str:
     """Get information about available tools"""
     try:
+        # Initialize tools if not already done
+        if not tool_registry.list_tools():
+            from ..core.tools.examples import initialize_default_tools
+
+            initialize_default_tools()
+
         tools = tool_registry.list_tools(enabled_only=True)
         if not tools:
             return "No tools available"
@@ -81,8 +94,93 @@ def get_tools_info() -> str:
             status = "✓ Enabled" if tool.enabled else "✗ Disabled"
             tools_info.append(f"{tool.name}: {tool.description} ({status})")
         return "\n".join(tools_info)
-    except Exception:
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).error(f"Error getting tools info: {str(e)}")
         return "Unable to fetch tools information"
+
+
+def get_agents_list() -> List[str]:
+    """Get list of available agents for the dropdown"""
+    try:
+        from ..core.agents.registry import agent_registry
+
+        # Initialize agent system if not already done
+        if settings.agent_system_enabled and not agent_registry.list_agents():
+            from ..core.config import initialize_agent_system
+
+            initialize_agent_system()
+
+        agents = agent_registry.list_agents()
+        if not agents:
+            return ["default"]
+
+        return [agent.name for agent in agents]
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).error(f"Error getting agents list: {str(e)}")
+        return ["default"]
+
+
+def get_agents_info() -> str:
+    """Get information about available agents"""
+    try:
+        from ..core.agents.registry import agent_registry
+
+        # Initialize agent system if not already done
+        if settings.agent_system_enabled and not agent_registry.list_agents():
+            from ..core.config import initialize_agent_system
+
+            initialize_agent_system()
+
+        agents = agent_registry.list_agents()
+        if not agents:
+            return "No agents available (agent system may be disabled)"
+
+        agents_info = []
+        for agent in agents:
+            is_default = " (Default)" if agent.is_default else ""
+            agents_info.append(f"{agent.name}{is_default}: {agent.description}")
+        return "\n".join(agents_info)
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).error(f"Error getting agents info: {str(e)}")
+        return "Unable to fetch agents information"
+
+
+def initialize_gradio_components():
+    """Initialize all components needed for the Gradio interface"""
+    try:
+        # Initialize LLM providers
+        if not provider_registry.list_providers():
+            initialize_llm_providers()
+
+        # Initialize tools
+        if not tool_registry.list_tools():
+            from ..core.tools.examples import initialize_default_tools
+
+            initialize_default_tools()
+
+        # Initialize agents if enabled
+        if settings.agent_system_enabled:
+            from ..core.agents.registry import agent_registry
+
+            if not agent_registry.list_agents():
+                from ..core.config import initialize_agent_system
+
+                initialize_agent_system()
+
+        return True
+    except Exception as e:
+        import logging
+
+        logging.getLogger(__name__).error(
+            f"Error initializing Gradio components: {str(e)}"
+        )
+        return False
 
 
 async def test_query(
@@ -91,6 +189,7 @@ async def test_query(
     temperature: float,
     max_tokens: int,
     use_agent_system: bool,
+    agent_dropdown: str = "default",
     agent_name: Optional[str] = None,
 ) -> str:
     """Test a query against the AI assistant"""
@@ -104,8 +203,13 @@ async def test_query(
             "stream": False,
         }
 
-        if use_agent_system and agent_name:
-            payload["agent_name"] = agent_name
+        if use_agent_system:
+            # Use custom agent name if provided, otherwise use dropdown selection
+            selected_agent = (
+                agent_name if agent_name and agent_name.strip() else agent_dropdown
+            )
+            if selected_agent and selected_agent != "default":
+                payload["agent_name"] = selected_agent
 
         # Make the request to the FastAPI endpoint
         base_url = f"http://{settings.host}:{settings.port}"
@@ -152,15 +256,77 @@ def update_settings(
     debug_mode: bool,
 ) -> str:
     """Update application settings"""
-    # Note: This is a placeholder function. In a real implementation,
-    # you would update the configuration file or environment variables
-    # and potentially restart the application with new settings.
+    try:
+        from pathlib import Path
 
-    return "Settings updated! Note: This is a demo function. In production, you would need to implement persistent configuration storage."
+        # Update the settings object
+        settings.tool_system_enabled = tool_system_enabled
+        settings.agent_system_enabled = agent_system_enabled
+        settings.preferred_provider = preferred_provider
+        settings.enable_fallback = enable_fallback
+        settings.debug = debug_mode
+
+        # Create or update .env file for persistence
+        env_file = Path(".env")
+        env_content = []
+
+        # Read existing .env file if it exists
+        if env_file.exists():
+            with open(env_file, "r") as f:
+                env_content = f.readlines()
+
+        # Update or add the settings
+        settings_map = {
+            "TOOL_SYSTEM_ENABLED": str(tool_system_enabled),
+            "AGENT_SYSTEM_ENABLED": str(agent_system_enabled),
+            "PREFERRED_PROVIDER": preferred_provider,
+            "ENABLE_FALLBACK": str(enable_fallback),
+            "DEBUG": str(debug_mode),
+        }
+
+        # Update existing lines or add new ones
+        updated_lines = []
+        settings_updated = set()
+
+        for line in env_content:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                updated_lines.append(line + "\n")
+                continue
+
+            key, value = line.split("=", 1)
+            if key in settings_map:
+                updated_lines.append(f"{key}={settings_map[key]}\n")
+                settings_updated.add(key)
+            else:
+                updated_lines.append(line + "\n")
+
+        # Add any missing settings
+        for key, value in settings_map.items():
+            if key not in settings_updated:
+                updated_lines.append(f"{key}={value}\n")
+
+        # Write back to .env file
+        with open(env_file, "w") as f:
+            f.writelines(updated_lines)
+
+        # Reinitialize providers if provider settings changed
+        try:
+            initialize_llm_providers()
+        except Exception as e:
+            return f"Settings saved, but provider reinitialization failed: {str(e)}"
+
+        return "Settings updated successfully! Changes have been saved to .env file."
+
+    except Exception as e:
+        return f"Failed to update settings: {str(e)}"
 
 
 def create_gradio_app() -> gr.Blocks:
     """Create and configure the Gradio interface"""
+
+    # Initialize all components
+    initialize_gradio_components()
 
     with gr.Blocks(
         title="AI Assistant Interface",
@@ -206,14 +372,24 @@ def create_gradio_app() -> gr.Blocks:
                     lines=5,
                 )
 
+                with gr.Row():
+                    with gr.Column():
+                        agents_info = gr.Textbox(
+                            label="Available Agents",
+                            value=get_agents_info,
+                            interactive=False,
+                            lines=5,
+                        )
+
                 refresh_btn = gr.Button("Refresh Information")
                 refresh_btn.click(
                     lambda: [
                         "\n".join(get_models_list()),
                         get_providers_info(),
                         get_tools_info(),
+                        get_agents_info(),
                     ],
-                    outputs=[models_info, providers_info, tools_info],
+                    outputs=[models_info, providers_info, tools_info, agents_info],
                 )
 
             # Settings Configuration Tab
@@ -304,11 +480,19 @@ def create_gradio_app() -> gr.Blocks:
                                 value=settings.agent_system_enabled,
                             )
 
-                        if settings.agent_system_enabled:
-                            agent_name = gr.Textbox(
-                                label="Agent Name (optional)",
-                                placeholder="Leave empty for default agent",
+                        with gr.Row():
+                            agent_dropdown = gr.Dropdown(
+                                label="Agent",
+                                choices=get_agents_list(),
+                                value="default",
+                                visible=settings.agent_system_enabled,
                             )
+
+                        agent_name = gr.Textbox(
+                            label="Custom Agent Name (optional)",
+                            placeholder="Leave empty to use selected agent",
+                            visible=False,
+                        )
 
                         submit_btn = gr.Button("Submit Query", variant="primary")
 
@@ -319,16 +503,27 @@ def create_gradio_app() -> gr.Blocks:
 
                 submit_btn.click(
                     # Wrapper to handle async function
-                    lambda *args, **kwargs: gr.run_sync(test_query(*args, **kwargs)),
+                    fn=lambda *args, **kwargs: gr.run_sync(test_query(*args, **kwargs)),
                     inputs=[
                         query_input,
                         model_dropdown,
                         temperature_slider,
                         max_tokens,
                         use_agent_system,
-                        agent_name if settings.agent_system_enabled else gr.State(None),
+                        agent_dropdown,
+                        agent_name,
                     ],
                     outputs=[response_output],
+                )
+
+                # Toggle agent controls visibility based on agent system checkbox
+                use_agent_system.change(
+                    fn=lambda enabled: (
+                        gr.update(visible=enabled),
+                        gr.update(visible=enabled),
+                    ),
+                    inputs=[use_agent_system],
+                    outputs=[agent_dropdown, agent_name],
                 )
 
     return app
