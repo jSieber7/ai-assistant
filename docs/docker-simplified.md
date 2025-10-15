@@ -12,6 +12,10 @@ We've consolidated multiple Docker Compose files and environment configurations 
 - `.env` - Development environment configuration
 - `.env.example` - Template for environment variables
 - `Dockerfile` - Multi-stage build supporting dev and production
+- `docker-configs/traefik.yml` - Traefik reverse proxy configuration
+- `docker-configs/searxng/` - Custom SearXNG configuration
+- `docker-configs/mongodb/` - MongoDB initialization scripts
+- `docker-configs/monitoring/` - Prometheus and Grafana configurations
 
 ## Usage
 
@@ -44,7 +48,7 @@ Always running in production:
 - `ai-assistant` - Main application
 - `redis` - Caching
 - `searxng` - Web search (with custom configuration from docker-configs/searxng/)
-- `traefik` - Reverse proxy (production only)
+- `traefik` - Reverse proxy (production only, configured with docker-configs/traefik.yml)
 
 ### Development Profile (`--profile dev`)
 - `ai-assistant-dev` - Development version with hot reload
