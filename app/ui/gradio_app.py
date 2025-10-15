@@ -6,7 +6,6 @@ This module provides a web-based UI for configuring settings and testing queries
 
 import gradio as gr
 import httpx
-import asyncio
 import logging
 import json
 from typing import List, Optional, Tuple
@@ -29,7 +28,7 @@ def get_models_list() -> List[str]:
         try:
             # Use a simple synchronous approach
             models = get_available_models()
-            
+
             # Debug logging
             logger.info(f"Retrieved models: {models}")
             if models:
@@ -66,7 +65,7 @@ def get_providers_info() -> str:
             initialize_llm_providers()
 
         providers = provider_registry.list_providers()
-        
+
         if not providers:
             return "No providers configured"
 
@@ -110,7 +109,9 @@ def get_providers_info() -> str:
     except Exception as e:
         logger.error(f"Error getting provider information: {str(e)}", exc_info=True)
         result = f"Unable to fetch provider information: {str(e)}"
-        logger.info(f"get_providers_info returning error: {result}, type: {type(result)}")
+        logger.info(
+            f"get_providers_info returning error: {result}, type: {type(result)}"
+        )
         return result
 
 
@@ -551,7 +552,7 @@ def update_settings(
         if agent_system_enabled:
             try:
                 from ..core.agents.registry import agent_registry
-                
+
                 if not agent_registry.list_agents():
                     from ..core.config import initialize_agent_system
 
@@ -905,7 +906,7 @@ def create_gradio_app() -> gr.Blocks:
                 ):
                     """Submit query with loading state"""
                     import asyncio
-                    
+
                     if not message or not message.strip():
                         yield (
                             "Please enter a message to test",
