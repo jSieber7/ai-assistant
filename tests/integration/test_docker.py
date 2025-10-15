@@ -21,7 +21,10 @@ class TestDockerIntegration:
     def setup(self):
         """Set up test environment."""
         self.services = {
-            "ai-assistant": {"port": 80, "health_path": "/"},  # Changed to port 80 (Traefik)
+            "ai-assistant": {
+                "port": 80,
+                "health_path": "/",
+            },  # Changed to port 80 (Traefik)
             # Skip Redis direct test as it's only accessible within Docker network
             # "redis": {"port": 6379, "health_check": self._check_redis},
             # Skip SearXNG for now due to known configuration issues
