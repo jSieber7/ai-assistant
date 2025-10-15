@@ -114,3 +114,6 @@ coverage.xml
 # Local configuration overrides
 config.local.*
 settings.local.*
+
+# Experimental Directories for Context
+experimental/

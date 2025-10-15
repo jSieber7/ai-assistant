@@ -2,6 +2,7 @@ from pydantic_settings import BaseSettings
 from typing import Optional, List, Dict, ClassVar
 from pydantic import SecretStr
 import logging
+import os
 
 # Import MultiWriterSettings before using it
 from .multi_writer_config import MultiWriterSettings
@@ -155,6 +156,23 @@ class Settings(BaseSettings):
             MultiWriterSettings,
         )  # Ignore the class itself, not an instance
 
+        @classmethod
+        def customize_sources(cls, init_settings, env_settings, file_secret_settings):
+            # Prioritize .env.test when in testing environment
+            if os.getenv("ENVIRONMENT") == "testing":
+                test_env_file = ".env.test"
+                if os.path.exists(test_env_file):
+                    return (
+                        init_settings,
+                        env_settings,
+                        file_secret_settings(test_env_file),
+                    )
+            return (
+                init_settings,
+                env_settings,
+                file_secret_settings,
+            )
+
 
 settings = Settings()
 
@@ -208,7 +226,9 @@ def initialize_llm_providers():
     # Set default provider based on preferences
     configured_providers = provider_registry.list_configured_providers()
     if not configured_providers:
-        raise ValueError("No LLM providers are configured")
+        logger.warning("No LLM providers are configured - some features may not work")
+        # Don't raise an error, just return the registry without a default provider
+        return provider_registry
 
     # Handle provider preference with backward compatibility
     preferred = settings.preferred_provider.lower()
@@ -269,18 +289,46 @@ async def get_llm(model_name: Optional[str] = None, **kwargs):
         logger.info(f"Created {provider.name} LLM with model '{actual_model}'")
         return llm
 
-    except Exception as e:
+    except ValueError as e:
+        # Handle "Model not found" errors specifically
+        if "not found in any configured provider" in str(e):
+            # Get list of available models for a more helpful error message
+            try:
+                available_models = get_available_models()
+                if available_models:
+                    model_list = ", ".join([m.name for m in available_models[:5]])
+                    if len(available_models) > 5:
+                        model_list += f" and {len(available_models) - 5} more"
+                    error_msg = f"Model '{model_name}' not found. Available models: {model_list}"
+                else:
+                    error_msg = f"Model '{model_name}' not found. No models are currently available."
+
+                if settings.enable_fallback:
+                    error_msg += " Trying fallback providers..."
+
+                logger.warning(error_msg)
+            except Exception:
+                logger.warning(
+                    f"Model '{model_name}' not found in any configured provider"
+                )
+
+        # Try fallback providers if enabled
         if settings.enable_fallback:
-            # Try fallback providers
-            logger.warning(f"Failed to create LLM for model '{model_name}': {str(e)}")
+            logger.warning(f"Attempting fallback for model '{model_name}'")
 
             configured_providers = provider_registry.list_configured_providers()
             for fallback_provider in configured_providers:
-                if (
-                    fallback_provider.provider_type.value
-                    == settings.preferred_provider.lower()
-                ):
-                    continue  # Skip the one that already failed
+                # Skip the provider that already failed if we can determine it
+                if "not found" in str(e) and ":" in model_name:
+                    failed_provider_name = model_name.split(":", 1)[0]
+                    try:
+                        if (
+                            fallback_provider.provider_type.value
+                            == failed_provider_name
+                        ):
+                            continue
+                    except ValueError:
+                        pass
 
                 try:
                     # Try provider's default model
@@ -300,6 +348,34 @@ async def get_llm(model_name: Optional[str] = None, **kwargs):
                     )
                     continue
 
+        # If we get here, all fallback attempts failed
+        if "not found in any configured provider" in str(e):
+            # Re-raise with a more helpful error message
+            try:
+                available_models = get_available_models()
+                if available_models:
+                    model_list = ", ".join([m.name for m in available_models[:5]])
+                    if len(available_models) > 5:
+                        model_list += f" and {len(available_models) - 5} more"
+                    raise ValueError(
+                        f"Model '{model_name}' not found. Available models: {model_list}"
+                    )
+                else:
+                    raise ValueError(
+                        f"Model '{model_name}' not found. No models are currently available."
+                    )
+            except Exception:
+                raise ValueError(
+                    f"Model '{model_name}' not found in any configured provider"
+                )
+        else:
+            raise ValueError(f"Failed to create LLM for model '{model_name}': {str(e)}")
+
+    except Exception as e:
+        # Handle other types of errors
+        logger.error(
+            f"Unexpected error creating LLM for model '{model_name}': {str(e)}"
+        )
         raise ValueError(f"Failed to create LLM for model '{model_name}': {str(e)}")
 
 
@@ -312,15 +388,35 @@ def get_available_models():
 
     import asyncio
 
-    # Run async function in sync context
-    loop = None
-    try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+    # Create a simple synchronous wrapper
+    def _sync_get_models():
+        try:
+            # Create a new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                # Create a coroutine and run it
+                async def _get_models():
+                    return await provider_registry.list_all_models()
 
-    return loop.run_until_complete(provider_registry.list_all_models())
+                return loop.run_until_complete(_get_models())
+            finally:
+                loop.close()
+        except Exception as e:
+            logger.error(f"Failed to get models: {str(e)}")
+            return []
+
+    # Use threading to avoid event loop issues
+    import concurrent.futures
+
+    # Use a thread pool to run the async function
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(_sync_get_models)
+        try:
+            return future.result(timeout=30)
+        except Exception as e:
+            logger.error(f"Failed to get models from thread: {str(e)}")
+            return []
 
 
 def initialize_agent_system():
@@ -340,14 +436,27 @@ def initialize_agent_system():
     import asyncio
 
     # Get LLM asynchronously
-    loop = None
     try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        # Check if we're in an async context
+        try:
+            asyncio.get_running_loop()
+            # We're in an async context, need to run in a thread
+            import concurrent.futures
 
-    llm = loop.run_until_complete(get_llm())
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, get_llm())
+                llm = future.result(timeout=10)  # Add 10 second timeout
+        except RuntimeError:
+            # No running loop, we can use asyncio.run
+            llm = asyncio.run(get_llm())
+    except concurrent.futures.TimeoutError:
+        logger.error("Agent system initialization timed out while getting LLM")
+        raise ValueError(
+            "Agent system initialization timed out - LLM provider not responding"
+        )
+    except Exception as e:
+        logger.error(f"Failed to get LLM for agent system: {str(e)}")
+        raise
 
     tool_agent = ToolAgent(
         tool_registry=tool_registry,
