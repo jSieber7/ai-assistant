@@ -38,7 +38,28 @@ def mock_env():
 
 
 @pytest.fixture
-def client(mock_llm, mock_env):
+def mock_models():
+    """Mock the get_available_models function to return a controlled list of models."""
+    with patch("app.core.config.get_available_models") as mock:
+        from app.core.llm_providers import ModelInfo, ProviderType
+
+        # Return a single model for predictable testing
+        mock.return_value = [
+            ModelInfo(
+                name="test-model",
+                provider=ProviderType.OPENAI_COMPATIBLE,
+                display_name="Test Model",
+                description="A test model for unit testing",
+                context_length=4096,
+                supports_streaming=True,
+                supports_tools=True,
+            )
+        ]
+        yield mock
+
+
+@pytest.fixture
+def client(mock_llm, mock_env, mock_models):
     """Create a test client with mocked dependencies."""
     with TestClient(app) as test_client:
         yield test_client

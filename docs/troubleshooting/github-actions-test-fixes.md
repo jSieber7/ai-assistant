@@ -4,12 +4,13 @@ This document explains the fixes applied to resolve failing tests in the GitHub 
 
 ## Issue Summary
 
-The GitHub Actions workflow was failing with 4 test failures:
+The GitHub Actions workflow was failing with 5 test failures:
 
 1. `TestDockerIntegration::test_service_status` - Docker services not available in CI
 2. `TestDockerIntegration::test_service_health` - Docker services not available in CI
 3. `TestDockerIntegration::test_application_endpoints` - Docker services not available in CI
 4. `TestSettings::test_settings_defaults` - Expected host value mismatch
+5. `TestMainEndpoints::test_models_endpoint` - Models endpoint returning 334 models instead of expected 1
 
 ## Root Causes
 
@@ -20,6 +21,10 @@ The Docker integration tests were designed to run against actual Docker services
 ### Configuration Test Failure
 
 The test expected the default host value to be "0.0.0.0" but the actual configuration was set to "127.0.0.1".
+
+### Models Endpoint Test Failure
+
+The test expected the `/v1/models` endpoint to return exactly 1 model, but it was returning 334 models from OpenRouter's API. The test was using a test API key that was actually connecting to the real OpenRouter API and fetching all available models.
 
 ## Fixes Applied
 
@@ -80,6 +85,39 @@ assert settings.host == "0.0.0.0"
 assert settings.host == "127.0.0.1"
 ```
 
+### 3. Models Endpoint Test Fix
+
+Modified `tests/conftest.py` to add a mock for the models endpoint:
+
+```python
+@pytest.fixture
+def mock_models():
+    """Mock the get_available_models function to return a controlled list of models."""
+    with patch("app.core.config.get_available_models") as mock:
+        from app.core.llm_providers import ModelInfo, ProviderType
+        
+        # Return a single model for predictable testing
+        mock.return_value = [
+            ModelInfo(
+                name="test-model",
+                provider=ProviderType.OPENAI_COMPATIBLE,
+                display_name="Test Model",
+                description="A test model for unit testing",
+                context_length=4096,
+                supports_streaming=True,
+                supports_tools=True,
+            )
+        ]
+        yield mock
+
+# Updated the client fixture to include the mock
+@pytest.fixture
+def client(mock_llm, mock_env, mock_models):
+    """Create a test client with mocked dependencies."""
+    with TestClient(app) as test_client:
+        yield test_client
+```
+
 ## Testing the Fixes
 
 To verify the fixes work correctly:
@@ -90,6 +128,7 @@ To verify the fixes work correctly:
    uv run pytest tests/integration/test_docker.py::TestDockerIntegration::test_service_status -v
    uv run pytest tests/integration/test_docker.py::TestDockerIntegration::test_service_health -v
    uv run pytest tests/integration/test_docker.py::TestDockerIntegration::test_application_endpoints -v
+   uv run pytest tests/unit/test_main.py::TestMainEndpoints::test_models_endpoint -v
    ```
 
 2. Or use the provided test script:
@@ -110,5 +149,6 @@ For more robust testing, consider:
 
 - `tests/unit/test_config.py` - Updated expected host value
 - `tests/integration/test_docker.py` - Added Docker availability checks and graceful skipping
+- `tests/conftest.py` - Added mock for models endpoint to prevent API calls during testing
 - `test_fixes.py` - Created test verification script (new file)
 - `docs/troubleshooting/github-actions-test-fixes.md` - This documentation (new file)
