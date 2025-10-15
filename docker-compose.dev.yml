@@ -15,7 +15,6 @@ services:
       - /app/__pycache__  # Exclude pycache
       - /app/.pytest_cache
       - /app/htmlcov
-      - /app/.coverage
       - /app/.mypy_cache
       - /app/dist
       - /app/build
