@@ -1,6 +1,30 @@
+
+<div align="center">
+
+[![Documentation](https://img.shields.io/badge/documentation-blue.svg)](https://jsieber7.github.io/ai-assistant/)
+&nbsp;&nbsp;&nbsp;
+[![Python Tests](https://img.shields.io/github/actions/workflow/status/jsieber7/ai-assistant/python-tests.yml)](https://github.com/jsieber7/ai-assistant/actions/workflows/python-tests.yml)
+&nbsp;&nbsp;&nbsp;
+[![Version](https://img.shields.io/badge/version-0.3.2-blue.svg)](https://github.com/jsieber7/ai-assistant/releases)
+
+</div>
+
+<div align="center">
+
+[![Status](https://img.shields.io/badge/status-Active_Development-orange.svg)](https://github.com/jsieber7/ai-assistant/issues)
+&nbsp;&nbsp;&nbsp;
+[![License](https://img.shields.io/badge/license-MIT-yellow.svg)](https://github.com/jsieber7/ai-assistant/blob/main/LICENSE)
+
+</div>
+
+
 # LLM Tool System Foundation
 
 A comprehensive, extensible tool system foundation for AI assistants built with FastAPI and LangChain. This project provides a robust framework for integrating tool-calling capabilities into LLM applications, featuring advanced caching, monitoring, and agent orchestration.
+
+## Docs
+
+https://jsieber7.github.io/ai-assistant/
 
 ## 🎯 Current Status
 

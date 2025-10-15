@@ -1,64 +1,54 @@
+# =============================================================================
+# AI Assistant Docker Compose Configuration
+# =============================================================================
+# Usage examples:
+# - Development: docker compose --profile dev up
+# - Production: docker compose up
+# - With optional services: docker compose --profile dev --profile monitoring up
+
 networks:
   ai-assistant-network:
     driver: bridge
 
+volumes:
+  redis_data:
+    driver: local
+  postgres_data:
+    driver: local
+  mongodb_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
 services:
-  # Traefik Reverse Proxy
-  traefik:
-    image: traefik:v3.0
-    container_name: ai-assistant-traefik
-    restart: unless-stopped
-    ports:
-      - "80:80"        # HTTP entry point
-      - "8080:8080"    # Traefik Dashboard
-    command:
-      - "--api.insecure=true"  # Enable dashboard (development only)
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.traefik.address=:8080"
-      - "--log.level=INFO"
-      - "--accesslog=true"
-      - "--metrics.prometheus=true"
-      - "--ping=true"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./traefik.yml:/etc/traefik/traefik.yml:ro
-    env_file:
-      - .env.traefik
-    networks:
-      - ai-assistant-network
-    healthcheck:
-      test: ["CMD", "traefik", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+  # =============================================================================
+  # Core Services
+  # =============================================================================
 
   # Main AI Assistant Application
   ai-assistant:
     build:
       context: .
       dockerfile: Dockerfile
+      target: ${BUILD_TARGET:-production}
     container_name: ai-assistant
-    # Remove direct port exposure - Traefik will handle this
     environment:
       - HOST=0.0.0.0
       - PORT=8000
-      - ENVIRONMENT=production
+      - ENVIRONMENT=${ENVIRONMENT:-production}
       - REDIS_URL=redis://redis:6379/0
       - SEARXNG_URL=http://searxng:8080
-      - TOOL_SYSTEM_ENABLED=true
-      # Update base URL for reverse proxy
-      - BASE_URL=http://localhost
+      - BASE_URL=${BASE_URL:-http://localhost}
     env_file:
       - .env
     depends_on:
       - redis
       - searxng
-      - traefik
     volumes:
       - ./logs:/app/logs
+      - .:/app  # Development volume mount
     networks:
       - ai-assistant-network
     restart: unless-stopped
@@ -68,29 +58,26 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    profiles:
+      - dev
     labels:
+      # Production Traefik routing
       - "traefik.enable=true"
-      # Main API routing
       - "traefik.http.routers.ai-assistant.rule=PathPrefix(`/`)"
       - "traefik.http.routers.ai-assistant.priority=1"
       - "traefik.http.routers.ai-assistant.entrypoints=web"
-      
-      # Gradio UI routing (no prefix stripping since Gradio is mounted at /gradio)
+      - "traefik.http.routers.ai-assistant.middlewares=security-headers"
       - "traefik.http.routers.gradio.rule=PathPrefix(`/gradio`)"
       - "traefik.http.routers.gradio.priority=2"
       - "traefik.http.routers.gradio.entrypoints=web"
-      
-      # Basic security headers
-      - "traefik.http.routers.ai-assistant.middlewares=security-headers"
       - "traefik.http.routers.gradio.middlewares=security-headers"
       - "traefik.http.middlewares.security-headers.headers.customrequestheaders.X-Forwarded-Proto=http"
       - "traefik.http.middlewares.security-headers.headers.customrequestheaders.X-Forwarded-Host=localhost"
 
   # Redis for caching
   redis:
-    image: redis:7-alpine
+    image: redis:7.2-alpine
     container_name: ai-assistant-redis
-    # Remove port exposure - internal only
     volumes:
       - redis_data:/data
     networks:
@@ -109,7 +96,6 @@ services:
   searxng:
     image: searxng/searxng:latest
     container_name: ai-assistant-searxng
-    # Remove port exposure - internal only
     networks:
       - ai-assistant-network
     restart: unless-stopped
@@ -117,8 +103,10 @@ services:
       - BIND_ADDRESS=0.0.0.0
       - PORT=8080
       - BASE_URL=http://localhost/search/
-    # volumes:
-    #   - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY:-change-this-secret-key}
+    volumes:
+      - ./docker-configs/searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - ./docker-configs/searxng/limiter.toml:/etc/searxng/limiter.toml:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/"]
       interval: 30s
@@ -131,16 +119,135 @@ services:
       - "traefik.http.routers.searxng.priority=10"
       - "traefik.http.services.searxng.loadbalancer.server.port=8080"
       - "traefik.http.routers.searxng.entrypoints=web"
-      
-      # Middleware for stripping /search prefix
       - "traefik.http.middlewares.searxng-stripprefix.stripprefix.prefixes=/search"
       - "traefik.http.routers.searxng.middlewares=searxng-stripprefix"
 
-  # Optional: PostgreSQL for future use
+  # =============================================================================
+  # Production Services
+  # =============================================================================
+
+  # Traefik Reverse Proxy
+  traefik:
+    image: traefik:v3.0
+    container_name: ai-assistant-traefik
+    restart: unless-stopped
+    ports:
+      - "80:80"        # HTTP entry point
+      - "8080:8080"    # Traefik Dashboard
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.traefik.address=:8080"
+      - "--log.level=INFO"
+      - "--accesslog=true"
+      - "--metrics.prometheus=true"
+      - "--ping=true"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/etc/traefik/traefik.yml:ro
+    env_file:
+      - .env
+    networks:
+      - ai-assistant-network
+    healthcheck:
+      test: ["CMD", "traefik", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # =============================================================================
+  # Development Profile
+  # =============================================================================
+
+  # Development configuration with direct port access
+  ai-assistant-dev:
+    extends:
+      service: ai-assistant
+    container_name: ai-assistant-dev
+    ports:
+      - "8000:8000"  # Direct port access for development
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - RELOAD=true
+    command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    profiles:
+      - dev
+
+  # Development tools
+  debug-tools:
+    image: python:3.12-slim
+    container_name: ai-assistant-debug-tools
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: tail -f /dev/null  # Keep container running
+    profiles:
+      - dev
+
+  # Redis Commander for Redis GUI
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: ai-assistant-redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    profiles:
+      - dev
+
+  # =============================================================================
+  # Optional Services (can be enabled with any profile)
+  # =============================================================================
+
+  # MongoDB for multi-writer system
+  mongodb:
+    image: mongo:7.0
+    container_name: ai-assistant-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: password123
+      MONGO_INITDB_DATABASE: multi_writer_system
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - ./docker-configs/mongodb/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+    networks:
+      - ai-assistant-network
+    profiles:
+      - mongodb
+
+  # MongoDB Express (optional web UI)
+  mongo-express:
+    image: mongo-express:1.0.0
+    container_name: ai-assistant-mongo-express
+    restart: unless-stopped
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: password123
+      ME_CONFIG_MONGODB_URL: mongodb://admin:password123@mongodb:27017/
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: admin123
+    ports:
+      - "8082:8081"
+    depends_on:
+      - mongodb
+    networks:
+      - ai-assistant-network
+    profiles:
+      - mongodb
+
+  # PostgreSQL for future use
   postgres:
     image: postgres:15-alpine
     container_name: ai-assistant-postgres
-    # Remove port exposure - internal only
     environment:
       - POSTGRES_DB=langchain_agent_hub
       - POSTGRES_USER=postgres
@@ -158,10 +265,38 @@ services:
     labels:
       - "traefik.enable=false"  # Internal service only
     profiles:
-      - postgres  # Only start when explicitly requested
+      - postgres
 
-volumes:
-  redis_data:
-    driver: local
-  postgres_data:
-    driver: local
+  # Prometheus for monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ai-assistant-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker-configs/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    profiles:
+      - monitoring
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ai-assistant-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker-configs/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
+    profiles:
+      - monitoring

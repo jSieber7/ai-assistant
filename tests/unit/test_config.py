@@ -110,7 +110,9 @@ class TestSettings:
 
         assert settings.host in ["127.0.0.1", "0.0.0.0"]  # Allow both values
         assert settings.port == 8000
-        assert settings.environment == "testing"
+        assert (
+            settings.environment == "development"
+        )  # Default environment is development
         assert settings.tool_system_enabled is True
 
     def test_settings_from_env(self):
