@@ -413,7 +413,7 @@ class LLMProviderRegistry:
         return [
             provider
             for provider in self._providers.values()
-            if provider.is_configured and provider.is_healthy()
+            if provider.is_configured  # Only check if configured, not if healthy
         ]
 
     async def health_check_all(self):

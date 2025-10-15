@@ -27,20 +27,15 @@ def get_models_list() -> List[str]:
 
         # Get models synchronously with proper error handling
         try:
-            # Check if we're in an async context
-            try:
-                asyncio.get_running_loop()
-                # We're in an async context, need to run in a thread
-                import concurrent.futures
-
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, get_available_models())
-                    models = future.result(timeout=10)
-            except RuntimeError:
-                # No running loop, we can use asyncio.run
-                models = asyncio.run(get_available_models(), timeout=10)
+            # Use a simple synchronous approach
+            models = get_available_models()
+            
+            # Debug logging
+            logger.info(f"Retrieved models: {models}")
+            if models:
+                logger.info(f"First model: {models[0]}, type: {type(models[0])}")
         except Exception as e:
-            logger.error(f"Error getting models: {str(e)}")
+            logger.error(f"Error getting models: {str(e)}", exc_info=True)
             return [settings.default_model]
 
         if not models:
@@ -71,6 +66,7 @@ def get_providers_info() -> str:
             initialize_llm_providers()
 
         providers = provider_registry.list_providers()
+        
         if not providers:
             return "No providers configured"
 
@@ -107,11 +103,15 @@ def get_providers_info() -> str:
                 )
                 providers_info.append(f"{provider.name}: ✗ Error processing provider")
 
-        return "\n".join(providers_info)
+        result = "\n".join(providers_info)
+        logger.info(f"get_providers_info returning: {result}, type: {type(result)}")
+        return result
 
     except Exception as e:
         logger.error(f"Error getting provider information: {str(e)}", exc_info=True)
-        return f"Unable to fetch provider information: {str(e)}"
+        result = f"Unable to fetch provider information: {str(e)}"
+        logger.info(f"get_providers_info returning error: {result}, type: {type(result)}")
+        return result
 
 
 def get_tools_info() -> str:
@@ -299,7 +299,7 @@ def initialize_gradio_components() -> Tuple[bool, str]:
         return False, error_msg
 
 
-async def test_query(
+async def execute_query_function(
     message: str,
     model: str,
     temperature: float,
@@ -436,6 +436,11 @@ async def test_query(
     except Exception as e:
         logger.error(f"Error testing query: {str(e)}", exc_info=True)
         return f"Error testing query: {str(e)}"
+
+
+# Alias for backward compatibility
+test_query = execute_query_function
+test_query_function = execute_query_function  # For backward compatibility with tests
 
 
 def update_settings(
@@ -899,26 +904,36 @@ def create_gradio_app() -> gr.Blocks:
                     agent_custom_name,
                 ):
                     """Submit query with loading state"""
+                    import asyncio
+                    
                     if not message or not message.strip():
-                        return (
+                        yield (
                             "Please enter a message to test",
                             "⚠️ Please enter a message",
                         )
+                        return
 
                     # Show loading state
                     yield "⏳ Processing your query...", "🔄 Processing query..."
 
                     try:
                         # Execute the actual query
-                        result = test_query(
-                            message,
-                            model,
-                            temperature,
-                            max_tokens,
-                            use_agents,
-                            agent_dropdown_value,
-                            agent_custom_name,
-                        )
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            result = loop.run_until_complete(
+                                execute_query_function(
+                                    message,
+                                    model,
+                                    temperature,
+                                    max_tokens,
+                                    use_agents,
+                                    agent_dropdown_value,
+                                    agent_custom_name,
+                                )
+                            )
+                        finally:
+                            loop.close()
 
                         # Determine status based on result
                         if result.startswith("Error:"):
