@@ -208,7 +208,9 @@ def initialize_llm_providers():
     # Set default provider based on preferences
     configured_providers = provider_registry.list_configured_providers()
     if not configured_providers:
-        raise ValueError("No LLM providers are configured")
+        logger.warning("No LLM providers are configured - some features may not work")
+        # Don't raise an error, just return the registry without a default provider
+        return provider_registry
 
     # Handle provider preference with backward compatibility
     preferred = settings.preferred_provider.lower()
@@ -313,14 +315,32 @@ def get_available_models():
     import asyncio
 
     # Run async function in sync context
-    loop = None
     try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    return loop.run_until_complete(provider_registry.list_all_models())
+        # Check if we're in an async context
+        try:
+            loop = asyncio.get_running_loop()
+            # We're in an async context, need to run in a thread
+            import concurrent.futures
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, provider_registry.list_all_models())
+                result = future.result(timeout=30)
+                # Ensure we return a list, not a coroutine
+                if asyncio.iscoroutine(result):
+                    # If somehow we got a coroutine, run it
+                    return asyncio.run(result)
+                return result
+        except RuntimeError:
+            # No running loop, we can use asyncio.run
+            result = asyncio.run(provider_registry.list_all_models())
+            # Ensure we return a list, not a coroutine
+            if asyncio.iscoroutine(result):
+                # If somehow we got a coroutine, run it
+                return asyncio.run(result)
+            return result
+    except Exception as e:
+        logger.error(f"Failed to get available models: {str(e)}")
+        return []
 
 
 def initialize_agent_system():
@@ -340,14 +360,22 @@ def initialize_agent_system():
     import asyncio
 
     # Get LLM asynchronously
-    loop = None
     try:
-        loop = asyncio.get_event_loop()
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-    llm = loop.run_until_complete(get_llm())
+        # Check if we're in an async context
+        try:
+            loop = asyncio.get_running_loop()
+            # We're in an async context, need to run in a thread
+            import concurrent.futures
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, get_llm())
+                llm = future.result(timeout=30)
+        except RuntimeError:
+            # No running loop, we can use asyncio.run
+            llm = asyncio.run(get_llm())
+    except Exception as e:
+        logger.error(f"Failed to get LLM for agent system: {str(e)}")
+        raise
 
     tool_agent = ToolAgent(
         tool_registry=tool_registry,

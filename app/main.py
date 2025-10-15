@@ -41,7 +41,11 @@ initialize_llm_providers()
 
 # Initialize agent system
 if settings.agent_system_enabled:
-    initialize_agent_system()
+    try:
+        initialize_agent_system()
+    except Exception as e:
+        print(f"Warning: Failed to initialize agent system: {str(e)}")
+        print("Agent system will be disabled until properly configured")
 
 # Initialize multi-writer system (optional)
 multi_writer_config = None
