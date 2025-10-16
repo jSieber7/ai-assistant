@@ -242,16 +242,43 @@ class TestOllamaSettings:
 
     def test_ollama_settings_defaults(self):
         """Test Ollama settings default values"""
-        settings = OllamaSettings()
-
-        assert settings.enabled
-        assert settings.base_url == "http://localhost:11434"
-        assert settings.default_model == "llama2"
-        assert settings.timeout == 30
-        assert settings.temperature == 0.7
-        assert settings.streaming
-        assert settings.health_check_interval == 60
-        assert settings.auto_health_check
+        # Clear environment variables to test true defaults
+        import os
+        env_vars_to_clear = [
+            "OLLAMA_SETTINGS_ENABLED",
+            "OLLAMA_SETTINGS_BASE_URL",
+            "OLLAMA_SETTINGS_DEFAULT_MODEL",
+            "OLLAMA_SETTINGS_TIMEOUT",
+            "OLLAMA_SETTINGS_TEMPERATURE",
+            "OLLAMA_SETTINGS_STREAMING",
+            "OLLAMA_SETTINGS_HEALTH_CHECK_INTERVAL",
+            "OLLAMA_SETTINGS_AUTO_HEALTH_CHECK",
+            "OLLAMA_SETTINGS_MAX_RETRIES",
+            "OLLAMA_SETTINGS_MAX_TOKENS"
+        ]
+        
+        # Store original values
+        original_values = {}
+        for var in env_vars_to_clear:
+            if var in os.environ:
+                original_values[var] = os.environ[var]
+                del os.environ[var]
+        
+        try:
+            settings = OllamaSettings()
+            
+            assert settings.enabled
+            assert settings.base_url == "http://localhost:11434"
+            assert settings.default_model == "llama2"
+            assert settings.timeout == 30
+            assert settings.temperature == 0.7
+            assert settings.streaming
+            assert settings.health_check_interval == 60
+            assert settings.auto_health_check
+        finally:
+            # Restore original values
+            for var, value in original_values.items():
+                os.environ[var] = value
 
     def test_ollama_settings_custom_values(self):
         """Test Ollama settings with custom values"""
