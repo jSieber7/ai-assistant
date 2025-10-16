@@ -40,17 +40,11 @@ RUN python --version && uv --version
 # This stage inherits our stable base and builds the application.
 FROM base AS development
 
-# Copy dependency files first for better layer caching.
-COPY pyproject.toml uv.lock ./
-
-# Install dependencies using the frozen lockfile BEFORE copying application code.
-# This layer is only invalidated if pyproject.toml or uv.lock changes.
-RUN uv sync --frozen --group dev
-
-# Now, copy the application code. This layer will be invalidated on code changes,
-# but the expensive dependency installation above remains cached.
-# CORRECTED: The destination is now `./` which is the WORKDIR /app.
+# Copy all the code first
 COPY . .
+
+# Install dependencies using the frozen lockfile
+RUN uv sync --frozen --group dev
 
 # Expose the application port.
 EXPOSE 8000

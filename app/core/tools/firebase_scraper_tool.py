@@ -6,9 +6,8 @@ and storing results in Firebase Firestore with optional Selenium rendering.
 """
 
 import asyncio
-import json
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 import firebase_admin
 from firebase_admin import credentials, firestore, storage
 from firebase_admin.exceptions import FirebaseError
@@ -20,7 +19,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 import httpx
 
-from .base import BaseTool, ToolResult, ToolExecutionError
+from .base import BaseTool, ToolExecutionError
 
 logger = logging.getLogger(__name__)
 
@@ -113,11 +112,13 @@ class FirebaseScraperTool(BaseTool):
             raise ToolExecutionError("Firebase is not enabled in settings")
 
         # Check if Firebase credentials are available
-        if not all([
-            settings.firebase_settings.project_id,
-            settings.firebase_settings.private_key,
-            settings.firebase_settings.client_email,
-        ]):
+        if not all(
+            [
+                settings.firebase_settings.project_id,
+                settings.firebase_settings.private_key,
+                settings.firebase_settings.client_email,
+            ]
+        ):
             raise ToolExecutionError("Firebase credentials are not configured")
 
         try:
@@ -126,7 +127,9 @@ class FirebaseScraperTool(BaseTool):
                 "type": "service_account",
                 "project_id": settings.firebase_settings.project_id,
                 "private_key_id": settings.firebase_settings.private_key_id,
-                "private_key": settings.firebase_settings.private_key.replace('\\n', '\n'),
+                "private_key": settings.firebase_settings.private_key.replace(
+                    "\\n", "\n"
+                ),
                 "client_email": settings.firebase_settings.client_email,
                 "client_id": settings.firebase_settings.client_id,
                 "auth_uri": settings.firebase_settings.auth_uri,
@@ -139,10 +142,13 @@ class FirebaseScraperTool(BaseTool):
 
             # Initialize Firebase app
             if not firebase_admin._apps:
-                firebase_admin.initialize_app(cred, {
-                    'databaseURL': settings.firebase_settings.database_url,
-                    'storageBucket': settings.firebase_settings.storage_bucket,
-                })
+                firebase_admin.initialize_app(
+                    cred,
+                    {
+                        "databaseURL": settings.firebase_settings.database_url,
+                        "storageBucket": settings.firebase_settings.storage_bucket,
+                    },
+                )
 
             # Initialize Firestore and Storage
             self._db = firestore.client()
@@ -176,7 +182,9 @@ class FirebaseScraperTool(BaseTool):
             elif settings.firebase_settings.selenium_driver_type == "firefox":
                 self._selenium_driver = webdriver.Firefox(options=options)
             else:
-                raise ToolExecutionError(f"Unsupported driver type: {settings.firebase_settings.selenium_driver_type}")
+                raise ToolExecutionError(
+                    f"Unsupported driver type: {settings.firebase_settings.selenium_driver_type}"
+                )
 
             self._selenium_driver.implicitly_wait(10)
             logger.info("Selenium WebDriver initialized")
@@ -190,7 +198,7 @@ class FirebaseScraperTool(BaseTool):
 
         try:
             self._selenium_driver.get(url)
-            
+
             # Wait for page to load
             WebDriverWait(self._selenium_driver, timeout).until(
                 EC.presence_of_element_located((By.TAG_NAME, "body"))
@@ -198,7 +206,7 @@ class FirebaseScraperTool(BaseTool):
 
             # Get page source and process
             page_source = self._selenium_driver.page_source
-            soup = BeautifulSoup(page_source, 'html.parser')
+            soup = BeautifulSoup(page_source, "html.parser")
 
             return self._extract_content(soup, url)
 
@@ -212,7 +220,7 @@ class FirebaseScraperTool(BaseTool):
                 response = await client.get(url)
                 response.raise_for_status()
 
-                soup = BeautifulSoup(response.text, 'html.parser')
+                soup = BeautifulSoup(response.text, "html.parser")
                 return self._extract_content(soup, url)
 
         except Exception as e:
@@ -223,12 +231,12 @@ class FirebaseScraperTool(BaseTool):
         from ..config import settings
 
         # Extract title
-        title = soup.find('title')
+        title = soup.find("title")
         title_text = title.get_text().strip() if title else ""
 
         # Extract main content
         main_content = ""
-        content_selectors = ['article', 'main', '.content', '#content', '.main-content']
+        content_selectors = ["article", "main", ".content", "#content", ".main-content"]
         for selector in content_selectors:
             element = soup.select_one(selector)
             if element:
@@ -238,64 +246,70 @@ class FirebaseScraperTool(BaseTool):
 
         # Fallback to body if no specific content found
         if not main_content:
-            body = soup.find('body')
+            body = soup.find("body")
             main_content = body.get_text(strip=True) if body else ""
 
         # Extract metadata
         meta_description = ""
-        meta_desc = soup.find('meta', attrs={'name': 'description'})
-        if meta_desc and meta_desc.get('content'):
-            meta_description = meta_desc['content']
+        meta_desc = soup.find("meta", attrs={"name": "description"})
+        if meta_desc and meta_desc.get("content"):
+            meta_description = meta_desc["content"]
 
         # Extract links if enabled
         links = []
         if settings.firebase_settings.extract_links:
-            for link in soup.find_all('a', href=True):
-                href = link['href']
-                if href.startswith('http') or href.startswith('/'):
-                    links.append({
-                        'text': link.get_text(strip=True),
-                        'url': href,
-                        'title': link.get('title', '')
-                    })
+            for link in soup.find_all("a", href=True):
+                href = link["href"]
+                if href.startswith("http") or href.startswith("/"):
+                    links.append(
+                        {
+                            "text": link.get_text(strip=True),
+                            "url": href,
+                            "title": link.get("title", ""),
+                        }
+                    )
 
         # Extract images if enabled
         images = []
         if settings.firebase_settings.extract_images:
-            for img in soup.find_all('img', src=True):
-                images.append({
-                    'src': img['src'],
-                    'alt': img.get('alt', ''),
-                    'title': img.get('title', '')
-                })
+            for img in soup.find_all("img", src=True):
+                images.append(
+                    {
+                        "src": img["src"],
+                        "alt": img.get("alt", ""),
+                        "title": img.get("title", ""),
+                    }
+                )
 
         return {
-            'url': url,
-            'title': title_text,
-            'content': main_content,
-            'description': meta_description,
-            'links': links,
-            'images': images,
-            'content_length': len(main_content),
-            'link_count': len(links),
-            'image_count': len(images),
+            "url": url,
+            "title": title_text,
+            "content": main_content,
+            "description": meta_description,
+            "links": links,
+            "images": images,
+            "content_length": len(main_content),
+            "link_count": len(links),
+            "image_count": len(images),
         }
 
-    async def _store_in_firestore(self, data: Dict[str, Any], collection_name: str) -> str:
+    async def _store_in_firestore(
+        self, data: Dict[str, Any], collection_name: str
+    ) -> str:
         """Store scraped data in Firestore"""
         self._initialize_firebase()
 
         try:
             # Create document ID from URL
-            doc_id = data['url'].replace('/', '_').replace(':', '_').replace('.', '_')
-            
+            doc_id = data["url"].replace("/", "_").replace(":", "_").replace(".", "_")
+
             # Add timestamp
-            data['scraped_at'] = firestore.SERVER_TIMESTAMP
-            
+            data["scraped_at"] = firestore.SERVER_TIMESTAMP
+
             # Store in Firestore
             doc_ref = self._db.collection(collection_name).document(doc_id)
             doc_ref.set(data)
-            
+
             logger.info(f"Stored scraped data in Firestore: {doc_id}")
             return doc_id
 
@@ -319,7 +333,7 @@ class FirebaseScraperTool(BaseTool):
             raise ToolExecutionError("Firebase scraping is not enabled")
 
         # Validate URL
-        if not url.startswith(('http://', 'https://')):
+        if not url.startswith(("http://", "https://")):
             url = f"https://{url}"
 
         try:
@@ -332,7 +346,7 @@ class FirebaseScraperTool(BaseTool):
             # Store in Firestore if enabled
             if store_in_firestore and settings.firebase_settings.enabled:
                 doc_id = await self._store_in_firestore(scraped_data, collection_name)
-                scraped_data['firestore_doc_id'] = doc_id
+                scraped_data["firestore_doc_id"] = doc_id
 
             return scraped_data
 
@@ -357,7 +371,7 @@ class FirebaseScraperTool(BaseTool):
             )
             for url in urls
         ]
-        
+
         return await asyncio.gather(*tasks, return_exceptions=True)
 
     def cleanup(self):

@@ -199,17 +199,30 @@ async def chat_completions(request: ChatRequest):
     except ValueError as e:
         # Handle validation errors
         raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
-    except ConnectionError as e:
+    except ConnectionError:
         # Handle connection errors
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable. Please try again later.")
+        raise HTTPException(
+            status_code=503,
+            detail="Service temporarily unavailable. Please try again later.",
+        )
     except Exception as e:
         # Log the full error for debugging
         import logging
+
         logger = logging.getLogger(__name__)
         logger.error(f"Unexpected error in chat_completions: {str(e)}", exc_info=True)
-        
+
+        # Check if it's an OpenRouter API error and preserve the message
+        if "OpenRouter API error" in str(e):
+            raise HTTPException(
+                status_code=500, detail=f"OpenRouter API error: {str(e)}"
+            )
+
         # Return a generic error message to the user
-        raise HTTPException(status_code=500, detail="An unexpected error occurred. Please try again later.")
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred. Please try again later.",
+        )
 
 
 async def _stream_response(messages, llm, model_name):
@@ -219,12 +232,19 @@ async def _stream_response(messages, llm, model_name):
     async def generate():
         try:
             # Check if LLM supports streaming
-            if hasattr(llm, 'astream') and llm.streaming:
+            if hasattr(llm, "astream") and getattr(llm, "streaming", False):
                 # Use native streaming if available
                 stream_id = f"chatcmpl-{uuid.uuid4()}"
-                
-                async for chunk in llm.astream(messages):
-                    if hasattr(chunk, 'content') and chunk.content:
+
+                # Get the async iterator
+                stream = llm.astream(messages)
+
+                # Check if it's already an async iterator or a coroutine
+                if asyncio.iscoroutine(stream):
+                    stream = await stream
+
+                async for chunk in stream:
+                    if hasattr(chunk, "content") and chunk.content:
                         chunk_data = {
                             "id": stream_id,
                             "object": "chat.completion.chunk",
@@ -238,7 +258,7 @@ async def _stream_response(messages, llm, model_name):
                             ],
                         }
                         yield f"data: {json.dumps(chunk_data)}\n\n"
-                
+
                 # Final chunk
                 final_chunk = {
                     "id": stream_id,
@@ -282,8 +302,12 @@ async def _stream_response(messages, llm, model_name):
                 yield "data: [DONE]\n\n"
 
         except Exception as e:
-            error_chunk = {"error": {"message": str(e), "type": "error"}}
-            yield f"data: {json.dumps(error_chunk)}\n\n"
+            try:
+                error_chunk = {"error": {"message": str(e), "type": "error"}}
+                yield f"data: {json.dumps(error_chunk)}\n\n"
+            except Exception:
+                # Fallback if JSON serialization fails
+                yield f"data: {{\"error\": {{\"message\": \"{str(e).replace('\"', '\\\"')}\", \"type\": \"error\"}}}}\n\n"
 
     return StreamingResponse(generate(), media_type="text/plain")
 

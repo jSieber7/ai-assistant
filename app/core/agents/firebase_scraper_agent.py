@@ -5,13 +5,13 @@ This agent specializes in web scraping tasks using Firebase infrastructure
 with advanced features like Selenium rendering and Firestore storage.
 """
 
-import asyncio
+import json
 import logging
 from typing import Dict, Any, List, Optional
-from langchain.schema import BaseMessage, HumanMessage, SystemMessage
+from langchain.schema import HumanMessage, SystemMessage
 from langchain.chat_models.base import BaseChatModel
 
-from .base import BaseAgent
+from .base import BaseAgent, AgentResult
 from ..tools.registry import tool_registry
 from ..tools.firebase_scraper_tool import FirebaseScraperTool
 
@@ -28,7 +28,9 @@ class FirebaseScraperAgent(BaseAgent):
         max_iterations: int = 3,
         timeout: int = 60,
     ):
-        super().__init__(llm, tool_registry, max_iterations, timeout)
+        # BaseAgent only takes tool_registry and max_iterations
+        super().__init__(tool_registry, max_iterations)
+        self.llm = llm
         self._scraper_tool = None
         self._specialized_prompt = self._create_specialized_prompt()
 
@@ -114,42 +116,46 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
 
         response = await self.llm.agenerate([messages])
         analysis_text = response.generations[0][0].text
-        
+
+        import json
+
         try:
             # Extract JSON from response
-            import json
-            if '```json' in analysis_text:
-                json_str = analysis_text.split('```json')[1].split('```')[0].strip()
-            elif '```' in analysis_text:
-                json_str = analysis_text.split('```')[1].split('```')[0].strip()
+            if "```json" in analysis_text:
+                json_str = analysis_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in analysis_text:
+                json_str = analysis_text.split("```")[1].split("```")[0].strip()
             else:
                 json_str = analysis_text.strip()
-            
+
             return json.loads(json_str)
-        except:
+        except Exception:
             # Fallback analysis
             return {
                 "content_type": "general",
-                "requires_js": "javascript" in query.lower() or "dynamic" in query.lower(),
+                "requires_js": "javascript" in query.lower()
+                or "dynamic" in query.lower(),
                 "extraction_targets": ["content", "links", "metadata"],
                 "challenges": ["Unknown website structure"],
-                "recommendations": ["Use Selenium for robust scraping"]
+                "recommendations": ["Use Selenium for robust scraping"],
             }
 
-    async def execute(self, query: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def execute(
+        self, query: str, context: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
         """Execute web scraping task using Firebase infrastructure"""
         logger.info(f"FirebaseScraperAgent executing query: {query}")
 
         # Analyze the scraping task
         task_analysis = await self._analyze_scraping_task(query)
-        
+
         # Extract URLs from query
         urls = self._extract_urls_from_query(query)
         if not urls:
             return {
                 "success": False,
                 "error": "No valid URLs found in the query",
-                "analysis": task_analysis
+                "analysis": task_analysis,
             }
 
         # Get the scraper tool
@@ -160,7 +166,7 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
             for url in urls:
                 # Determine scraping method based on analysis
                 use_selenium = task_analysis.get("requires_js", True)
-                
+
                 # Execute scraping
                 scraped_data = await scraper_tool.execute(
                     url=url,
@@ -171,12 +177,14 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
                     timeout=30,
                 )
 
-                results.append({
-                    "url": url,
-                    "data": scraped_data,
-                    "method": "selenium" if use_selenium else "http",
-                    "analysis": task_analysis
-                })
+                results.append(
+                    {
+                        "url": url,
+                        "data": scraped_data,
+                        "method": "selenium" if use_selenium else "http",
+                        "analysis": task_analysis,
+                    }
+                )
 
             # Generate comprehensive summary
             summary = await self._generate_summary(results, task_analysis)
@@ -186,8 +194,10 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
                 "results": results,
                 "summary": summary,
                 "total_urls": len(urls),
-                "total_content": sum(len(r["data"].get("content", "")) for r in results),
-                "analysis": task_analysis
+                "total_content": sum(
+                    len(r["data"].get("content", "")) for r in results
+                ),
+                "analysis": task_analysis,
             }
 
         except Exception as e:
@@ -196,29 +206,31 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
                 "success": False,
                 "error": str(e),
                 "analysis": task_analysis,
-                "urls_attempted": urls
+                "urls_attempted": urls,
             }
 
     def _extract_urls_from_query(self, query: str) -> List[str]:
         """Extract URLs from the query text"""
         import re
-        
+
         # Simple URL extraction
-        url_pattern = r'https?://[^\s]+|www\.[^\s]+'
+        url_pattern = r"https?://[^\s]+|www\.[^\s]+"
         urls = re.findall(url_pattern, query)
-        
+
         # Clean and validate URLs
         valid_urls = []
         for url in urls:
-            if not url.startswith('http'):
+            if not url.startswith("http"):
                 url = f"https://{url}"
             # Basic validation
-            if '.' in url and len(url) > 10:
+            if "." in url and len(url) > 10:
                 valid_urls.append(url)
-        
+
         return valid_urls
 
-    async def _generate_summary(self, results: List[Dict], analysis: Dict) -> Dict[str, Any]:
+    async def _generate_summary(
+        self, results: List[Dict], analysis: Dict
+    ) -> Dict[str, Any]:
         """Generate a comprehensive summary of scraping results"""
         if not results:
             return {"message": "No results to summarize"}
@@ -254,17 +266,16 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
 
         response = await self.llm.agenerate([messages])
         summary_text = response.generations[0][0].text
-        
+
         try:
             # Extract JSON from response
-            import json
-            if '```json' in summary_text:
-                json_str = summary_text.split('```json')[1].split('```')[0].strip()
+            if "```json" in summary_text:
+                json_str = summary_text.split("```json")[1].split("```")[0].strip()
             else:
                 json_str = summary_text.strip()
-            
+
             return json.loads(json_str)
-        except:
+        except Exception:
             # Fallback summary
             return {
                 "overall_assessment": "Scraping completed",
@@ -272,13 +283,15 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
                 "data_completeness": "Good",
                 "issues_found": [],
                 "recommendations": ["Review extracted content for accuracy"],
-                "key_insights": [f"Scraped {len(results)} URLs successfully"]
+                "key_insights": [f"Scraped {len(results)} URLs successfully"],
             }
 
-    async def batch_scrape(self, urls: List[str], use_selenium: bool = True) -> Dict[str, Any]:
+    async def batch_scrape(
+        self, urls: List[str], use_selenium: bool = True
+    ) -> Dict[str, Any]:
         """Perform batch scraping of multiple URLs"""
         scraper_tool = await self._get_scraper_tool()
-        
+
         try:
             results = await scraper_tool.batch_scrape(
                 urls=urls,
@@ -291,24 +304,20 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
             successful_results = []
             for i, result in enumerate(results):
                 if not isinstance(result, Exception):
-                    successful_results.append({
-                        "url": urls[i],
-                        "data": result,
-                        "success": True
-                    })
+                    successful_results.append(
+                        {"url": urls[i], "data": result, "success": True}
+                    )
                 else:
-                    successful_results.append({
-                        "url": urls[i],
-                        "error": str(result),
-                        "success": False
-                    })
+                    successful_results.append(
+                        {"url": urls[i], "error": str(result), "success": False}
+                    )
 
             return {
                 "success": True,
                 "results": successful_results,
                 "total_urls": len(urls),
                 "successful": len([r for r in successful_results if r["success"]]),
-                "failed": len([r for r in successful_results if not r["success"]])
+                "failed": len([r for r in successful_results if not r["success"]]),
             }
 
         except Exception as e:
@@ -317,15 +326,73 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
                 "error": str(e),
                 "total_urls": len(urls),
                 "successful": 0,
-                "failed": len(urls)
+                "failed": len(urls),
             }
+
+    async def _process_message_impl(
+        self,
+        message: str,
+        conversation_id: Optional[str] = None,
+        context: Dict[str, Any] = None,
+    ) -> AgentResult:
+        """
+        Internal implementation of message processing for Firebase scraping
+
+        Args:
+            message: User message to process
+            conversation_id: Optional conversation ID for context
+            context: Additional context information
+
+        Returns:
+            AgentResult with response and tool execution results
+        """
+        import time
+
+        start_time = time.time()
+
+        try:
+            # Execute the scraping task
+            result = await self.execute(message, context)
+
+            # Convert to AgentResult format
+            if result.get("success", False):
+                return AgentResult(
+                    success=True,
+                    response=result.get("summary", {}).get(
+                        "overall_assessment", "Scraping completed successfully"
+                    ),
+                    agent_name=self.name,
+                    execution_time=time.time() - start_time,
+                    metadata=result,
+                )
+            else:
+                return AgentResult(
+                    success=False,
+                    response=f"Scraping failed: {result.get('error', 'Unknown error')}",
+                    agent_name=self.name,
+                    execution_time=time.time() - start_time,
+                    error=result.get("error"),
+                    metadata=result,
+                )
+        except Exception as e:
+            return AgentResult(
+                success=False,
+                response=f"Error during scraping: {str(e)}",
+                agent_name=self.name,
+                execution_time=time.time() - start_time,
+                error=str(e),
+                metadata={"error": str(e)},
+            )
 
     def get_agent_stats(self) -> Dict[str, Any]:
         """Get agent statistics"""
-        base_stats = super().get_agent_stats()
-        base_stats.update({
+        base_stats = {
             "specialization": "firebase_web_scraping",
             "scraper_tool_available": self._scraper_tool is not None,
-            "firebase_initialized": getattr(self._scraper_tool, '_firebase_initialized', False) if self._scraper_tool else False,
-        })
+            "firebase_initialized": (
+                getattr(self._scraper_tool, "_firebase_initialized", False)
+                if self._scraper_tool
+                else False
+            ),
+        }
         return base_stats
