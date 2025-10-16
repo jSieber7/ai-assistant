@@ -4,6 +4,7 @@
 # Usage examples:
 # - Development: docker compose --profile dev up
 # - Production: docker compose up
+# - With Firecrawl: docker compose --profile firecrawl up
 # - With optional services: docker compose --profile dev --profile monitoring up
 
 networks:
@@ -28,9 +29,165 @@ volumes:
   firecrawl_postgres_data:
     driver: local
 
-  
-
 services:
+  # =============================================================================
+  # Firecrawl Self-Hosted Services
+  # =============================================================================
+  # Redis for Firecrawl queue and caching
+  firecrawl-redis:
+    image: redis:7.2-alpine
+    container_name: firecrawl-redis
+    volumes:
+      - firecrawl_redis_data:/data
+    networks:
+      - ai-assistant-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - firecrawl
+    labels:
+      - "traefik.enable=false"  # Internal service only
+
+  # PostgreSQL for Firecrawl data storage
+  firecrawl-postgres:
+    image: postgres:15-alpine
+    container_name: firecrawl-postgres
+    environment:
+      - POSTGRES_DB=firecrawl
+      - POSTGRES_USER=firecrawl
+      - POSTGRES_PASSWORD=firecrawl_password
+    volumes:
+      - firecrawl_postgres_data:/var/lib/postgresql/data
+    networks:
+      - ai-assistant-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U firecrawl"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    profiles:
+      - firecrawl
+    labels:
+      - "traefik.enable=false"  # Internal service only
+
+  # Firecrawl Playwright Service for browser automation
+  firecrawl-playwright:
+    image: ghcr.io/firecrawl/firecrawl-playwright:latest
+    container_name: firecrawl-playwright
+    environment:
+      - PORT=3000
+      - HOST=0.0.0.0
+    networks:
+      - ai-assistant-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    profiles:
+      - firecrawl
+    labels:
+      - "traefik.enable=false"  # Internal service only
+
+  # Firecrawl API Service
+  firecrawl-api:
+    image: ghcr.io/firecrawl/firecrawl:latest
+    container_name: firecrawl-api
+    environment:
+      # Server Configuration
+      - PORT=3002
+      - HOST=0.0.0.0
+      
+      # Database Configuration
+      - DATABASE_URL=postgresql://firecrawl:firecrawl_password@firecrawl-postgres:5432/firecrawl
+      
+      # Redis Configuration
+      - REDIS_URL=redis://firecrawl-redis:6379
+      - REDIS_RATE_LIMIT_URL=redis://firecrawl-redis:6379
+      
+      # Playwright Service Configuration
+      - PLAYWRIGHT_MICROSERVICE_URL=http://firecrawl-playwright:3000
+      
+      # Authentication (optional, set to true if you want to enable)
+      - USE_DB_AUTHENTICATION=false
+      
+      # Queue Admin Panel
+      - BULL_AUTH_KEY=${FIRECRAWL_BULL_AUTH_KEY:-change_me_firecrawl}
+      
+      # API Rate Limiting
+      - RATE_LIMIT_MAX_REQUESTS=100
+      - RATE_LIMIT_WINDOW_MS=60000
+      
+    depends_on:
+      firecrawl-redis:
+        condition: service_healthy
+      firecrawl-postgres:
+        condition: service_healthy
+      firecrawl-playwright:
+        condition: service_healthy
+    networks:
+      - ai-assistant-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    profiles:
+      - firecrawl
+    labels:
+      # Internal service - accessible only within Docker network
+      - "traefik.enable=false"
+
+  # Firecrawl Worker Service
+  firecrawl-worker:
+    image: ghcr.io/firecrawl/firecrawl:latest
+    container_name: firecrawl-worker
+    command: ["npm", "run", "worker"]
+    environment:
+      # Database Configuration
+      - DATABASE_URL=postgresql://firecrawl:firecrawl_password@firecrawl-postgres:5432/firecrawl
+      
+      # Redis Configuration
+      - REDIS_URL=redis://firecrawl-redis:6379
+      - REDIS_RATE_LIMIT_URL=redis://firecrawl-redis:6379
+      
+      # Playwright Service Configuration
+      - PLAYWRIGHT_MICROSERVICE_URL=http://firecrawl-playwright:3000
+      
+      # Worker Configuration
+      - WORKER_CONCURRENCY=5
+      
+    depends_on:
+      firecrawl-redis:
+        condition: service_healthy
+      firecrawl-postgres:
+        condition: service_healthy
+      firecrawl-playwright:
+        condition: service_healthy
+    networks:
+      - ai-assistant-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    profiles:
+      - firecrawl
+    labels:
+      - "traefik.enable=false"  # Internal service only
+
   # =============================================================================
   # Core Services
   # =============================================================================
@@ -55,6 +212,8 @@ services:
         condition: service_healthy
       searxng:
         condition: service_healthy
+      firecrawl-api:
+        condition: service_started
     volumes:
       - ./logs:/app/logs
       - searxng_static:/usr/local/searxng/searx/static:ro  # Mount SearxNG static files
@@ -69,6 +228,7 @@ services:
       start_period: 40s
     profiles:
       - production
+      - firecrawl
     labels:
       # Production Traefik routing with security
       - "traefik.enable=true"
@@ -268,6 +428,8 @@ services:
         condition: service_healthy
       searxng:
         condition: service_healthy
+      firecrawl-api:
+        condition: service_started
     networks:
       - ai-assistant-network
     restart: unless-stopped
@@ -280,6 +442,7 @@ services:
     command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     profiles:
       - dev
+      - firecrawl
     labels:
       # Development Traefik routing
       - "traefik.enable=true"

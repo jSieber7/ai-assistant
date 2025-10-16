@@ -135,6 +135,47 @@ class TestFirecrawlTool:
                 await scraper_tool.execute(url="https://example.com")
 
             assert "not enabled" in str(exc_info.value)
+    @pytest.mark.asyncio
+    async def test_docker_mode_configuration(self):
+        """Test Docker mode configuration"""
+        with patch.object(settings.firecrawl_settings, "deployment_mode", "docker"), \
+             patch.object(settings.firecrawl_settings, "docker_url", "http://firecrawl-api:3002"), \
+             patch.object(settings.firecrawl_settings, "enabled", True):
+            
+            tool = FirecrawlTool()
+            assert tool.base_url == "http://firecrawl-api:3002"
+            assert tool.api_key is None
+
+    @pytest.mark.asyncio
+    async def test_api_mode_configuration(self):
+        """Test API mode configuration"""
+        with patch.object(settings.firecrawl_settings, "deployment_mode", "api"), \
+             patch.object(settings.firecrawl_settings, "api_key", "test-api-key"), \
+             patch.object(settings.firecrawl_settings, "base_url", "https://api.firecrawl.dev"), \
+             patch.object(settings.firecrawl_settings, "enabled", True):
+            
+            tool = FirecrawlTool()
+            assert tool.base_url == "https://api.firecrawl.dev"
+            assert tool.api_key == "test-api-key"
+
+    @pytest.mark.asyncio
+    async def test_effective_configuration_properties(self):
+        """Test effective configuration properties"""
+        # Test Docker mode
+        with patch.object(settings.firecrawl_settings, "deployment_mode", "docker"), \
+             patch.object(settings.firecrawl_settings, "docker_url", "http://firecrawl-api:3002"):
+            
+            assert settings.firecrawl_settings.effective_url == "http://firecrawl-api:3002"
+            assert settings.firecrawl_settings.effective_api_key is None
+        
+        # Test API mode
+        with patch.object(settings.firecrawl_settings, "deployment_mode", "api"), \
+             patch.object(settings.firecrawl_settings, "api_key", "test-key"), \
+             patch.object(settings.firecrawl_settings, "base_url", "https://api.firecrawl.dev"):
+            
+            assert settings.firecrawl_settings.effective_url == "https://api.firecrawl.dev"
+            assert settings.firecrawl_settings.effective_api_key == "test-key"
+
 
 
 class TestFirecrawlAgent:

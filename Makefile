@@ -65,6 +65,14 @@ test-integration: ## Run integration tests
 
 test-firecrawl: ## Run Firecrawl Docker tests
 	@echo "Running Firecrawl Docker tests..."
+	pytest tests/unit/test_firecrawl_docker_mode.py tests/integration/test_firecrawl_docker.py -v
+
+test-firecrawl-unit: ## Run Firecrawl unit tests only
+	@echo "Running Firecrawl unit tests..."
+	pytest tests/unit/test_firecrawl_docker_mode.py tests/unit/test_firecrawl_scraping.py -v
+
+test-firecrawl-integration: ## Run Firecrawl integration tests
+	@echo "Running Firecrawl integration tests..."
 	pytest tests/integration/test_firecrawl_docker.py -v
 
 test-firecrawl-live: ## Run live Firecrawl tests (requires Docker services)
@@ -126,26 +134,34 @@ docker-restart: ## Restart Docker services
 
 firecrawl: ## Start Firecrawl Docker services
 	@echo "Starting Firecrawl Docker services..."
-	docker compose -f docker-configs/firecrawl/docker-compose.yml up -d
+	docker compose --profile firecrawl up -d
 	@echo "Waiting for services to be ready..."
 	@sleep 10
 	$(MAKE) firecrawl-health
 
 firecrawl-down: ## Stop Firecrawl Docker services
 	@echo "Stopping Firecrawl Docker services..."
-	docker compose -f docker-configs/firecrawl/docker-compose.yml down -v
+	docker compose --profile firecrawl down -v
 
 firecrawl-logs: ## Show Firecrawl Docker logs
 	@echo "Showing Firecrawl Docker logs..."
-	docker compose -f docker-configs/firecrawl/docker-compose.yml logs -f
+	docker compose --profile firecrawl logs -f
 
 firecrawl-restart: ## Restart Firecrawl Docker services
 	@echo "Restarting Firecrawl Docker services..."
-	docker compose -f docker-configs/firecrawl/docker-compose.yml restart
+	docker compose --profile firecrawl restart
+
+firecrawl-dev: ## Start development with Firecrawl
+	@echo "Starting development environment with Firecrawl..."
+	docker compose --profile dev --profile firecrawl up -d
+
+firecrawl-prod: ## Start production with Firecrawl
+	@echo "Starting production environment with Firecrawl..."
+	docker compose --profile production --profile firecrawl up -d
 
 firecrawl-status: ## Show Firecrawl service status
 	@echo "Firecrawl service status:"
-	docker compose -f docker-configs/firecrawl/docker-compose.yml ps
+	docker compose --profile firecrawl ps
 
 firecrawl-health: ## Check Firecrawl health
 	@echo "Checking Firecrawl health..."
@@ -266,12 +282,12 @@ shell: ## Open shell in application container
 
 firecrawl-shell: ## Open shell in Firecrawl API container
 	@echo "Opening shell in Firecrawl API container..."
-	docker compose -f docker-configs/firecrawl/docker-compose.yml exec firecrawl-api bash
+	docker compose --profile firecrawl exec firecrawl-api bash
 
 backup-firecrawl: ## Backup Firecrawl data
 	@echo "Backing up Firecrawl data..."
 	mkdir -p backups
-	docker compose -f docker-configs/firecrawl/docker-compose.yml exec firecrawl-postgres pg_dump -U firecrawl firecrawl > backups/firecrawl_$(shell date +%Y%m%d_%H%M%S).sql
+	docker compose --profile firecrawl exec firecrawl-postgres pg_dump -U firecrawl firecrawl > backups/firecrawl_$(shell date +%Y%m%d_%H%M%S).sql
 
 # =============================================================================
 # Version and Release
