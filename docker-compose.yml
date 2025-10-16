@@ -23,6 +23,12 @@ volumes:
     driver: local
   searxng_static:
     driver: local
+  firecrawl_redis_data:
+    driver: local
+  firecrawl_postgres_data:
+    driver: local
+
+  
 
 services:
   # =============================================================================
