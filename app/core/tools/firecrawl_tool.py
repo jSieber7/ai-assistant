@@ -22,8 +22,7 @@ class FirecrawlTool(BaseTool):
         self, api_key: Optional[str] = None, base_url: str = "https://api.firecrawl.dev"
     ):
         super().__init__()
-        self.api_key = api_key
-        self.base_url = base_url
+        # Don't set api_key and base_url directly - use effective configuration from settings
         self._client = None
         self._fallback_client = None
 
@@ -389,7 +388,7 @@ class FirecrawlTool(BaseTool):
 
         return processed_results
 
-    def cleanup(self):
+    async def cleanup(self):
         """Clean up resources"""
         clients_to_cleanup = [self._client]
         if self._fallback_client:
@@ -398,15 +397,9 @@ class FirecrawlTool(BaseTool):
         for client in clients_to_cleanup:
             if client:
                 try:
-                    # Try to close the client if there's an event loop running
-                    loop = asyncio.get_running_loop()
-                    loop.create_task(client.aclose())
-                except RuntimeError:
-                    # No event loop running, create a new one to close the client
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    loop.run_until_complete(client.aclose())
-                    loop.close()
+                    await client.aclose()
+                except Exception as e:
+                    logger.warning(f"Error closing Firecrawl HTTP client: {e}")
         
         self._client = None
         self._fallback_client = None
@@ -414,8 +407,10 @@ class FirecrawlTool(BaseTool):
 
     def __del__(self):
         """Destructor to ensure cleanup"""
+        # Try to cleanup but don't raise exceptions if it fails
         try:
-            self.cleanup()
-        except Exception:
-            # Ignore errors during cleanup in destructor
+            loop = asyncio.get_running_loop()
+            loop.create_task(self.cleanup())
+        except RuntimeError:
+            # No event loop running, can't cleanup
             pass
