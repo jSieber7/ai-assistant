@@ -1,6 +1,7 @@
 # app/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from .core.config import settings, initialize_agent_system, initialize_llm_providers
 from .core.tools import tool_registry
 from .core.agents.registry import agent_registry
@@ -8,7 +9,7 @@ from .core.monitoring.middleware import MonitoringMiddleware
 from .core.multi_writer_config import (
     initialize_multi_writer_system,
     is_multi_writer_enabled,
-)
+ )
 from .api.routes import router
 from .api.tool_routes import router as tool_router
 from .api.agent_routes import router as agent_router
@@ -35,6 +36,12 @@ app.add_middleware(
 
 # Add monitoring middleware
 app.add_middleware(MonitoringMiddleware)
+
+# Mount SearxNG static files
+try:
+    app.mount("/static", StaticFiles(directory="/usr/local/searxng/searx/static", html=True), name="searxng-static")
+except Exception as e:
+    print(f"Warning: Failed to mount SearxNG static files: {str(e)}")
 
 # Initialize LLM providers
 initialize_llm_providers()
@@ -81,9 +88,15 @@ try:
         signal.alarm(0)  # Cancel the alarm
     except TimeoutError:
         print("Warning: Gradio interface initialization timed out after 30 seconds")
+        print("This might be due to slow model loading or network connectivity issues")
+        print("Continuing without Gradio interface...")
+    except ImportError as e:
+        print(f"Warning: Failed to import Gradio dependencies: {str(e)}")
+        print("Please ensure all required dependencies are installed")
         print("Continuing without Gradio interface...")
     except Exception as e:
         print(f"Warning: Failed to initialize Gradio interface: {str(e)}")
+        print("Check the logs for more details about the error")
         print("Continuing without Gradio interface...")
     finally:
         signal.alarm(0)  # Make sure to cancel the alarm
@@ -94,8 +107,12 @@ except Exception as e:
     try:
         gradio_app = create_gradio_app()
         app = mount_gradio_app(app, gradio_app, path="/gradio")
+    except ImportError as e2:
+        print(f"Warning: Failed to import Gradio dependencies: {str(e2)}")
+        print("Please ensure all required dependencies are installed")
     except Exception as e2:
         print(f"Warning: Failed to initialize Gradio interface: {str(e2)}")
+        print("Check the logs for more details about the error")
 
 
 @app.get("/")

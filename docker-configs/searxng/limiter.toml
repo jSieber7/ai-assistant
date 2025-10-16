@@ -13,27 +13,3 @@ pass_ip = [
 ]
 # Block known bad IPs (empty for now)
 block_ip = []
-
-[botdetection.rate_limit]
-# Rate limiting configuration
-real_ip = false
-real_ip_header = "X-Forwarded-For"
-real_ip_ipv4 = false
-real_ip_ipv6 = false
-link_local = false
-private_networks = false
-proxy_headers = false
-
-[botdetection.http_header]
-# HTTP header validation
-accept_language = false
-accept_encoding = false
-accept = false
-dnt = false
-user_agent = true
-referer = false
-
-[botdetection.config]
-# General bot detection settings
-botdetection_limit = 10
-botdetection_slow_down = 5

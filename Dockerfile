@@ -1,89 +1,103 @@
 # =============================================================================
-# AI Assistant Dockerfile
+# AI Assistant Production Dockerfile
 # =============================================================================
-# Multi-stage build for development and production environments
+# Multi-stage build optimized for production with security and performance best practices
 
 # =============================================================================
-# Base Stage
+# Builder Stage
 # =============================================================================
-FROM python:3.12-slim as base
+FROM python:3.12.3-slim AS builder
+
+# Set environment variables for builder
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_CACHE_DIR=/root/.cache/uv
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+RUN pip install --no-cache-dir uv==0.5.23
+
+# Set work directory
+WORKDIR /app
+
+# Copy dependency files
+COPY pyproject.toml uv.lock ./
+
+# Copy application code first (needed for version import)
+COPY app/ ./app/
+
+# Create virtual environment and install dependencies
+RUN uv venv /opt/venv && \
+    uv sync --frozen --no-dev --no-cache
+
+# =============================================================================
+# Production Stage
+# =============================================================================
+FROM python:3.12-slim AS production
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH="/app" \
-    UV_CACHE_DIR=/app/.uv-cache
+    PATH="/opt/venv/bin:$PATH" \
+    UV_CACHE_DIR=/tmp/.uv-cache
 
-# Install system dependencies
+# Install runtime dependencies including Selenium WebDriver
 RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    wget \
+    gnupg \
+    unzip \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
 
-# Install uv for faster package management
-RUN pip install uv
+# Install Chrome for Selenium WebDriver
+RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Install ChromeDriver
+RUN CHROMEDRIVER_VERSION=$(curl -sS https://chromedriver.storage.googleapis.com/LATEST_RELEASE) \
+    && wget -O /tmp/chromedriver.zip https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip \
+    && unzip /tmp/chromedriver.zip -d /usr/local/bin/ \
+    && chmod +x /usr/local/bin/chromedriver \
+    && rm /tmp/chromedriver.zip
+
+# Create non-root user with proper permissions
+RUN groupadd -r app && \
+    useradd -r -g app --home-dir /app --shell /bin/bash app
 
 # Set work directory
 WORKDIR /app
 
-# =============================================================================
-# Development Stage
-# =============================================================================
-FROM base as development
+# Copy virtual environment from builder stage
+COPY --from=builder /opt/venv /opt/venv
 
-# Copy dependency files
-COPY pyproject.toml uv.lock ./
+# Copy application code with proper ownership
+COPY --chown=app:app app/ ./app/
+COPY --chown=app:app pyproject.toml ./
 
-# Copy application code first (needed for version import)
-COPY app/ ./app/
-
-# Install dependencies with dev tools
-RUN python -m venv .venv && .venv/bin/pip install --upgrade pip setuptools wheel && uv sync --frozen --reinstall
-
-# Create non-root user
-RUN useradd --create-home --shell /bin/bash app && \
+# Create necessary directories and set permissions
+RUN mkdir -p /app/logs /app/.uv-cache && \
     chown -R app:app /app
+
+# Switch to non-root user
 USER app
 
 # Expose port
 EXPOSE 8000
 
-# Health check
+# Health check with proper timeout and retries
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/ || exit 1
 
-# Run the application with reload
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-
-# =============================================================================
-# Production Stage
-# =============================================================================
-FROM base as production
-
-# Copy dependency files
-COPY pyproject.toml uv.lock ./
-
-# Copy application code first (needed for version import)
-COPY app/ ./app/
-
-# Install dependencies without dev tools
-RUN python -m venv .venv && .venv/bin/pip install --upgrade pip setuptools wheel && uv sync --frozen --no-dev --reinstall
-
-# Copy the rest of the application code
-COPY . .
-
-# Create non-root user
-RUN useradd --create-home --shell /bin/bash app && \
-    chown -R app:app /app
-USER app
-
-# Expose port
-EXPOSE 8000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/ || exit 1
-
-# Run the application
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run the application with production settings
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

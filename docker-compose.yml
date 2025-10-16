@@ -21,6 +21,8 @@ volumes:
     driver: local
   grafana_data:
     driver: local
+  searxng_static:
+    driver: local
 
 services:
   # =============================================================================
@@ -32,7 +34,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: ${BUILD_TARGET:-production}
     container_name: ai-assistant
     environment:
       - HOST=0.0.0.0
@@ -44,16 +45,18 @@ services:
     env_file:
       - .env
     depends_on:
-      - redis
-      - searxng
+      redis:
+        condition: service_healthy
+      searxng:
+        condition: service_healthy
     volumes:
       - ./logs:/app/logs
-      - .:/app  # Development volume mount
+      - searxng_static:/usr/local/searxng/searx/static:ro  # Mount SearxNG static files
     networks:
       - ai-assistant-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -61,18 +64,16 @@ services:
     profiles:
       - production
     labels:
-      # Production Traefik routing
+      # Production Traefik routing with security
       - "traefik.enable=true"
       - "traefik.http.routers.ai-assistant.rule=PathPrefix(`/`)"
       - "traefik.http.routers.ai-assistant.priority=1"
       - "traefik.http.routers.ai-assistant.entrypoints=web"
-      - "traefik.http.routers.ai-assistant.middlewares=security-headers"
+      - "traefik.http.routers.ai-assistant.middlewares=security-headers@file,rate-limit@file,compression@file"
       - "traefik.http.routers.gradio.rule=PathPrefix(`/gradio`)"
       - "traefik.http.routers.gradio.priority=2"
       - "traefik.http.routers.gradio.entrypoints=web"
-      - "traefik.http.routers.gradio.middlewares=security-headers"
-      - "traefik.http.middlewares.security-headers.headers.customrequestheaders.X-Forwarded-Proto=http"
-      - "traefik.http.middlewares.security-headers.headers.customrequestheaders.X-Forwarded-Host=localhost"
+      - "traefik.http.routers.gradio.middlewares=security-headers@file,rate-limit@file,compression@file"
 
   # Redis for caching
   redis:
@@ -99,16 +100,24 @@ services:
     networks:
       - ai-assistant-network
     restart: unless-stopped
-    environment:
-      - BIND_ADDRESS=0.0.0.0
-      - PORT=8080
-      - BASE_URL=http://localhost/search/
-      - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY:-change-this-secret-key}
     volumes:
       - ./docker-configs/searxng/settings.yml:/etc/searxng/settings.yml:ro
       - ./docker-configs/searxng/limiter.toml:/etc/searxng/limiter.toml:ro
+      - ./docker-configs/searxng/plugins.yml:/etc/searxng/plugins.yml:ro
+      - searxng_static:/usr/local/searxng/searx/static
+    environment:
+      - BIND_ADDRESS=0.0.0.0
+      - PORT=8080
+      - BASE_URL=${SEARXNG_BASE_URL:-http://searxng:8080/}
+      - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY:-change-this-secret-key}
+      - SEARXNG_INSTANCE_NAME=${SEARXNG_INSTANCE_NAME:-AI Assistant Search}
+      - SEARXNG_AUTOCOMPLETE=${SEARXNG_AUTOCOMPLETE:-google}
+      - SEARXNG_SEARCH_LANGUAGE=${SEARXNG_SEARCH_LANGUAGE:-auto}
+      - SEARXNG_THEME=${SEARXNG_THEME:-simple}
+      - SEARXNG_UI_DEFAULT_LOCALE=${SEARXNG_UI_DEFAULT_LOCALE:-en}
+      - SEARXNG_DEBUG=${SEARXNG_DEBUG:-false}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -117,36 +126,42 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.searxng.rule=PathPrefix(`/search`)"
       - "traefik.http.routers.searxng.priority=10"
-      - "traefik.http.services.searxng.loadbalancer.server.port=8080"
       - "traefik.http.routers.searxng.entrypoints=web"
-      - "traefik.http.middlewares.searxng-stripprefix.stripprefix.prefixes=/search"
-      - "traefik.http.routers.searxng.middlewares=searxng-stripprefix"
+      - "traefik.http.routers.searxng.service=searxng"
+      - "traefik.http.services.searxng.loadbalancer.server.port=8080"
 
   # =============================================================================
   # Production Services
   # =============================================================================
 
-  # Traefik Reverse Proxy
+  # Production Traefik Reverse Proxy
   traefik:
     image: traefik:v3.0
     container_name: ai-assistant-traefik
     restart: unless-stopped
     ports:
       - "80:80"        # HTTP entry point
-      - "8080:8080"    # Traefik Dashboard
+      - "443:443"      # HTTPS entry point (for future SSL)
+      - "8080:8080"    # Traefik Dashboard (secure in production)
     command:
-      - "--api.insecure=true"
+      - "--api.insecure=false"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      - "--providers.file.directory=/etc/traefik"
+      - "--providers.file.watch=true"
       - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
       - "--entrypoints.traefik.address=:8080"
-      - "--log.level=INFO"
+      - "--log.level=WARN"
       - "--accesslog=true"
       - "--metrics.prometheus=true"
       - "--ping=true"
+      - "--global.checkNewVersion=false"
+      - "--global.sendAnonymousUsage=false"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./docker-configs/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./docker-configs/traefik-prod.yml:/etc/traefik/traefik-prod.yml:ro
     env_file:
       - .env
     networks:
@@ -157,27 +172,112 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+    profiles:
+      - production
+    labels:
+      # Only expose dashboard in production
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=PathPrefix(`/dashboard`)"
+      - "traefik.http.routers.traefik.entrypoints=traefik"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.middlewares=auth"
+      - "traefik.http.middlewares.auth.basicauth.users=admin:$$apr1$$q8eL8Zt7$$8LZv8t8g8f8v8t8g8f8v8"
 
   # =============================================================================
   # Development Profile
   # =============================================================================
 
-  # Development configuration with direct port access
-  ai-assistant-dev:
-    extends:
-      service: ai-assistant
-    container_name: ai-assistant-dev
+  # Development Traefik Reverse Proxy
+  traefik-dev:
+    image: traefik:v3.0
+    container_name: ai-assistant-traefik-dev
+    restart: unless-stopped
     ports:
-      - "8000:8000"  # Direct port access for development
+      - "8000:80"      # Main entry point for dev (redirect to port 80)
+      - "8080:8080"    # Traefik Dashboard
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.file.directory=/etc/traefik"
+      - "--providers.file.watch=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.traefik.address=:8080"
+      - "--log.level=DEBUG"
+      - "--accesslog=true"
+      - "--metrics.prometheus=true"
+      - "--ping=true"
+      - "--global.checkNewVersion=false"
+      - "--global.sendAnonymousUsage=false"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./docker-configs/traefik.yml:/etc/traefik/traefik.yml:ro
+    networks:
+      - ai-assistant-network
+    healthcheck:
+      test: ["CMD", "traefik", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    profiles:
+      - dev
+    labels:
+      # Expose dashboard at /dashboard in development
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik-dev.rule=PathPrefix(`/dashboard`)"
+      - "traefik.http.routers.traefik-dev.entrypoints=traefik"
+      - "traefik.http.routers.traefik-dev.service=api@internal"
+
+  # Development configuration with Traefik routing
+  ai-assistant-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: ai-assistant-dev
+    volumes:
+      - .:/app  # Mount source code for hot reload
+      - ./logs:/app/logs
     environment:
       - ENVIRONMENT=development
       - DEBUG=true
       - RELOAD=true
       - REDIS_URL=redis://redis:6379/0  # Override for Docker network
       - SEARXNG_URL=http://searxng:8080   # Override for Docker network
+      - HOST=0.0.0.0
+      - PORT=8000
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      searxng:
+        condition: service_healthy
+    networks:
+      - ai-assistant-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     profiles:
       - dev
+    labels:
+      # Development Traefik routing
+      - "traefik.enable=true"
+      - "traefik.http.routers.ai-assistant-dev.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.ai-assistant-dev.priority=1"
+      - "traefik.http.routers.ai-assistant-dev.entrypoints=web"
+      - "traefik.http.routers.ai-assistant-dev.service=ai-assistant-dev"
+      - "traefik.http.services.ai-assistant-dev.loadbalancer.server.port=8000"
+      - "traefik.http.routers.gradio-dev.rule=PathPrefix(`/gradio`)"
+      - "traefik.http.routers.gradio-dev.priority=2"
+      - "traefik.http.routers.gradio-dev.entrypoints=web"
+      - "traefik.http.routers.gradio-dev.service=ai-assistant-dev"
+      - "traefik.http.services.gradio-dev.loadbalancer.server.port=8000"
 
   # Development tools
   debug-tools:
@@ -196,12 +296,26 @@ services:
     container_name: ai-assistant-redis-commander
     environment:
       - REDIS_HOSTS=local:redis:6379
-    ports:
-      - "8081:8081"
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
+    networks:
+      - ai-assistant-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     profiles:
       - dev
+    labels:
+      # Development Traefik routing for Redis Commander
+      - "traefik.enable=true"
+      - "traefik.http.routers.redis-commander.rule=PathPrefix(`/redis`)"
+      - "traefik.http.routers.redis-commander.entrypoints=web"
+      - "traefik.http.services.redis-commander.loadbalancer.server.port=8081"
 
   # =============================================================================
   # Optional Services (can be enabled with any profile)
@@ -223,6 +337,12 @@ services:
       - ./docker-configs/mongodb/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
     networks:
       - ai-assistant-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     profiles:
       - mongodb
 
@@ -240,9 +360,16 @@ services:
     ports:
       - "8082:8081"
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
     networks:
       - ai-assistant-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     profiles:
       - mongodb
 
@@ -284,6 +411,14 @@ services:
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
+    networks:
+      - ai-assistant-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     profiles:
       - monitoring
 
@@ -299,6 +434,15 @@ services:
       - grafana_data:/var/lib/grafana
       - ./docker-configs/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
     depends_on:
-      - prometheus
+      prometheus:
+        condition: service_healthy
+    networks:
+      - ai-assistant-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     profiles:
       - monitoring

@@ -51,12 +51,17 @@ curl http://localhost:8000/health
 
 # Check available tools
 curl http://localhost:8000/v1/tools
+
+# Check provider status
+curl http://localhost:8000/v1/providers
 ```
 
 **🎉 You're running!** Access your AI Assistant at:
-- **Main Application**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/docs
-- **SearXNG Search**: http://localhost:8080
+- **Main Application**: http://localhost (through Traefik)
+- **API Documentation**: http://localhost/docs
+- **Gradio Interface**: http://localhost/gradio
+- **Traefik Dashboard**: http://localhost:8080
+- **SearXNG Search**: http://localhost/search
 
 ## 🛠️ Option 2: Local Development
 

@@ -8,6 +8,7 @@ query analysis.
 
 from .base import BaseAgent, AgentResult, AgentError
 from .tool_agent import ToolAgent
+from .firebase_scraper_agent import FirebaseScraperAgent
 from .strategies import ToolSelectionStrategy, KeywordStrategy, LLMStrategy
 from .registry import AgentRegistry
 
@@ -16,6 +17,7 @@ __all__ = [
     "AgentResult",
     "AgentError",
     "ToolAgent",
+    "FirebaseScraperAgent",
     "ToolSelectionStrategy",
     "KeywordStrategy",
     "LLMStrategy",
