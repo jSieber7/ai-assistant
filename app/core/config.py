@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings
 from typing import Optional, List, Dict, ClassVar
-from pydantic import SecretStr
+from pydantic import SecretStr, validator
 import logging
 import os
 
@@ -77,9 +77,23 @@ class OllamaSettings(BaseSettings):
     max_tokens: Optional[int] = None
     streaming: bool = True
 
+    @validator("max_tokens", pre=True, always=True)
+    @classmethod
+    def parse_max_tokens(cls, v):
+        """Parse max_tokens from environment variable, handling empty strings."""
+        if v == "" or v is None:
+            return None
+        try:
+            return int(v)
+        except (ValueError, TypeError):
+            return None
+
     # Health check settings
     health_check_interval: int = 60  # seconds
     auto_health_check: bool = True
+
+    class Config:
+        env_prefix = "OLLAMA_SETTINGS_"
 
 
 class OpenAISettings(BaseSettings):
