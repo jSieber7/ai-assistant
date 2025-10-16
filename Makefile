@@ -162,7 +162,7 @@ clean:
 # Run tests
 test:
 	@echo "Running tests in Docker..."
-	docker compose --profile dev run --rm ai-assistant python -m pytest tests/ -v
+	docker compose --profile dev run --rm ai-assistant-dev uv run --group dev pytest tests/ -v
 
 # Run application startup test
 test-startup:

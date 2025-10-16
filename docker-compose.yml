@@ -218,13 +218,14 @@ services:
       - "--ping=true"
       - "--global.checkNewVersion=false"
       - "--global.sendAnonymousUsage=false"
+      - "--ping.entrypoint=traefik"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./docker-configs/traefik.yml:/etc/traefik/traefik.yml:ro
     networks:
       - ai-assistant-network
     healthcheck:
-      test: ["CMD", "traefik", "ping"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/ping"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -290,7 +291,7 @@ services:
 
   # Development tools
   debug-tools:
-    image: python:3.12-slim
+    image: python:3.12.3-slim
     container_name: ai-assistant-debug-tools
     volumes:
       - .:/app
@@ -312,7 +313,7 @@ services:
       - ai-assistant-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://0.0.0.0:8081/"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -374,7 +375,7 @@ services:
     networks:
       - ai-assistant-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/"]
+      test: ["CMD-SHELL", "netstat -tlnp | grep :8081"]
       interval: 30s
       timeout: 10s
       retries: 3

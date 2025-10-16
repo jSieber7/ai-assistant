@@ -49,14 +49,16 @@ def get_models_list() -> List[str]:
         formatted_models = []
         for model in models:
             try:
-                if hasattr(model, 'provider') and hasattr(model.provider, 'value'):
+                if hasattr(model, "provider") and hasattr(model.provider, "value"):
                     if model.provider.value not in ["openrouter", "openai_compatible"]:
                         formatted_models.append(f"{model.provider.value}:{model.name}")
                     else:
                         formatted_models.append(model.name)
                 else:
                     # Fallback for model objects without provider info
-                    formatted_models.append(str(model.name) if hasattr(model, 'name') else str(model))
+                    formatted_models.append(
+                        str(model.name) if hasattr(model, "name") else str(model)
+                    )
             except Exception as format_error:
                 logger.error(f"Error formatting model {model}: {format_error}")
                 formatted_models.append(str(model))
@@ -79,7 +81,9 @@ def get_providers_info() -> str:
         providers = provider_registry.list_providers()
 
         if not providers:
-            return "No providers configured. Please check your API keys in the .env file."
+            return (
+                "No providers configured. Please check your API keys in the .env file."
+            )
 
         providers_info = []
         for provider in providers:
@@ -100,15 +104,25 @@ def get_providers_info() -> str:
                 # Check if default provider
                 is_default = ""
                 try:
-                    if hasattr(provider_registry, '_default_provider') and provider_registry._default_provider:
-                        if provider.provider_type == provider_registry._default_provider:
+                    if (
+                        hasattr(provider_registry, "_default_provider")
+                        and provider_registry._default_provider
+                    ):
+                        if (
+                            provider.provider_type
+                            == provider_registry._default_provider
+                        ):
                             is_default = " (Default)"
                 except Exception:
                     pass
 
                 # Add provider type for clarity
-                provider_type = f" [{provider.provider_type.value}]" if hasattr(provider, 'provider_type') else ""
-                
+                provider_type = (
+                    f" [{provider.provider_type.value}]"
+                    if hasattr(provider, "provider_type")
+                    else ""
+                )
+
                 providers_info.append(
                     f"{provider.name}{provider_type}{is_default}: {status}, {health}"
                 )
@@ -116,7 +130,9 @@ def get_providers_info() -> str:
                 logger.error(
                     f"Error processing provider {getattr(provider, 'name', 'Unknown')}: {provider_error}"
                 )
-                providers_info.append(f"Error processing provider: {str(provider_error)}")
+                providers_info.append(
+                    f"Error processing provider: {str(provider_error)}"
+                )
 
         result = "\n".join(providers_info)
         logger.info(f"get_providers_info returning: {result}, type: {type(result)}")
@@ -232,7 +248,9 @@ def get_agents_info() -> str:
                 is_default = " (Default)" if getattr(agent, "is_default", False) else ""
                 description = getattr(agent, "description", "No description available")
                 agent_type = getattr(agent, "agent_type", "Unknown")
-                agents_info.append(f"{agent.name}{is_default} [{agent_type}]: {description}")
+                agents_info.append(
+                    f"{agent.name}{is_default} [{agent_type}]: {description}"
+                )
             except Exception as agent_error:
                 logger.error(
                     f"Error processing agent {getattr(agent, 'name', 'unknown')}: {agent_error}"
@@ -447,8 +465,8 @@ async def execute_query_function(
                 else:
                     error_msg += f": {json.dumps(error_detail)}"
             except Exception:
-                error_msg += f": Server error occurred"
-    
+                error_msg += ": Server error occurred"
+
                 return f"Error: {error_msg}"
 
     except httpx.TimeoutException:
@@ -734,12 +752,15 @@ def create_gradio_app() -> gr.Blocks:
                     providers_text = "✗ No providers configured"
                     tools_text = "✗ No tools available"
                     agents_text = "✗ No agents available"
-                    
+
                     # Try to refresh each component and capture results or errors
                     try:
                         models = get_models_list()
                         if models and len(models) > 0:
-                            models_text = f"✓ Found {len(models)} models:\n" + "\n".join(models[:10])
+                            models_text = (
+                                f"✓ Found {len(models)} models:\n"
+                                + "\n".join(models[:10])
+                            )
                             if len(models) > 10:
                                 models_text += f"\n... and {len(models) - 10} more"
                         else:
@@ -747,7 +768,7 @@ def create_gradio_app() -> gr.Blocks:
                     except Exception as e:
                         logger.error(f"Error refreshing models: {e}")
                         models_text = f"✗ Error loading models: {str(e)}"
-                    
+
                     try:
                         providers = get_providers_info()
                         if providers and "No providers configured" not in providers:
@@ -757,7 +778,7 @@ def create_gradio_app() -> gr.Blocks:
                     except Exception as e:
                         logger.error(f"Error refreshing providers: {e}")
                         providers_text = f"✗ Error loading providers: {str(e)}"
-                    
+
                     try:
                         tools = get_tools_info()
                         if tools and "Failed to initialize" not in tools:
@@ -767,7 +788,7 @@ def create_gradio_app() -> gr.Blocks:
                     except Exception as e:
                         logger.error(f"Error refreshing tools: {e}")
                         tools_text = f"✗ Error loading tools: {str(e)}"
-                    
+
                     try:
                         agents = get_agents_info()
                         if agents and "disabled" not in agents.lower():
@@ -777,22 +798,47 @@ def create_gradio_app() -> gr.Blocks:
                     except Exception as e:
                         logger.error(f"Error refreshing agents: {e}")
                         agents_text = f"✗ Error loading agents: {str(e)}"
-                    
+
                     # Return the information for textboxes and empty strings for markdown components
                     # The loading states will be handled by gr.update() calls
-                    return [models_text, providers_text, tools_text, agents_text, "", "", "", ""]
+                    return [
+                        models_text,
+                        providers_text,
+                        tools_text,
+                        agents_text,
+                        "",
+                        "",
+                        "",
+                        "",
+                    ]
 
                 refresh_btn.click(
                     refresh_all_info,
-                    outputs=[models_info, providers_info, tools_info, agents_info,
-                             models_loading, providers_loading, tools_loading, agents_loading],
+                    outputs=[
+                        models_info,
+                        providers_info,
+                        tools_info,
+                        agents_info,
+                        models_loading,
+                        providers_loading,
+                        tools_loading,
+                        agents_loading,
+                    ],
                 )
 
-                # Initial load 
+                # Initial load
                 app.load(
                     refresh_all_info,
-                    outputs=[models_info, providers_info, tools_info, agents_info,
-                             models_loading, providers_loading, tools_loading, agents_loading],
+                    outputs=[
+                        models_info,
+                        providers_info,
+                        tools_info,
+                        agents_info,
+                        models_loading,
+                        providers_loading,
+                        tools_loading,
+                        agents_loading,
+                    ],
                 )
 
             # Settings Configuration Tab
@@ -947,13 +993,15 @@ def create_gradio_app() -> gr.Blocks:
                     try:
                         # Execute the actual query using a more robust approach
                         import nest_asyncio
+
                         nest_asyncio.apply()
-                        
+
                         # Check if we're already in an event loop
                         try:
                             loop = asyncio.get_running_loop()
                             # We're in an async context, use run_in_executor
                             import concurrent.futures
+
                             with concurrent.futures.ThreadPoolExecutor() as executor:
                                 result = loop.run_in_executor(
                                     executor,
@@ -967,7 +1015,7 @@ def create_gradio_app() -> gr.Blocks:
                                             agent_dropdown_value,
                                             agent_custom_name,
                                         )
-                                    )
+                                    ),
                                 ).result()
                         except RuntimeError:
                             # No running loop, we can use asyncio.run

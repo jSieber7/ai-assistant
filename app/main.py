@@ -9,7 +9,7 @@ from .core.monitoring.middleware import MonitoringMiddleware
 from .core.multi_writer_config import (
     initialize_multi_writer_system,
     is_multi_writer_enabled,
- )
+)
 from .api.routes import router
 from .api.tool_routes import router as tool_router
 from .api.agent_routes import router as agent_router
@@ -39,7 +39,11 @@ app.add_middleware(MonitoringMiddleware)
 
 # Mount SearxNG static files
 try:
-    app.mount("/static", StaticFiles(directory="/usr/local/searxng/searx/static", html=True), name="searxng-static")
+    app.mount(
+        "/static",
+        StaticFiles(directory="/usr/local/searxng/searx/static", html=True),
+        name="searxng-static",
+    )
 except Exception as e:
     print(f"Warning: Failed to mount SearxNG static files: {str(e)}")
 

@@ -113,24 +113,24 @@ class FirebaseSettings(BaseSettings):
     client_x509_cert_url: Optional[str] = None
     database_url: Optional[str] = None
     storage_bucket: Optional[str] = None
-    
+
     # Web scraping specific settings
     scraping_enabled: bool = True
     max_concurrent_scrapes: int = 5
     scrape_timeout: int = 60
     scraping_collection: str = "scraped_data"
-    
+
     # Web rendering settings
     use_selenium: bool = True
     selenium_driver_type: str = "chrome"  # chrome, firefox
     headless_browser: bool = True
     browser_timeout: int = 30
-    
+
     # Data processing settings
     content_cleaning: bool = True
     extract_images: bool = False
     extract_links: bool = True
-    
+
     class Config:
         env_prefix = "FIREBASE_"
 
@@ -179,7 +179,7 @@ class Settings(BaseSettings):
 
     # Multi-writer system settings
     multi_writer_settings: ClassVar[MultiWriterSettings] = MultiWriterSettings()
-    
+
     # Firebase settings
     firebase_settings: FirebaseSettings = FirebaseSettings()
 
@@ -523,41 +523,41 @@ def initialize_firebase_system():
     from .tools.firebase_scraper_tool import FirebaseScraperTool
     from .agents.registry import agent_registry
     from .agents.firebase_scraper_agent import FirebaseScraperAgent
-    
+
     if not settings.firebase_settings.enabled:
         logger.info("Firebase system disabled in settings")
         return
-    
+
     # Initialize LLM providers first
     initialize_llm_providers()
-    
+
     # Create Firebase scraper tool
     firebase_tool = FirebaseScraperTool()
     tool_registry.register(firebase_tool, category="firebase")
     logger.info("Firebase scraper tool registered")
-    
+
     # Create Firebase scraper agent
     try:
         import asyncio
-        
+
         # Get LLM asynchronously
         try:
             asyncio.get_running_loop()
             # We're in an async context, need to run in a thread
             import concurrent.futures
-            
+
             with concurrent.futures.ThreadPoolExecutor() as executor:
                 future = executor.submit(asyncio.run, get_llm())
                 llm = future.result(timeout=10)
         except RuntimeError:
             # No running loop, we can use asyncio.run
             llm = asyncio.run(get_llm())
-        
+
         firebase_agent = FirebaseScraperAgent(llm=llm)
         agent_registry.register(firebase_agent, category="firebase")
         logger.info("Firebase scraper agent registered")
-        
+
     except Exception as e:
         logger.error(f"Failed to create Firebase scraper agent: {str(e)}")
-    
+
     return tool_registry, agent_registry
