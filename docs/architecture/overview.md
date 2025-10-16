@@ -137,20 +137,25 @@ This document describes the high-level architecture of the AI Assistant project,
 
 ### Backend
 - **Framework**: FastAPI (Python 3.12)
-- **LLM Orchestration**: LangChain
-- **Vector Database**: PostgreSQL + pgvector (planned)
+- **LLM Orchestration**: LangChain with multi-provider support
+- **Caching**: Redis with multi-layer caching and compression
 - **API Client**: HTTPX for async requests
+- **Web Interface**: Gradio for configuration and testing
+- **Search Integration**: SearXNG for privacy-focused web search
 
 ### Development Tools
-- **Package Manager**: UV
-- **Testing**: pytest with coverage
+- **Package Manager**: UV for fast dependency management
+- **Testing**: pytest with comprehensive coverage
 - **Code Quality**: ruff, black, mypy
 - **Security**: bandit, pip-audit
+- **Documentation**: MkDocs + Material theme
 
 ### Infrastructure
-- **CI/CD**: GitHub Actions
-- **Documentation**: MkDocs + Material theme
-- **Containerization**: Docker (planned)
+- **CI/CD**: GitHub Actions with security scanning
+- **Containerization**: Docker with docker-compose
+- **Monitoring**: Prometheus with Grafana dashboards
+- **Reverse Proxy**: Traefik for service routing
+- **Database**: Redis for caching, PostgreSQL (optional)
 
 ## Configuration Management
 

@@ -18,14 +18,22 @@ providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
-    network: ai-assistant-network
 
 # Logging
 log:
-  level: INFO
+  level: DEBUG
 
 # Access Logging
 accessLog: {}
+
+# HTTP Middlewares
+http:
+  middlewares:
+    # Strip prefix for SearXNG
+    searxng-stripprefix:
+      stripprefix:
+        prefixes:
+          - "/search"
 
 # Metrics (optional for development)
 metrics:

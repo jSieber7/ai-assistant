@@ -22,9 +22,9 @@ class TestDockerIntegration:
         """Set up test environment."""
         self.services = {
             "ai-assistant": {
-                "port": 80,
-                "health_path": "/",
-            },  # Changed to port 80 (Traefik)
+                "port": 8000,
+                "health_path": "/monitoring/health",
+            },  # Development setup uses direct port 8000 access
             # Skip Redis direct test as it's only accessible within Docker network
             # "redis": {"port": 6379, "health_check": self._check_redis},
             "searxng": {"port": 8080, "health_path": "/"},

@@ -17,7 +17,7 @@ server:
   port: 8080
   bind_address: "0.0.0.0"
   secret_key: "${SEARXNG_SECRET_KEY}"
-  base_url: "http://localhost/search/"
+  base_url: "http://searxng:8080/"
   image_proxy: true
   limiter: true
   public_instance: false

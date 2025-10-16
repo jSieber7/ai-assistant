@@ -1,0 +1,56 @@
+# =============================================================================
+# AI Assistant Development Dockerfile (Version-Pinned)
+# =============================================================================
+# This Dockerfile creates a reproducible development environment by pinning
+# both the Python patch version (3.12.3) and the uv version (0.9.3).
+# It uses a multi-stage build to create a clean, stable base.
+
+# =============================================================================
+# Stage 1: UV Builder - To fetch a specific uv binary
+# =============================================================================
+# We use the distroless image containing only the uv binary to copy from.
+# Pinning the uv version ensures our tooling is consistent across all builds.
+FROM ghcr.io/astral-sh/uv:0.9.3 AS uv_builder
+
+# =============================================================================
+# Stage 2: Base Stage - Pinned Python + UV
+# =============================================================================
+# Start from the official Python image with the *exact* patch version required.
+FROM python:3.12.3-slim-bookworm AS base
+
+# Copy the uv and uvx binaries from the uv_builder stage into our path.
+COPY --from=uv_builder /uv /usr/local/bin/uv
+COPY --from=uv_builder /uvx /usr/local/bin/uvx
+
+# Set environment variables for Python and uv.
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH="/app" \
+    UV_CACHE_DIR=/app/.uv-cache
+
+# Set work directory.
+WORKDIR /app
+
+# (Optional but recommended) Verify that the correct tool versions are installed.
+RUN python --version && uv --version
+
+# =============================================================================
+# Stage 3: Development Stage - Application Setup
+# =============================================================================
+# This stage inherits our stable base and builds the application.
+FROM base AS development
+
+# Copy dependency files first for better layer caching.
+COPY pyproject.toml uv.lock ./
+
+# Copy the application code before installing dependencies to avoid build errors.
+COPY app/ ./app/
+
+# Install dependencies, including development tools using the frozen lockfile.
+RUN uv sync --frozen --group dev
+
+# Expose the application port.
+EXPOSE 8000
+
+# Run the application with Uvicorn and hot-reloading for development.
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
