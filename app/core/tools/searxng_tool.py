@@ -6,7 +6,6 @@ This module provides a tool for performing web searches using SearXNG.
 
 import aiohttp
 from typing import Dict, Any, List
-from urllib.parse import urlencode
 from .base import BaseTool, ToolExecutionError
 
 

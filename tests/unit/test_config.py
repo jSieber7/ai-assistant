@@ -43,6 +43,7 @@ class TestOllamaSettings:
         """Test Ollama settings default values"""
         # Clear environment variables to test true defaults
         import os
+
         env_vars_to_clear = [
             "OLLAMA_SETTINGS_ENABLED",
             "OLLAMA_SETTINGS_BASE_URL",
@@ -53,19 +54,19 @@ class TestOllamaSettings:
             "OLLAMA_SETTINGS_HEALTH_CHECK_INTERVAL",
             "OLLAMA_SETTINGS_AUTO_HEALTH_CHECK",
             "OLLAMA_SETTINGS_MAX_RETRIES",
-            "OLLAMA_SETTINGS_MAX_TOKENS"
+            "OLLAMA_SETTINGS_MAX_TOKENS",
         ]
-        
+
         # Store original values
         original_values = {}
         for var in env_vars_to_clear:
             if var in os.environ:
                 original_values[var] = os.environ[var]
                 del os.environ[var]
-        
+
         try:
             settings = OllamaSettings()
-            
+
             assert settings.enabled is True
             assert settings.base_url == "http://localhost:11434"
             assert settings.default_model == "llama2"
@@ -104,6 +105,7 @@ class TestOpenAISettings:
         """Test OpenAI settings default values"""
         # Clear environment variables to test true defaults
         import os
+
         env_vars_to_clear = [
             "OPENAI_COMPATIBLE_ENABLED",
             "OPENAI_COMPATIBLE_API_KEY",
@@ -111,19 +113,19 @@ class TestOpenAISettings:
             "OPENAI_COMPATIBLE_DEFAULT_MODEL",
             "OPENAI_COMPATIBLE_PROVIDER_NAME",
             "OPENAI_COMPATIBLE_TIMEOUT",
-            "OPENAI_COMPATIBLE_MAX_RETRIES"
+            "OPENAI_COMPATIBLE_MAX_RETRIES",
         ]
-        
+
         # Store original values
         original_values = {}
         for var in env_vars_to_clear:
             if var in os.environ:
                 original_values[var] = os.environ[var]
                 del os.environ[var]
-        
+
         try:
             settings = OpenAISettings()
-            
+
             assert settings.enabled is True
             assert settings.api_key is None
             assert settings.base_url == "https://openrouter.ai/api/v1"

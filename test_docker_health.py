@@ -1,5 +1,6 @@
 import requests
 
+
 def check_http_service(port: int, path: str = "/") -> bool:
     """Check if an HTTP service is responding."""
     base_url = "http://localhost"
@@ -14,6 +15,7 @@ def check_http_service(port: int, path: str = "/") -> bool:
         return response.status_code == 200
     except Exception:
         return False
+
 
 # Test AI Assistant service
 ai_assistant_healthy = check_http_service(8000, "/monitoring/health")
