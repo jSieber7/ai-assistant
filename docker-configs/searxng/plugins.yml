@@ -4,7 +4,7 @@
 plugins:
   # Disable rate limiter plugin
   - name: limiter
-    enabled: false
+    enabled: true
   
   # Disable other plugins that might interfere
   - name: hash_plugin
@@ -12,6 +12,6 @@ plugins:
   - name: search_on_category_select
     enabled: true
   - name: self_info
-    enabled: false
+    enabled: true
   - name: tracker_url_remover
     enabled: true

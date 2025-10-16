@@ -21,6 +21,7 @@ server:
   image_proxy: true
   limiter: true
   public_instance: false
+  use_proxy_headers: true
 
 ui:
   static_use_hash: true
