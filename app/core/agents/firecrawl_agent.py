@@ -1,8 +1,8 @@
 """
-Firebase Scraper Agent for the AI Assistant system.
+Firecrawl Agent for the AI Assistant system.
 
-This agent specializes in web scraping tasks using Firebase infrastructure
-with advanced features like Selenium rendering and Firestore storage.
+This agent specializes in web scraping tasks using Firecrawl API
+with advanced features like comprehensive data extraction and processing.
 """
 
 import json
@@ -13,13 +13,13 @@ from langchain.chat_models.base import BaseChatModel
 
 from .base import BaseAgent, AgentResult
 from ..tools.registry import tool_registry
-from ..tools.firebase_scraper_tool import FirebaseScraperTool
+from ..tools.firecrawl_tool import FirecrawlTool
 
 logger = logging.getLogger(__name__)
 
 
-class FirebaseScraperAgent(BaseAgent):
-    """Agent specialized in web scraping using Firebase infrastructure"""
+class FirecrawlAgent(BaseAgent):
+    """Agent specialized in web scraping using Firecrawl API"""
 
     def __init__(
         self,
@@ -36,56 +36,64 @@ class FirebaseScraperAgent(BaseAgent):
 
     @property
     def name(self) -> str:
-        return "firebase_scraper_agent"
+        return "firecrawl_agent"
 
     @property
     def description(self) -> str:
-        return "Specialized agent for web scraping using Firebase with advanced rendering and storage"
+        return "Specialized agent for web scraping using Firecrawl API with advanced data extraction"
 
     def _create_specialized_prompt(self) -> str:
-        """Create specialized system prompt for Firebase scraping tasks"""
-        return """You are a Firebase Web Scraping Specialist Agent. Your expertise includes:
+        """Create specialized system prompt for Firecrawl scraping tasks"""
+        return """You are a Firecrawl Web Scraping Specialist Agent. Your expertise includes:
 
 WEB SCRAPING CAPABILITIES:
-- Extract content from websites using both HTTP requests and Selenium rendering
-- Handle JavaScript-heavy websites that require browser automation
+- Extract content from websites using Firecrawl API
+- Handle JavaScript-heavy websites that require advanced rendering
 - Extract structured data including text content, links, images, and metadata
+- Support multiple output formats (markdown, raw HTML, etc.)
 - Handle pagination and multi-page content extraction
 
-FIREBASE INTEGRATION:
-- Store scraped data in Firebase Firestore for persistent storage
-- Use Firebase Storage for image and file storage when needed
-- Maintain data consistency and proper indexing
-- Handle authentication and security with Firebase services
+FIRECRAWL API INTEGRATION:
+- Use Firecrawl API for reliable web scraping
+- Configure extraction options for optimal results
+- Handle API rate limits and error conditions
+- Process and structure extracted data effectively
+- Support advanced features like screenshots and custom tag filtering
 
 ADVANCED FEATURES:
 - JavaScript rendering for dynamic content
 - Image extraction and processing
 - Link discovery and crawling
 - Content cleaning and normalization
+- Custom tag inclusion/exclusion
 - Error handling and retry mechanisms
 
 TASK EXECUTION STRATEGY:
 1. Analyze the scraping request and determine the best approach
-2. Choose between simple HTTP scraping or Selenium rendering
+2. Configure Firecrawl options based on content requirements
 3. Extract content with proper error handling
-4. Store results in Firebase Firestore
+4. Process and structure the results
 5. Provide comprehensive results with metadata
 
 RESPONSE FORMAT:
 Always provide structured responses including:
 - Scraped content summary
 - Data quality assessment
-- Storage information (Firestore document ID)
+- Extraction information (formats used, options applied)
 - Any issues encountered
 - Recommendations for further processing
 
 Remember to handle errors gracefully and provide helpful feedback to users."""
 
-    async def _get_scraper_tool(self) -> FirebaseScraperTool:
-        """Get or create the Firebase scraper tool"""
+    async def _get_scraper_tool(self) -> FirecrawlTool:
+        """Get or create the Firecrawl scraper tool"""
         if self._scraper_tool is None:
-            self._scraper_tool = FirebaseScraperTool()
+            from ..config import settings
+
+            self._scraper_tool = FirecrawlTool(
+                api_key=settings.firecrawl_settings.api_key,
+                base_url=settings.firecrawl_settings.base_url,
+            )
         return self._scraper_tool
 
     async def _analyze_scraping_task(self, query: str) -> Dict[str, Any]:
@@ -97,13 +105,13 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
         
         Please analyze:
         1. What type of content is being requested?
-        2. Does it likely require JavaScript rendering?
+        2. What output formats would be most suitable?
         3. What specific data should be extracted?
         4. Any potential challenges or considerations?
         
         Respond with a JSON analysis including:
         - content_type: "article", "product", "news", "general", etc.
-        - requires_js: true/false
+        - recommended_formats: list of formats to use
         - extraction_targets: list of data points to extract
         - challenges: list of potential issues
         - recommendations: list of recommendations
@@ -116,8 +124,6 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
 
         response = await self.llm.agenerate([messages])
         analysis_text = response.generations[0][0].text
-
-        import json
 
         try:
             # Extract JSON from response
@@ -133,18 +139,17 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
             # Fallback analysis
             return {
                 "content_type": "general",
-                "requires_js": "javascript" in query.lower()
-                or "dynamic" in query.lower(),
+                "recommended_formats": ["markdown", "raw"],
                 "extraction_targets": ["content", "links", "metadata"],
                 "challenges": ["Unknown website structure"],
-                "recommendations": ["Use Selenium for robust scraping"],
+                "recommendations": ["Use default Firecrawl settings"],
             }
 
     async def execute(
         self, query: str, context: Dict[str, Any] = None
     ) -> Dict[str, Any]:
-        """Execute web scraping task using Firebase infrastructure"""
-        logger.info(f"FirebaseScraperAgent executing query: {query}")
+        """Execute web scraping task using Firecrawl API"""
+        logger.info(f"FirecrawlAgent executing query: {query}")
 
         # Analyze the scraping task
         task_analysis = await self._analyze_scraping_task(query)
@@ -164,14 +169,13 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
         try:
             results = []
             for url in urls:
-                # Determine scraping method based on analysis
-                use_selenium = task_analysis.get("requires_js", True)
+                # Configure scraping options based on analysis
+                formats = task_analysis.get("recommended_formats", ["markdown", "raw"])
 
                 # Execute scraping
                 scraped_data = await scraper_tool.execute(
                     url=url,
-                    use_selenium=use_selenium,
-                    store_in_firestore=True,
+                    formats=formats,
                     extract_images=task_analysis.get("extract_images", False),
                     extract_links=True,
                     timeout=30,
@@ -181,7 +185,7 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
                     {
                         "url": url,
                         "data": scraped_data,
-                        "method": "selenium" if use_selenium else "http",
+                        "formats": formats,
                         "analysis": task_analysis,
                     }
                 )
@@ -201,7 +205,7 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
             }
 
         except Exception as e:
-            logger.error(f"Firebase scraping failed: {str(e)}")
+            logger.error(f"Firecrawl scraping failed: {str(e)}")
             return {
                 "success": False,
                 "error": str(e),
@@ -287,7 +291,7 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
             }
 
     async def batch_scrape(
-        self, urls: List[str], use_selenium: bool = True
+        self, urls: List[str], formats: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """Perform batch scraping of multiple URLs"""
         scraper_tool = await self._get_scraper_tool()
@@ -295,21 +299,24 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
         try:
             results = await scraper_tool.batch_scrape(
                 urls=urls,
-                use_selenium=use_selenium,
-                store_in_firestore=True,
+                formats=formats,
                 timeout=30,
             )
 
             # Filter successful results
             successful_results = []
             for i, result in enumerate(results):
-                if not isinstance(result, Exception):
+                if result.get("success", True) and "error" not in result:
                     successful_results.append(
                         {"url": urls[i], "data": result, "success": True}
                     )
                 else:
                     successful_results.append(
-                        {"url": urls[i], "error": str(result), "success": False}
+                        {
+                            "url": urls[i],
+                            "error": result.get("error", "Unknown error"),
+                            "success": False,
+                        }
                     )
 
             return {
@@ -336,7 +343,7 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
         context: Dict[str, Any] = None,
     ) -> AgentResult:
         """
-        Internal implementation of message processing for Firebase scraping
+        Internal implementation of message processing for Firecrawl scraping
 
         Args:
             message: User message to process
@@ -387,12 +394,10 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
     def get_agent_stats(self) -> Dict[str, Any]:
         """Get agent statistics"""
         base_stats = {
-            "specialization": "firebase_web_scraping",
+            "specialization": "firecrawl_web_scraping",
             "scraper_tool_available": self._scraper_tool is not None,
-            "firebase_initialized": (
-                getattr(self._scraper_tool, "_firebase_initialized", False)
-                if self._scraper_tool
-                else False
+            "api_configured": (
+                bool(self._scraper_tool.api_key) if self._scraper_tool else False
             ),
         }
         return base_stats
