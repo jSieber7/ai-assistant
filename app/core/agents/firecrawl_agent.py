@@ -91,8 +91,8 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
             from ..config import settings
 
             self._scraper_tool = FirecrawlTool(
-                api_key=settings.firecrawl_settings.api_key,
-                base_url=settings.firecrawl_settings.base_url,
+                api_key=settings.firecrawl_settings.effective_api_key,
+                base_url=settings.firecrawl_settings.effective_url,
             )
         return self._scraper_tool
 

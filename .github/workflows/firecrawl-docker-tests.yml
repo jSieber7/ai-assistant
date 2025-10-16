@@ -1,0 +1,227 @@
+name: Firecrawl Docker Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'app/core/tools/firecrawl_tool.py'
+      - 'app/core/agents/firecrawl_agent.py'
+      - 'app/core/config.py'
+      - 'docker-configs/firecrawl/**'
+      - 'tests/integration/test_firecrawl_docker.py'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'app/core/tools/firecrawl_tool.py'
+      - 'app/core/agents/firecrawl_agent.py'
+      - 'app/core/config.py'
+      - 'docker-configs/firecrawl/**'
+      - 'tests/integration/test_firecrawl_docker.py'
+  workflow_dispatch:
+
+jobs:
+  test-firecrawl-docker:
+    runs-on: ubuntu-latest
+    
+    services:
+      redis:
+        image: redis:7.2-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: firecrawl_password
+          POSTGRES_USER: firecrawl
+          POSTGRES_DB: firecrawl
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U firecrawl"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    
+    - name: Install dependencies
+      run: |
+        pip install -e .
+        pip install pytest pytest-asyncio httpx
+    
+    - name: Start Firecrawl Docker services
+      run: |
+        # Start Firecrawl services
+        docker compose -f docker-configs/firecrawl/docker-compose.yml up -d
+        
+        # Wait for services to be ready
+        echo "Waiting for Firecrawl services to be ready..."
+        timeout 300 bash -c 'until curl -f http://localhost:3002/health; do sleep 5; done'
+        
+        # Verify services are running
+        docker compose -f docker-configs/firecrawl/docker-compose.yml ps
+    
+    - name: Run Firecrawl Docker health check
+      run: |
+        python utility/firecrawl_health_check.py --url http://localhost:3002 --verbose
+    
+    - name: Run unit tests for Docker mode
+      env:
+        FIRECRAWL_DEPLOYMENT_MODE: docker
+        FIRECRAWL_DOCKER_URL: http://localhost:3002
+        FIRECRAWL_ENABLED: true
+        FIRECRAWL_SCRAPING_ENABLED: true
+        FIRECRAWL_ENABLE_FALLBACK: false
+      run: |
+        pytest tests/integration/test_firecrawl_docker.py::TestFirecrawlDockerIntegration -v
+    
+    - name: Run fallback tests
+      env:
+        FIRECRAWL_DEPLOYMENT_MODE: docker
+        FIRECRAWL_DOCKER_URL: http://localhost:3002
+        FIRECRAWL_ENABLED: true
+        FIRECRAWL_SCRAPING_ENABLED: true
+        FIRECRAWL_ENABLE_FALLBACK: true
+        FIRECRAWL_API_KEY: test-key-for-fallback
+        FIRECRAWL_BASE_URL: https://api.firecrawl.dev
+      run: |
+        pytest tests/integration/test_firecrawl_docker.py::TestFirecrawlDockerIntegration::test_docker_scraping_with_fallback -v
+    
+    - name: Test API mode compatibility
+      env:
+        FIRECRAWL_DEPLOYMENT_MODE: api
+        FIRECRAWL_API_KEY: test-key
+        FIRECRAWL_BASE_URL: https://api.firecrawl.dev
+        FIRECRAWL_ENABLED: true
+        FIRECRAWL_SCRAPING_ENABLED: true
+      run: |
+        pytest tests/integration/test_firecrawl_docker.py::TestFirecrawlDockerIntegration::test_docker_mode_switching -v
+    
+    - name: Capture logs on failure
+      if: failure()
+      run: |
+        echo "=== Firecrawl API Logs ==="
+        docker compose -f docker-configs/firecrawl/docker-compose.yml logs firecrawl-api || true
+        
+        echo "=== Firecrawl Worker Logs ==="
+        docker compose -f docker-configs/firecrawl/docker-compose.yml logs firecrawl-worker || true
+        
+        echo "=== Firecrawl Playwright Logs ==="
+        docker compose -f docker-configs/firecrawl/docker-compose.yml logs firecrawl-playwright || true
+        
+        echo "=== Redis Logs ==="
+        docker compose -f docker-configs/firecrawl/docker-compose.yml logs firecrawl-redis || true
+        
+        echo "=== PostgreSQL Logs ==="
+        docker compose -f docker-configs/firecrawl/docker-compose.yml logs firecrawl-postgres || true
+    
+    - name: Cleanup
+      if: always()
+      run: |
+        docker compose -f docker-configs/firecrawl/docker-compose.yml down -v
+
+  test-firecrawl-docker-performance:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    
+    - name: Install dependencies
+      run: |
+        pip install -e .
+        pip install pytest pytest-asyncio httpx
+    
+    - name: Start Firecrawl Docker services
+      run: |
+        docker compose -f docker-configs/firecrawl/docker-compose.yml up -d
+        timeout 300 bash -c 'until curl -f http://localhost:3002/health; do sleep 5; done'
+    
+    - name: Run performance tests
+      env:
+        FIRECRAWL_DEPLOYMENT_MODE: docker
+        FIRECRAWL_DOCKER_URL: http://localhost:3002
+        FIRECRAWL_ENABLED: true
+        FIRECRAWL_SCRAPING_ENABLED: true
+      run: |
+        python -c "
+        import asyncio
+        import time
+        from app.core.tools.firecrawl_tool import FirecrawlTool
+        
+        async def performance_test():
+            tool = FirecrawlTool()
+            urls = [
+                'https://httpbin.org/html',
+                'https://httpbin.org/html',
+                'https://httpbin.org/html'
+            ]
+            
+            start_time = time.time()
+            results = await tool.batch_scrape(urls)
+            end_time = time.time()
+            
+            print(f'Scraped {len(urls)} URLs in {end_time - start_time:.2f} seconds')
+            print(f'Average time per URL: {(end_time - start_time) / len(urls):.2f} seconds')
+            
+            successful = sum(1 for r in results if r.get('success', True))
+            print(f'Success rate: {successful}/{len(urls)} ({successful/len(urls)*100:.1f}%)')
+            
+            assert successful == len(urls), 'All scrapes should succeed'
+        
+        asyncio.run(performance_test())
+        "
+    
+    - name: Cleanup
+      if: always()
+      run: |
+        docker compose -f docker-configs/firecrawl/docker-compose.yml down -v
+
+  test-firecrawl-docker-security:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run security scan on Docker Compose
+      run: |
+        # Check for exposed ports
+        exposed_ports=$(grep -E "ports:|-[[:space:]]*[0-9]+:" docker-configs/firecrawl/docker-compose.yml | wc -l)
+        if [ $exposed_ports -gt 0 ]; then
+          echo "Warning: Found $exposed_ports exposed ports in Firecrawl Docker configuration"
+          grep -n "ports:" docker-configs/firecrawl/docker-compose.yml
+        fi
+        
+        # Check for default passwords
+        if grep -q "change_me\|default\|password" docker-configs/firecrawl/docker-compose.yml; then
+          echo "Warning: Found default passwords in configuration"
+          grep -n "change_me\|default\|password" docker-configs/firecrawl/docker-compose.yml
+        fi
+        
+        # Check for privileged containers
+        if grep -q "privileged:true" docker-configs/firecrawl/docker-compose.yml; then
+          echo "Error: Found privileged containers"
+          exit 1
+        fi
+        
+        echo "Security scan completed"

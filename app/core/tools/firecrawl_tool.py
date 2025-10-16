@@ -25,6 +25,7 @@ class FirecrawlTool(BaseTool):
         self.api_key = api_key
         self.base_url = base_url
         self._client = None
+        self._fallback_client = None
 
     @property
     def name(self) -> str:
@@ -106,23 +107,66 @@ class FirecrawlTool(BaseTool):
         }
 
     def _get_client(self) -> httpx.AsyncClient:
-        """Get or create HTTP client"""
+        """Get or create HTTP client based on deployment mode"""
+        from ..config import settings
+        
+        # Use effective configuration based on deployment mode
+        base_url = settings.firecrawl_settings.effective_url
+        api_key = settings.firecrawl_settings.effective_api_key
+        
+        # Create primary client for configured deployment mode
         if self._client is None:
-            from ..config import settings
-
-            # Use settings if no api_key provided
-            api_key = self.api_key or settings.firecrawl_settings.api_key
-            base_url = self.base_url or settings.firecrawl_settings.base_url
-
-            if not api_key:
-                raise ToolExecutionError("Firecrawl API key is not configured")
-
+            headers = {}
+            
+            # Add API key for external API mode
+            if api_key and settings.firecrawl_settings.deployment_mode == "api":
+                headers["Authorization"] = f"Bearer {api_key}"
+            
             self._client = httpx.AsyncClient(
                 base_url=base_url,
+                headers=headers,
+                timeout=30.0,
+            )
+        
+        return self._client
+    
+    def _get_fallback_client(self) -> httpx.AsyncClient:
+        """Get or create fallback HTTP client for external API"""
+        if self._fallback_client is None:
+            from ..config import settings
+            
+            # Only create fallback client if enabled and we have API key
+            if not settings.firecrawl_settings.enable_fallback:
+                raise ToolExecutionError("Fallback to external API is disabled")
+            
+            api_key = settings.firecrawl_settings.api_key
+            if not api_key:
+                raise ToolExecutionError("External API key not configured for fallback")
+            
+            self._fallback_client = httpx.AsyncClient(
+                base_url=settings.firecrawl_settings.base_url,
                 headers={"Authorization": f"Bearer {api_key}"},
                 timeout=30.0,
             )
-        return self._client
+        
+        return self._fallback_client
+    
+    async def _check_docker_health(self) -> bool:
+        """Check if Docker Firecrawl instance is healthy"""
+        from ..config import settings
+        
+        if settings.firecrawl_settings.deployment_mode != "docker":
+            return True
+        
+        try:
+            client = self._get_client()
+            response = await client.get(
+                "/health",
+                timeout=settings.firecrawl_settings.fallback_timeout
+            )
+            return response.status_code == 200
+        except Exception:
+            return False
 
     def _extract_content(self, data: Dict[str, Any], url: str) -> Dict[str, Any]:
         """Extract and structure content from Firecrawl response"""
@@ -183,7 +227,7 @@ class FirecrawlTool(BaseTool):
         extract_links: Optional[bool] = None,
         timeout: Optional[int] = None,
     ) -> Dict[str, Any]:
-        """Execute web scraping using Firecrawl API"""
+        """Execute web scraping using Firecrawl (Docker or API)"""
         from ..config import settings
 
         if not settings.firecrawl_settings.scraping_enabled:
@@ -192,6 +236,16 @@ class FirecrawlTool(BaseTool):
         # Validate URL
         if not url.startswith(("http://", "https://")):
             url = f"https://{url}"
+
+        # Check Docker health if in Docker mode
+        use_fallback = False
+        if settings.firecrawl_settings.deployment_mode == "docker":
+            if not await self._check_docker_health():
+                if settings.firecrawl_settings.enable_fallback:
+                    logger.warning("Docker Firecrawl instance unhealthy, falling back to external API")
+                    use_fallback = True
+                else:
+                    raise ToolExecutionError("Docker Firecrawl instance is unhealthy and fallback is disabled")
 
         try:
             # Build options from parameters and settings
@@ -207,8 +261,15 @@ class FirecrawlTool(BaseTool):
                 "excludeTags": exclude_tags or settings.firecrawl_settings.exclude_tags,
             }
 
-            # Get client and make request
-            client = self._get_client()
+            # Get appropriate client
+            if use_fallback:
+                client = self._get_fallback_client()
+                logger.info(f"Using fallback API for {url}")
+            else:
+                client = self._get_client()
+                deployment_mode = settings.firecrawl_settings.deployment_mode
+                logger.info(f"Using {deployment_mode} Firecrawl for {url}")
+
             response = await client.post(
                 "/v1/scrape",
                 json={"url": url, "options": options},
@@ -227,13 +288,40 @@ class FirecrawlTool(BaseTool):
                 if extract_links is not None:
                     scraped_data["extract_links"] = extract_links
 
-                logger.info(f"Successfully scraped {url} with Firecrawl")
+                deployment_used = "fallback API" if use_fallback else settings.firecrawl_settings.deployment_mode
+                logger.info(f"Successfully scraped {url} with Firecrawl ({deployment_used})")
                 return scraped_data
             else:
                 error_msg = (
                     f"Firecrawl API error: {response.status_code} - {response.text}"
                 )
                 logger.error(error_msg)
+                
+                # Try fallback if primary failed and fallback is enabled
+                if not use_fallback and settings.firecrawl_settings.enable_fallback:
+                    logger.warning(f"Primary Firecrawl failed, attempting fallback for {url}")
+                    try:
+                        fallback_client = self._get_fallback_client()
+                        fallback_response = await fallback_client.post(
+                            "/v1/scrape",
+                            json={"url": url, "options": options},
+                            timeout=timeout or settings.firecrawl_settings.scrape_timeout,
+                        )
+                        
+                        if fallback_response.status_code == 200:
+                            data = fallback_response.json()
+                            scraped_data = self._extract_content(data, url)
+                            
+                            if extract_images is not None:
+                                scraped_data["extract_images"] = extract_images
+                            if extract_links is not None:
+                                scraped_data["extract_links"] = extract_links
+                            
+                            logger.info(f"Successfully scraped {url} with Firecrawl (fallback API)")
+                            return scraped_data
+                    except Exception as fallback_error:
+                        logger.error(f"Fallback also failed: {str(fallback_error)}")
+                
                 raise ToolExecutionError(error_msg)
 
         except httpx.TimeoutException:
@@ -303,19 +391,26 @@ class FirecrawlTool(BaseTool):
 
     def cleanup(self):
         """Clean up resources"""
-        if self._client:
-            try:
-                # Try to close the client if there's an event loop running
-                loop = asyncio.get_running_loop()
-                loop.create_task(self._client.aclose())
-            except RuntimeError:
-                # No event loop running, create a new one to close the client
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(self._client.aclose())
-                loop.close()
-            self._client = None
-            logger.info("Firecrawl HTTP client cleaned up")
+        clients_to_cleanup = [self._client]
+        if self._fallback_client:
+            clients_to_cleanup.append(self._fallback_client)
+            
+        for client in clients_to_cleanup:
+            if client:
+                try:
+                    # Try to close the client if there's an event loop running
+                    loop = asyncio.get_running_loop()
+                    loop.create_task(client.aclose())
+                except RuntimeError:
+                    # No event loop running, create a new one to close the client
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    loop.run_until_complete(client.aclose())
+                    loop.close()
+        
+        self._client = None
+        self._fallback_client = None
+        logger.info("Firecrawl HTTP clients cleaned up")
 
     def __del__(self):
         """Destructor to ensure cleanup"""

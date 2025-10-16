@@ -116,8 +116,15 @@ class FirecrawlSettings(BaseSettings):
     """Firecrawl configuration for web scraping and data storage"""
 
     enabled: bool = False
+    deployment_mode: str = "api"  # "api" for external API, "docker" for self-hosted
+    
+    # External API Configuration
     api_key: Optional[str] = None
     base_url: str = "https://api.firecrawl.dev"
+    
+    # Docker Configuration
+    docker_url: str = "http://firecrawl-api:3002"
+    bull_auth_key: Optional[str] = None
 
     # Web scraping specific settings
     scraping_enabled: bool = True
@@ -133,6 +140,25 @@ class FirecrawlSettings(BaseSettings):
     screenshot: bool = False
     include_tags: List[str] = ["article", "main", "content"]
     exclude_tags: List[str] = ["nav", "footer", "aside", "script", "style"]
+    
+    # Fallback settings
+    enable_fallback: bool = True  # Fall back to external API if Docker fails
+    fallback_timeout: int = 10  # Timeout for Docker health check
+
+    @property
+    def effective_url(self) -> str:
+        """Get the effective URL based on deployment mode"""
+        if self.deployment_mode == "docker":
+            return self.docker_url
+        return self.base_url
+    
+    @property
+    def effective_api_key(self) -> Optional[str]:
+        """Get the effective API key based on deployment mode"""
+        if self.deployment_mode == "docker":
+            # Docker mode doesn't need API key for basic operations
+            return None
+        return self.api_key
 
     class Config:
         env_prefix = "FIRECRAWL_"
@@ -537,8 +563,8 @@ def initialize_firecrawl_system():
 
     # Create Firecrawl scraper tool
     firecrawl_tool = FirecrawlTool(
-        api_key=settings.firecrawl_settings.api_key,
-        base_url=settings.firecrawl_settings.base_url,
+        api_key=settings.firecrawl_settings.effective_api_key,
+        base_url=settings.firecrawl_settings.effective_url,
     )
     tool_registry.register(firecrawl_tool, category="firecrawl")
     logger.info("Firecrawl scraper tool registered")
