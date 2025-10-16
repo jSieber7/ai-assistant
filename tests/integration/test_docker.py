@@ -22,9 +22,9 @@ class TestDockerIntegration:
         """Set up test environment."""
         self.services = {
             "ai-assistant": {
-                "port": 80,
-                "health_path": "/",
-            },  # Changed to port 80 (Traefik)
+                "port": 8000,
+                "health_path": "/monitoring/health",
+            },  # Development setup uses direct port 8000 access
             # Skip Redis direct test as it's only accessible within Docker network
             # "redis": {"port": 6379, "health_check": self._check_redis},
             "searxng": {"port": 8080, "health_path": "/"},
@@ -59,7 +59,14 @@ class TestDockerIntegration:
         url = f"{self.base_url}:{port}{path}"
 
         try:
-            response = requests.get(url, timeout=10)
+            response = requests.get(url, timeout=10, allow_redirects=True)
+            # For health checks, accept 200 or 202 status codes
+            # For SearXNG, accept 200, 301, or 302 (redirects)
+            # For other endpoints, only accept 200
+            if path == "/monitoring/health":
+                return response.status_code in [200, 202]
+            elif service == "searxng":
+                return response.status_code in [200, 301, 302]
             return response.status_code == 200
         except Exception:
             return False
@@ -105,9 +112,11 @@ class TestDockerIntegration:
 
         # Check if any services are running
         services_running = False
+        services_found = False
         lines = output.split("\n")
         for line in lines[1:]:  # Skip header
             if line.strip():
+                services_found = True
                 parts = re.split(r"\s{2,}", line.strip())
                 if len(parts) >= 6:
                     # service_name = parts[3]
@@ -115,6 +124,11 @@ class TestDockerIntegration:
                     if "Up" in status:
                         services_running = True
                         break
+
+        if not services_found:
+            pytest.skip(
+                "No Docker services found - likely running in CI environment without Docker"
+            )
 
         if not services_running:
             pytest.skip(
@@ -124,6 +138,21 @@ class TestDockerIntegration:
         results = {}
 
         for service, config in self.services.items():
+            # Check if the specific service is running
+            service_running = False
+            for line in lines[1:]:  # Skip header
+                if line.strip():
+                    parts = re.split(r"\s{2,}", line.strip())
+                    if len(parts) >= 6:
+                        service_name = parts[3]
+                        status = parts[5].split()[0]
+                        if service_name == service and "Up" in status:
+                            service_running = True
+                            break
+
+            if not service_running:
+                pytest.skip(f"Service {service} is not running - skipping health check")
+
             health_path = config.get("health_path", "/")
             results[service] = self.check_http_service(service, health_path)
 

@@ -6,7 +6,6 @@ This module provides a tool for performing web searches using SearXNG.
 
 import aiohttp
 from typing import Dict, Any, List
-from urllib.parse import urlencode
 from .base import BaseTool, ToolExecutionError
 
 
@@ -116,22 +115,22 @@ class SearXNGTool(BaseTool):
         if time_range:
             params["time_range"] = time_range
 
-        # Construct search URL with query parameters
-        search_url = f"{searxng_url.rstrip('/')}/search?{urlencode(params)}"
+        # Construct search URL - using POST to avoid issues with GET requests
+        search_url = f"{searxng_url.rstrip('/')}/search"
 
         try:
             headers = {
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept": "application/json",
                 "Accept-Language": "en-US,en;q=0.5",
                 "Accept-Encoding": "gzip, deflate",
                 "Connection": "keep-alive",
-                "Upgrade-Insecure-Requests": "1",
+                "Content-Type": "application/x-www-form-urlencoded",
                 "X-Forwarded-For": "127.0.0.1",
                 "X-Real-IP": "127.0.0.1",
             }
             async with aiohttp.ClientSession(headers=headers) as session:
-                async with session.get(search_url) as response:
+                async with session.post(search_url, data=params) as response:
                     if response.status != 200:
                         error_text = await response.text()
                         raise ToolExecutionError(

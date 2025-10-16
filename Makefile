@@ -1,12 +1,14 @@
 # Makefile for AI Assistant Docker operations
 
-.PHONY: help build up down logs clean test dev dev-basic tools monitor mongodb db shell status backup-redis restore-redis setup
+.PHONY: help build build-dev build-prod up down logs clean test dev dev-basic tools monitor mongodb db shell status backup-redis restore-redis setup
 
 # Default target
 help:
 	@echo "AI Assistant Docker Commands:"
 	@echo ""
-	@echo "  build     Build all Docker images"
+	@echo "  build     Build all Docker images (production and dev)"
+	@echo "  build-dev Build development Docker image"
+	@echo "  build-prod Build production Docker image"
 	@echo "  up        Start all services in production mode (full stack)"
 	@echo "  dev       Start full development environment with all features"
 	@echo "  dev-basic Start minimal development environment (core services only)"
@@ -19,6 +21,9 @@ help:
 	@echo "  logs-app  Show logs for AI Assistant only"
 	@echo "  clean     Remove containers, images, and volumes"
 	@echo "  test      Run tests in Docker"
+	@echo "  test-startup Run application startup test"
+	@echo "  test-quality Run code quality test"
+	@echo "  test-all   Run all tests"
 	@echo "  shell     Open shell in AI Assistant container"
 	@echo "  status    Check service status"
 	@echo "  setup     Quick setup for new users"
@@ -29,23 +34,43 @@ help:
 	@echo "  make up               # Start full production environment"
 	@echo "  make up monitor       # Production with monitoring"
 	@echo "  make logs-app         # View application logs"
+	@echo "  make test-startup     # Test application imports"
+	@echo "  make test-quality     # Test code quality"
+	@echo "  make test-all         # Run all tests"
 	@echo "  make shell            # Access container shell"
 
 # Build all images
 build:
-	@echo "Building Docker images..."
-	docker compose build
+	@echo "Building all Docker images..."
+	$(MAKE) build-prod
+	$(MAKE) build-dev
+	@echo "All Docker images built successfully!"
+
+# Build development image
+build-dev:
+	@echo "Building development Docker image..."
+	docker build -f Dockerfile.dev -t ai-assistant:dev .
+
+# Build production image
+build-prod:
+	@echo "Building production Docker image..."
+	docker build -f Dockerfile -t ai-assistant:prod .
 
 # Start all services (production)
 up:
 	@echo "Starting all services in production mode..."
-	docker compose --profile mongodb up -d
+	docker compose --profile production --profile mongodb up -d
 	@echo "Services started. Access:"
 	@echo "  AI Assistant: http://localhost"
-	@echo "  Traefik Dashboard: http://localhost:8080"
-	@echo "  SearXNG: http://localhost/search"
-	@echo "  MongoDB: localhost:27017"
+	@echo "  AI Assistant API: http://localhost/docs"
+	@echo "  Gradio Interface: http://localhost/gradio"
+	@echo "  Traefik Dashboard: http://localhost:8080/dashboard (admin/admin)"
+	@echo "  SearXNG Search: http://localhost/search"
+	@echo "  MongoDB:  http://localhost:27017"
 	@echo "  Mongo Express: http://localhost:8082"
+	@echo "  Redis: http://localhost:6379"
+
+	
 
 # Start in development mode (full)
 dev:
@@ -54,10 +79,14 @@ dev:
 	@echo "Full development mode started with hot reload"
 	@echo "Access:"
 	@echo "  AI Assistant: http://localhost:8000"
-	@echo "  Redis Commander: http://localhost:8081"
-	@echo "  MongoDB: localhost:27017"
+	@echo "  AI Assistant API: http://localhost:8000/docs"
+	@echo "  Gradio Interface: http://localhost:8000/gradio"
+	@echo "  Traefik Dashboard: http://localhost:8080/dashboard"
+	@echo "  Redis Commander: http://localhost:8000/redis"
+	@echo "  SearXNG Search: http://localhost:8000/search"
+	@echo "  MongoDB: http://localhost:27017"
 	@echo "  Mongo Express: http://localhost:8082"
-	@echo "  SearXNG: http://localhost:8000/search"
+	@echo "  Redis: http://localhost:6379"
 
 # Start minimal development mode
 dev-basic:
@@ -66,14 +95,25 @@ dev-basic:
 	@echo "Basic development mode started with hot reload"
 	@echo "Access:"
 	@echo "  AI Assistant: http://localhost:8000"
-	@echo "  Redis Commander: http://localhost:8081"
+	@echo "  AI Assistant API: http://localhost:8000/docs"
+	@echo "  Gradio Interface: http://localhost:8000/gradio"
+	@echo "  Traefik Dashboard: http://localhost:8080/dashboard"
+	@echo "  Redis Commander: http://localhost:8000/redis"
+	@echo "  SearXNG Search: http://localhost:8000/search"
+	@echo "  Redis: http://localhost:6379"
 
 # Start with development tools
 tools:
 	@echo "Starting with development tools..."
-	docker compose --profile dev up -d
+	docker compose --profile dev up -d redis-commander
 	@echo "Development tools started:"
-	@echo "  Redis Commander: http://localhost:8081"
+	@echo "  AI Assistant: http://localhost:8000"
+	@echo "  AI Assistant API: http://localhost:8000/docs"
+	@echo "  Gradio Interface: http://localhost:8000/gradio"
+	@echo "  Traefik Dashboard: http://localhost:8080/dashboard"
+	@echo "  Redis Commander: http://localhost:8000/redis"
+	@echo "  SearXNG Search: http://localhost:8000/search"
+	@echo "  Redis: http://localhost:6379"
 
 # Start with monitoring
 monitor:
@@ -88,7 +128,7 @@ mongodb:
 	@echo "Starting with MongoDB..."
 	docker compose --profile mongodb up -d
 	@echo "MongoDB started:"
-	@echo "  MongoDB: localhost:27017"
+	@echo "  MongoDB:  http://localhost:27017"
 	@echo "  Mongo Express: http://localhost:8082"
 
 # Start with PostgreSQL
@@ -100,7 +140,7 @@ db:
 # Stop all services
 down:
 	@echo "Stopping all services..."
-	docker compose down
+	docker compose --profile dev --profile production --profile mongodb --profile monitoring down
 
 # Show logs
 logs:
@@ -113,13 +153,30 @@ logs-app:
 # Clean up
 clean:
 	@echo "Cleaning up Docker resources..."
-	docker compose down -v --rmi all
-	docker system prune -f
+	docker compose --profile dev --profile production --profile mongodb --profile monitoring down -v --rmi all --remove-orphans
+	docker system prune -a -f
+	docker volume prune -f
+	docker builder prune -a -f
+	@echo "All Docker resources cleaned up successfully!"
 
 # Run tests
 test:
 	@echo "Running tests in Docker..."
-	docker compose --profile dev run --rm ai-assistant uv run pytest tests/ -v
+	docker compose --profile dev run --rm ai-assistant-dev uv run --group dev pytest tests/ -v
+
+# Run application startup test
+test-startup:
+	@echo "Running application startup test..."
+	python utility/test_app_startup.py
+
+# Run code quality test
+test-quality:
+	@echo "Running code quality test..."
+	python utility/test_code_quality.py
+
+# Run all tests
+test-all: test-startup test-quality test
+	@echo "All tests completed!"
 
 # Open shell in container
 shell:

@@ -77,7 +77,7 @@ class TestStreamingChatCompletions:
     """Test streaming chat completions endpoint functionality."""
 
     def test_streaming_chat_completion_success(
-        self, client: TestClient, streaming_chat_request_data, mock_llm
+        self, client: TestClient, streaming_chat_request_data, mock_streaming_llm
     ):
         """Test successful streaming chat completion."""
         response = client.post("/v1/chat/completions", json=streaming_chat_request_data)

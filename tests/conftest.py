@@ -1,5 +1,6 @@
 import pytest
 import asyncio
+import json
 from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
 from app.main import app
@@ -20,6 +21,10 @@ def mock_llm():
     with patch("app.api.routes.get_llm") as mock:
         mock_llm_instance = AsyncMock()
         mock_llm_instance.ainvoke.return_value = AIMessage(content="Mocked AI response")
+        # Add streaming support with proper async iterator
+        mock_streaming_response = MockStreamingResponse("Mocked AI response")
+        mock_llm_instance.astream.return_value = mock_streaming_response
+        mock_llm_instance.streaming = True
         mock.return_value = mock_llm_instance
         yield mock
 
@@ -127,7 +132,7 @@ class MockStreamingResponse:
                     }
                 ],
             }
-            yield f"data: {chunk}\n\n"
+            yield f"data: {json.dumps(chunk)}\n\n"
             await asyncio.sleep(0.01)
 
         # Final chunk
@@ -137,8 +142,12 @@ class MockStreamingResponse:
             "model": "deepseek/deepseek-v3.1-terminus",
             "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
         }
-        yield f"data: {final_chunk}\n\n"
+        yield f"data: {json.dumps(final_chunk)}\n\n"
         yield "data: [DONE]\n\n"
+
+    def __aiter__(self):
+        """Make this class async iterable."""
+        return self.generate()
 
 
 @pytest.fixture
@@ -149,5 +158,9 @@ def mock_streaming_llm():
         mock_llm_instance.ainvoke.return_value = AIMessage(
             content="Mocked streaming response"
         )
+        # Add streaming support
+        mock_streaming_response = MockStreamingResponse("Mocked streaming response")
+        mock_llm_instance.astream.return_value = mock_streaming_response
+        mock_llm_instance.streaming = True
         mock.return_value = mock_llm_instance
         yield mock
