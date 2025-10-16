@@ -1,0 +1,24 @@
+# Dynamic Configuration for Traefik Middlewares
+
+http:
+  middlewares:
+    # Strip prefix for SearXNG
+    searxng-stripprefix:
+      stripprefix:
+        prefixes:
+          - "/search"
+    
+    # Strip prefix for Redis Commander
+    redis-stripprefix:
+      stripprefix:
+        prefixes:
+          - "/redis"
+
+    # NOTE: You will also need to move any other file-based middlewares
+    # here, like `security-headers`, `rate-limit`, and `compression`
+    # that are used by your `ai-assistant` service.
+    # For example:
+    # security-headers:
+    #   headers:
+    #     customFrameOptionsValue: "SAMEORIGIN"
+    #     # ... other security headers

@@ -4,7 +4,7 @@
 plugins:
   # Disable rate limiter plugin
   - name: limiter
-    enabled: true
+    enabled: false
   
   # Disable other plugins that might interfere
   - name: hash_plugin

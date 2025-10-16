@@ -94,7 +94,6 @@ services:
       - "traefik.enable=false"  # Internal service only
 
   # SearXNG for web search capabilities
-  # SearXNG for web search capabilities
   searxng:
     image: searxng/searxng:latest
     container_name: ai-assistant-searxng
@@ -107,6 +106,9 @@ services:
     # by some startup processes.
     tmpfs:
       - /run:exec
+      - /tmp
+    ports:
+      - "8088:8080"
     volumes:
       # Keep these as read-only, which is a security best practice.
       - ./docker-configs/searxng/settings.yml:/etc/searxng/settings.yml:ro
@@ -114,8 +116,7 @@ services:
       - ./docker-configs/searxng/plugins.yml:/etc/searxng/plugins.yml:ro
       - searxng_static:/usr/local/searxng/searx/static
     environment:
-      # This BASE_URL is still correct for the Traefik sub-path routing
-      - BASE_URL=/search/
+      - BASE_URL=/search
       - BIND_ADDRESS=0.0.0.0
       - PORT=8080
       - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY:-change-this-secret-key}
@@ -127,15 +128,15 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    profiles:
+      - production
+      - dev
     labels:
       - "traefik.enable=true"
-      # --- Router, Middleware, and Service config remains the same ---
       - "traefik.http.routers.searxng.rule=PathPrefix(`/search`)"
-      - "traefik.http.routers.searxng.priority=10"
+      - "traefik.http.routers.searxng.priority=200"
       - "traefik.http.routers.searxng.entrypoints=web"
-      - "traefik.http.routers.searxng.service=searxng"
-      - "traefik.http.routers.searxng.middlewares=searxng-strip"
-      - "traefik.http.middlewares.searxng-strip.stripprefix.prefixes=/search"
+      # - "traefik.http.routers.searxng.middlewares=searxng-stripprefix@file" # <-- ADD THIS
       - "traefik.http.services.searxng.loadbalancer.server.port=8080"
 
   # =============================================================================
@@ -155,8 +156,6 @@ services:
       - "--api.insecure=false"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
-      - "--providers.file.directory=/etc/traefik"
-      - "--providers.file.watch=true"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.traefik.address=:8080"
@@ -169,6 +168,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./docker-configs/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./docker-configs/middlewares.yml:/etc/traefik/dynamic/middlewares.yml:ro
       - ./docker-configs/traefik-prod.yml:/etc/traefik/traefik-prod.yml:ro
     env_file:
       - .env
@@ -207,8 +207,6 @@ services:
       - "--api.insecure=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
-      - "--providers.file.directory=/etc/traefik"
-      - "--providers.file.watch=true"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.web.forwardedheaders.insecure"
       - "--entrypoints.traefik.address=:8080"
@@ -222,6 +220,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./docker-configs/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./docker-configs/middlewares.yml:/etc/traefik/dynamic/middlewares.yml:ro
     networks:
       - ai-assistant-network
     healthcheck:
@@ -278,13 +277,13 @@ services:
     labels:
       # Development Traefik routing
       - "traefik.enable=true"
-      - "traefik.http.routers.ai-assistant-dev.rule=PathPrefix(`/`)"
-      - "traefik.http.routers.ai-assistant-dev.priority=1"
+      - "traefik.http.routers.ai-assistant-dev.rule=PathPrefix(`/`) && !PathPrefix(`/search`)"
+      - "traefik.http.routers.ai-assistant-dev.priority=100"
       - "traefik.http.routers.ai-assistant-dev.entrypoints=web"
       - "traefik.http.routers.ai-assistant-dev.service=ai-assistant-dev"
       - "traefik.http.services.ai-assistant-dev.loadbalancer.server.port=8000"
       - "traefik.http.routers.gradio-dev.rule=PathPrefix(`/gradio`)"
-      - "traefik.http.routers.gradio-dev.priority=2"
+      - "traefik.http.routers.gradio-dev.priority=5"
       - "traefik.http.routers.gradio-dev.entrypoints=web"
       - "traefik.http.routers.gradio-dev.service=ai-assistant-dev"
       - "traefik.http.services.gradio-dev.loadbalancer.server.port=8000"
