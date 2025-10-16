@@ -1,15 +1,48 @@
+[botdetection]
+
+# The prefix defines the number of leading bits in an address that are compared
+# to determine whether or not an address is part of a (client) network.
+
+ipv4_prefix = 32
+ipv6_prefix = 48
+
+# If the request IP is in trusted_proxies list, the client IP address is
+# extracted from the X-Forwarded-For and X-Real-IP headers. This should be
+# used if SearXNG is behind a reverse proxy or load balancer.
+
+trusted_proxies = [
+  '127.0.0.0/8',
+  '::1',
+  '172.16.0.0/12',  # Docker network
+  # '192.168.0.0/16',
+  # '10.0.0.0/8',
+  # 'fd00::/8',
+]
+
+
+
 [botdetection.ip_limit]
-# Basic IP filtering
+
+# To get unlimited access in a local network, by default link-local addresses
+# (networks) are not monitored by the ip_limit
 filter_link_local = false
+
+# activate link_token method in the ip_limit method
+link_token = false
+
 
 [botdetection.ip_lists]
 # Allow Docker networks and localhost
 pass_ip = [
     "127.0.0.0/8",
-    "::1/128", 
+    "::1/128",
     "172.16.0.0/12",
+    "172.19.0.0/16",  # Docker network for this project
     "10.0.0.0/8",
-    "192.168.0.0/16"
+    "192.168.0.0/16",
+    "0.0.0.0/0"  # Allow all IPs
 ]
 # Block known bad IPs (empty for now)
 block_ip = []
+
+pass_searxng_org = true

@@ -191,8 +191,9 @@ class Settings(BaseSettings):
     # Unused in the current stage of development
     postgres_url: Optional[str] = None
     openai_api_key: Optional[str] = None
-    searxng_url: str = "http://searxng:8080"
     secret_key: Optional[str] = None
+    # SearXNG URL is hardcoded since it's an internal service
+    searxng_url: str = "http://searxng:8080"
 
     class Config:
         env_file = ".env"
