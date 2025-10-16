@@ -2,7 +2,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from .core.config import settings, initialize_agent_system, initialize_llm_providers
+from .core.config import (
+    settings,
+    initialize_agent_system,
+    initialize_llm_providers,
+    initialize_firecrawl_system,
+)
 from .core.tools import tool_registry
 from .core.agents.registry import agent_registry
 from .core.monitoring.middleware import MonitoringMiddleware
@@ -57,6 +62,14 @@ if settings.agent_system_enabled:
     except Exception as e:
         print(f"Warning: Failed to initialize agent system: {str(e)}")
         print("Agent system will be disabled until properly configured")
+
+# Initialize Firecrawl system
+if settings.firecrawl_settings.enabled:
+    try:
+        initialize_firecrawl_system()
+    except Exception as e:
+        print(f"Warning: Failed to initialize Firecrawl system: {str(e)}")
+        print("Firecrawl system will be disabled until properly configured")
 
 # Initialize multi-writer system (optional)
 multi_writer_config = None

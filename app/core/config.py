@@ -112,41 +112,30 @@ class OpenAISettings(BaseSettings):
         env_prefix = "OPENAI_COMPATIBLE_"
 
 
-class FirebaseSettings(BaseSettings):
-    """Firebase configuration for web scraping and data storage"""
+class FirecrawlSettings(BaseSettings):
+    """Firecrawl configuration for web scraping and data storage"""
 
     enabled: bool = False
-    project_id: Optional[str] = None
-    private_key_id: Optional[str] = None
-    private_key: Optional[str] = None
-    client_email: Optional[str] = None
-    client_id: Optional[str] = None
-    auth_uri: str = "https://accounts.google.com/o/oauth2/auth"
-    token_uri: str = "https://oauth2.googleapis.com/token"
-    auth_provider_x509_cert_url: str = "https://www.googleapis.com/oauth2/v1/certs"
-    client_x509_cert_url: Optional[str] = None
-    database_url: Optional[str] = None
-    storage_bucket: Optional[str] = None
+    api_key: Optional[str] = None
+    base_url: str = "https://api.firecrawl.dev"
 
     # Web scraping specific settings
     scraping_enabled: bool = True
     max_concurrent_scrapes: int = 5
     scrape_timeout: int = 60
-    scraping_collection: str = "scraped_data"
-
-    # Web rendering settings
-    use_selenium: bool = True
-    selenium_driver_type: str = "chrome"  # chrome, firefox
-    headless_browser: bool = True
-    browser_timeout: int = 30
 
     # Data processing settings
     content_cleaning: bool = True
     extract_images: bool = False
     extract_links: bool = True
+    formats: List[str] = ["markdown", "raw"]
+    wait_for: int = 2000
+    screenshot: bool = False
+    include_tags: List[str] = ["article", "main", "content"]
+    exclude_tags: List[str] = ["nav", "footer", "aside", "script", "style"]
 
     class Config:
-        env_prefix = "FIREBASE_"
+        env_prefix = "FIRECRAWL_"
 
 
 class Settings(BaseSettings):
@@ -194,8 +183,8 @@ class Settings(BaseSettings):
     # Multi-writer system settings
     multi_writer_settings: ClassVar[MultiWriterSettings] = MultiWriterSettings()
 
-    # Firebase settings
-    firebase_settings: FirebaseSettings = FirebaseSettings()
+    # Firecrawl settings
+    firecrawl_settings: FirecrawlSettings = FirecrawlSettings()
 
     # Models unused in the current stage of development
     router_model: str = "deepseek/deepseek-chat"
@@ -532,26 +521,29 @@ def initialize_agent_system():
     return agent_registry
 
 
-def initialize_firebase_system():
-    """Initialize the Firebase scraping system with tools and agents"""
+def initialize_firecrawl_system():
+    """Initialize the Firecrawl scraping system with tools and agents"""
     from .tools.registry import tool_registry
-    from .tools.firebase_scraper_tool import FirebaseScraperTool
+    from .tools.firecrawl_tool import FirecrawlTool
     from .agents.registry import agent_registry
-    from .agents.firebase_scraper_agent import FirebaseScraperAgent
+    from .agents.firecrawl_agent import FirecrawlAgent
 
-    if not settings.firebase_settings.enabled:
-        logger.info("Firebase system disabled in settings")
+    if not settings.firecrawl_settings.enabled:
+        logger.info("Firecrawl system disabled in settings")
         return
 
     # Initialize LLM providers first
     initialize_llm_providers()
 
-    # Create Firebase scraper tool
-    firebase_tool = FirebaseScraperTool()
-    tool_registry.register(firebase_tool, category="firebase")
-    logger.info("Firebase scraper tool registered")
+    # Create Firecrawl scraper tool
+    firecrawl_tool = FirecrawlTool(
+        api_key=settings.firecrawl_settings.api_key,
+        base_url=settings.firecrawl_settings.base_url,
+    )
+    tool_registry.register(firecrawl_tool, category="firecrawl")
+    logger.info("Firecrawl scraper tool registered")
 
-    # Create Firebase scraper agent
+    # Create Firecrawl scraper agent
     try:
         import asyncio
 
@@ -568,11 +560,11 @@ def initialize_firebase_system():
             # No running loop, we can use asyncio.run
             llm = asyncio.run(get_llm())
 
-        firebase_agent = FirebaseScraperAgent(llm=llm)
-        agent_registry.register(firebase_agent, category="firebase")
-        logger.info("Firebase scraper agent registered")
+        firecrawl_agent = FirecrawlAgent(llm=llm)
+        agent_registry.register(firecrawl_agent, category="firecrawl")
+        logger.info("Firecrawl scraper agent registered")
 
     except Exception as e:
-        logger.error(f"Failed to create Firebase scraper agent: {str(e)}")
+        logger.error(f"Failed to create Firecrawl scraper agent: {str(e)}")
 
     return tool_registry, agent_registry
