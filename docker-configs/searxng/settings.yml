@@ -1,15 +1,15 @@
 use_default_settings: true
 
 general:
-  debug: false
+  debug: true
   instance_name: "AI Assistant Search"
   contact_url: false
   enable_metrics: false
 
 search:
-  safe_search: 1
-  autocomplete: "google"
-  default_lang: "auto"
+  safe_search: 0
+  autocomplete: ""
+  default_lang: "en"
   ban_time_on_fail: 5
   max_ban_time_on_fail: 120
 
@@ -17,29 +17,24 @@ server:
   port: 8080
   bind_address: "0.0.0.0"
   secret_key: "${SEARXNG_SECRET_KEY}"
-  base_url: "http://localhost/search/"
-  image_proxy: true
-  limiter: true
+  base_url: "/search"
+  image_proxy: false
+  limiter: false
   public_instance: false
+  use_proxy_headers: true
+  # Trust requests from the Docker network to correctly handle X-Forwarded-* headers
+  trusted_proxies:
+    - "172.16.0.0/12"
 
 ui:
   static_use_hash: true
   default_locale: "en"
   theme_args:
-    simple_style: "dark"
+    simple_style: "auto"
 
 redis:
   url: redis://redis:6379/0
 
 engines:
-  - name: google
-    engine: google
-    use_mobile_ui: false
-  - name: bing
-    engine: bing
   - name: duckduckgo
     engine: duckduckgo
-  - name: wikipedia
-    engine: wikipedia
-  - name: brave
-    engine: brave

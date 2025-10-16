@@ -1,10 +1,10 @@
-# Traefik Configuration for AI Assistant Development
-# Development setup with dashboard enabled
+# Traefik Configuration for AI Assistant
+# Static setup
 
 # API and Dashboard Configuration
 api:
   dashboard: true
-  insecure: true  # Enable dashboard without authentication (development only)
+  insecure: true  # Development only
 
 # Entry Points
 entryPoints:
@@ -18,11 +18,14 @@ providers:
   docker:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
-    network: ai-assistant-network
+  # ADD THE FILE PROVIDER DEFINITION HERE
+  file:
+    directory: /etc/traefik/dynamic # Tell Traefik where to look for dynamic config files
+    watch: true
 
 # Logging
 log:
-  level: INFO
+  level: DEBUG
 
 # Access Logging
 accessLog: {}

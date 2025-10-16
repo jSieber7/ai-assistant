@@ -12,6 +12,6 @@ plugins:
   - name: search_on_category_select
     enabled: true
   - name: self_info
-    enabled: false
+    enabled: true
   - name: tracker_url_remover
     enabled: true

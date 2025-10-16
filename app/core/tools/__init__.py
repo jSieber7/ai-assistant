@@ -16,6 +16,7 @@ from .base import (
 from .registry import ToolRegistry
 from .examples import CalculatorTool, TimeTool, EchoTool
 from .searxng_tool import SearXNGTool
+from .firebase_scraper_tool import FirebaseScraperTool
 from .config import ToolSystemSettings, tool_settings
 from .langchain_integration import (
     LangChainToolWrapper,
@@ -44,6 +45,7 @@ __all__ = [
     "TimeTool",
     "EchoTool",
     "SearXNGTool",
+    "FirebaseScraperTool",
     "ToolSystemSettings",
     "tool_settings",
     "LangChainToolWrapper",

@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings
 from typing import Optional, List, Dict, ClassVar
-from pydantic import SecretStr
+from pydantic import SecretStr, validator
 import logging
 import os
 
@@ -77,9 +77,23 @@ class OllamaSettings(BaseSettings):
     max_tokens: Optional[int] = None
     streaming: bool = True
 
+    @validator("max_tokens", pre=True, always=True)
+    @classmethod
+    def parse_max_tokens(cls, v):
+        """Parse max_tokens from environment variable, handling empty strings."""
+        if v == "" or v is None:
+            return None
+        try:
+            return int(v)
+        except (ValueError, TypeError):
+            return None
+
     # Health check settings
     health_check_interval: int = 60  # seconds
     auto_health_check: bool = True
+
+    class Config:
+        env_prefix = "OLLAMA_SETTINGS_"
 
 
 class OpenAISettings(BaseSettings):
@@ -96,6 +110,43 @@ class OpenAISettings(BaseSettings):
 
     class Config:
         env_prefix = "OPENAI_COMPATIBLE_"
+
+
+class FirebaseSettings(BaseSettings):
+    """Firebase configuration for web scraping and data storage"""
+
+    enabled: bool = False
+    project_id: Optional[str] = None
+    private_key_id: Optional[str] = None
+    private_key: Optional[str] = None
+    client_email: Optional[str] = None
+    client_id: Optional[str] = None
+    auth_uri: str = "https://accounts.google.com/o/oauth2/auth"
+    token_uri: str = "https://oauth2.googleapis.com/token"
+    auth_provider_x509_cert_url: str = "https://www.googleapis.com/oauth2/v1/certs"
+    client_x509_cert_url: Optional[str] = None
+    database_url: Optional[str] = None
+    storage_bucket: Optional[str] = None
+
+    # Web scraping specific settings
+    scraping_enabled: bool = True
+    max_concurrent_scrapes: int = 5
+    scrape_timeout: int = 60
+    scraping_collection: str = "scraped_data"
+
+    # Web rendering settings
+    use_selenium: bool = True
+    selenium_driver_type: str = "chrome"  # chrome, firefox
+    headless_browser: bool = True
+    browser_timeout: int = 30
+
+    # Data processing settings
+    content_cleaning: bool = True
+    extract_images: bool = False
+    extract_links: bool = True
+
+    class Config:
+        env_prefix = "FIREBASE_"
 
 
 class Settings(BaseSettings):
@@ -129,7 +180,7 @@ class Settings(BaseSettings):
     max_concurrent_tools: int = 5
 
     # Agent system settings
-    agent_system_enabled: bool = False
+    agent_system_enabled: bool = True
     default_agent: Optional[str] = None
     max_agent_iterations: int = 3
     agent_timeout: int = 60
@@ -143,6 +194,9 @@ class Settings(BaseSettings):
     # Multi-writer system settings
     multi_writer_settings: ClassVar[MultiWriterSettings] = MultiWriterSettings()
 
+    # Firebase settings
+    firebase_settings: FirebaseSettings = FirebaseSettings()
+
     # Models unused in the current stage of development
     router_model: str = "deepseek/deepseek-chat"
     logic_model: str = "anthropic/claude-3.5-sonnet"
@@ -151,8 +205,9 @@ class Settings(BaseSettings):
     # Unused in the current stage of development
     postgres_url: Optional[str] = None
     openai_api_key: Optional[str] = None
-    searxng_url: Optional[str] = None
     secret_key: Optional[str] = None
+    # SearXNG URL is hardcoded since it's an internal service
+    searxng_url: str = "http://searxng:8080"
 
     class Config:
         env_file = ".env"
@@ -475,3 +530,49 @@ def initialize_agent_system():
     agent_registry.set_default_agent(tool_agent.name)
 
     return agent_registry
+
+
+def initialize_firebase_system():
+    """Initialize the Firebase scraping system with tools and agents"""
+    from .tools.registry import tool_registry
+    from .tools.firebase_scraper_tool import FirebaseScraperTool
+    from .agents.registry import agent_registry
+    from .agents.firebase_scraper_agent import FirebaseScraperAgent
+
+    if not settings.firebase_settings.enabled:
+        logger.info("Firebase system disabled in settings")
+        return
+
+    # Initialize LLM providers first
+    initialize_llm_providers()
+
+    # Create Firebase scraper tool
+    firebase_tool = FirebaseScraperTool()
+    tool_registry.register(firebase_tool, category="firebase")
+    logger.info("Firebase scraper tool registered")
+
+    # Create Firebase scraper agent
+    try:
+        import asyncio
+
+        # Get LLM asynchronously
+        try:
+            asyncio.get_running_loop()
+            # We're in an async context, need to run in a thread
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, get_llm())
+                llm = future.result(timeout=10)
+        except RuntimeError:
+            # No running loop, we can use asyncio.run
+            llm = asyncio.run(get_llm())
+
+        firebase_agent = FirebaseScraperAgent(llm=llm)
+        agent_registry.register(firebase_agent, category="firebase")
+        logger.info("Firebase scraper agent registered")
+
+    except Exception as e:
+        logger.error(f"Failed to create Firebase scraper agent: {str(e)}")
+
+    return tool_registry, agent_registry

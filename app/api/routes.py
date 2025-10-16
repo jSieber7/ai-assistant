@@ -193,8 +193,36 @@ async def chat_completions(request: ChatRequest):
                     ],
                 )
 
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except ValueError as e:
+        # Handle validation errors
+        raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+    except ConnectionError:
+        # Handle connection errors
+        raise HTTPException(
+            status_code=503,
+            detail="Service temporarily unavailable. Please try again later.",
+        )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Log the full error for debugging
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.error(f"Unexpected error in chat_completions: {str(e)}", exc_info=True)
+
+        # Check if it's an OpenRouter API error and preserve the message
+        if "OpenRouter API error" in str(e):
+            raise HTTPException(
+                status_code=500, detail=f"OpenRouter API error: {str(e)}"
+            )
+
+        # Return a generic error message to the user
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred. Please try again later.",
+        )
 
 
 async def _stream_response(messages, llm, model_name):
@@ -203,44 +231,83 @@ async def _stream_response(messages, llm, model_name):
 
     async def generate():
         try:
-            # For now, simulate streaming with the non-streaming response
-            # We'll implement proper streaming in Phase 2
-            response = await llm.ainvoke(messages)
+            # Check if LLM supports streaming
+            if hasattr(llm, "astream") and getattr(llm, "streaming", False):
+                # Use native streaming if available
+                stream_id = f"chatcmpl-{uuid.uuid4()}"
 
-            # Generate a unique ID for this streaming session
-            stream_id = f"chatcmpl-{uuid.uuid4()}"
+                # Get the async iterator
+                stream = llm.astream(messages)
 
-            # Split response into chunks for streaming simulation
-            words = response.content.split()
-            for i, word in enumerate(words):
-                chunk = {
+                # Check if it's already an async iterator or a coroutine
+                if asyncio.iscoroutine(stream):
+                    stream = await stream
+
+                async for chunk in stream:
+                    if hasattr(chunk, "content") and chunk.content:
+                        chunk_data = {
+                            "id": stream_id,
+                            "object": "chat.completion.chunk",
+                            "model": model_name,
+                            "choices": [
+                                {
+                                    "index": 0,
+                                    "delta": {"content": chunk.content},
+                                    "finish_reason": None,
+                                }
+                            ],
+                        }
+                        yield f"data: {json.dumps(chunk_data)}\n\n"
+
+                # Final chunk
+                final_chunk = {
                     "id": stream_id,
                     "object": "chat.completion.chunk",
                     "model": model_name,
-                    "choices": [
-                        {
-                            "index": 0,
-                            "delta": {"content": word + " "},
-                            "finish_reason": None,
-                        }
-                    ],
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
                 }
-                yield f"data: {json.dumps(chunk)}\n\n"
-                await asyncio.sleep(0.01)  # Small delay for streaming effect
+                yield f"data: {json.dumps(final_chunk)}\n\n"
+                yield "data: [DONE]\n\n"
+            else:
+                # Fallback to simulated streaming if LLM doesn't support streaming
+                response = await llm.ainvoke(messages)
+                stream_id = f"chatcmpl-{uuid.uuid4()}"
 
-            # Final chunk
-            final_chunk = {
-                "id": stream_id,
-                "object": "chat.completion.chunk",
-                "model": model_name,
-                "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
-            }
-            yield f"data: {json.dumps(final_chunk)}\n\n"
-            yield "data: [DONE]\n\n"
+                # Split response into chunks for streaming simulation
+                words = response.content.split()
+                for i, word in enumerate(words):
+                    chunk = {
+                        "id": stream_id,
+                        "object": "chat.completion.chunk",
+                        "model": model_name,
+                        "choices": [
+                            {
+                                "index": 0,
+                                "delta": {"content": word + " "},
+                                "finish_reason": None,
+                            }
+                        ],
+                    }
+                    yield f"data: {json.dumps(chunk)}\n\n"
+                    await asyncio.sleep(0.01)  # Small delay for streaming effect
+
+                # Final chunk
+                final_chunk = {
+                    "id": stream_id,
+                    "object": "chat.completion.chunk",
+                    "model": model_name,
+                    "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
+                }
+                yield f"data: {json.dumps(final_chunk)}\n\n"
+                yield "data: [DONE]\n\n"
 
         except Exception as e:
-            error_chunk = {"error": {"message": str(e), "type": "error"}}
-            yield f"data: {json.dumps(error_chunk)}\n\n"
+            try:
+                error_chunk = {"error": {"message": str(e), "type": "error"}}
+                yield f"data: {json.dumps(error_chunk)}\n\n"
+            except Exception:
+                # Fallback if JSON serialization fails
+                yield f"data: {{\"error\": {{\"message\": \"{str(e).replace('\"', '\\\"')}\", \"type\": \"error\"}}}}\n\n"
 
     return StreamingResponse(generate(), media_type="text/plain")
 

@@ -153,3 +153,15 @@ class EchoTool(BaseTool):
     async def execute(self, text: str) -> str:
         """Echo back the input text"""
         return f"Echo: {text}"
+
+
+def initialize_default_tools():
+    """Initialize and register default example tools"""
+    from .registry import tool_registry
+
+    # Register example tools
+    tool_registry.register(CalculatorTool(), category="utility")
+    tool_registry.register(TimeTool(), category="utility")
+    tool_registry.register(EchoTool(), category="testing")
+
+    return tool_registry
