@@ -244,6 +244,7 @@ class TestOllamaSettings:
         """Test Ollama settings default values"""
         # Clear environment variables to test true defaults
         import os
+
         env_vars_to_clear = [
             "OLLAMA_SETTINGS_ENABLED",
             "OLLAMA_SETTINGS_BASE_URL",
@@ -254,19 +255,19 @@ class TestOllamaSettings:
             "OLLAMA_SETTINGS_HEALTH_CHECK_INTERVAL",
             "OLLAMA_SETTINGS_AUTO_HEALTH_CHECK",
             "OLLAMA_SETTINGS_MAX_RETRIES",
-            "OLLAMA_SETTINGS_MAX_TOKENS"
+            "OLLAMA_SETTINGS_MAX_TOKENS",
         ]
-        
+
         # Store original values
         original_values = {}
         for var in env_vars_to_clear:
             if var in os.environ:
                 original_values[var] = os.environ[var]
                 del os.environ[var]
-        
+
         try:
             settings = OllamaSettings()
-            
+
             assert settings.enabled
             assert settings.base_url == "http://localhost:11434"
             assert settings.default_model == "llama2"

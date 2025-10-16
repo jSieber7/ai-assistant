@@ -149,10 +149,10 @@ class TestDockerIntegration:
                         if service_name == service and "Up" in status:
                             service_running = True
                             break
-            
+
             if not service_running:
                 pytest.skip(f"Service {service} is not running - skipping health check")
-                
+
             health_path = config.get("health_path", "/")
             results[service] = self.check_http_service(service, health_path)
 
