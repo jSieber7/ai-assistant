@@ -53,54 +53,54 @@ dev-docker: ## Run development with Docker
 
 test: ## Run all tests
 	@echo "Running all tests..."
-	uv run pytest
+	uv run pytest --junitxml=test-results/junit.xml
 
 test-unit: ## Run unit tests only
 	@echo "Running unit tests..."
-	uv run  pytest tests/unit/
+	uv run  pytest tests/unit/ --junitxml=test-results/junit-unit.xml
 
 test-integration: ## Run integration tests
 	@echo "Running integration tests..."
-	uv run pytest tests/integration/
+	uv run pytest tests/integration/ --junitxml=test-results/junit-integration.xml
 
 test-firecrawl: ## Run Firecrawl Docker tests
 	@echo "Running Firecrawl Docker tests..."
-	uv run pytest tests/unit/test_firecrawl_docker_mode.py tests/integration/test_firecrawl_docker.py -v
+	uv run pytest tests/unit/test_firecrawl_docker_mode.py tests/integration/test_firecrawl_docker.py -v --junitxml=test-results/junit-firecrawl.xml
 
 test-firecrawl-unit: ## Run Firecrawl unit tests only
 	@echo "Running Firecrawl unit tests..."
-	uv run pytest tests/unit/test_firecrawl_docker_mode.py tests/unit/test_firecrawl_scraping.py -v
+	uv run pytest tests/unit/test_firecrawl_docker_mode.py tests/unit/test_firecrawl_scraping.py -v --junitxml=test-results/junit-firecrawl-unit.xml
 
 test-firecrawl-integration: ## Run Firecrawl integration tests
 	@echo "Running Firecrawl integration tests..."
-	uv run pytest tests/integration/test_firecrawl_docker.py -v
+	uv run pytest tests/integration/test_firecrawl_docker.py -v --junitxml=test-results/junit-firecrawl-integration.xml
 
 test-firecrawl-live: ## Run live Firecrawl tests (requires Docker services)
 	@echo "Running live Firecrawl tests..."
 	@echo "Make sure Firecrawl Docker services are running: make firecrawl"
-	uv run pytest tests/integration/test_firecrawl_docker.py::TestFirecrawlDockerLive -v -s
+	uv run pytest tests/integration/test_firecrawl_docker.py::TestFirecrawlDockerLive -v -s --junitxml=test-results/junit-firecrawl-live.xml
 
 test-deep-search: ## Run Deep Search agent tests
 	@echo "Running Deep Search agent tests..."
-	uv run pytest tests/unit/test_deep_search_agent.py -v
+	uv run pytest tests/unit/test_deep_search_agent.py -v --junitxml=test-results/junit-deep-search.xml
 
 test-deep-search-integration: ## Run Deep Search integration tests (requires Docker services)
 	@echo "Running Deep Search integration tests..."
 	@echo "Make sure all services are running: make milvus"
-	uv run pytest tests/integration/test_deep_search_integration.py -v -s
+	uv run pytest tests/integration/test_deep_search_integration.py -v -s --junitxml=test-results/junit-deep-search-integration.xml
 
 test-deep-search-live: ## Run live Deep Search tests (requires all services)
 	@echo "Running live Deep Search tests..."
 	@echo "Make sure all services are running: make milvus"
-	uv run pytest tests/integration/test_deep_search_integration.py::test_deep_search_full_workflow -v -s
+	uv run pytest tests/integration/test_deep_search_integration.py::test_deep_search_full_workflow -v -s --junitxml=test-results/junit-deep-search-live.xml
 
 test-all-deep-search: ## Run all Deep Search tests
 	@echo "Running all Deep Search tests..."
-	uv run pytest tests/unit/test_deep_search_agent.py tests/integration/test_deep_search_integration.py -v
+	uv run pytest tests/unit/test_deep_search_agent.py tests/integration/test_deep_search_integration.py -v --junitxml=test-results/junit-all-deep-search.xml
 
 test-coverage: ## Run tests with coverage report
 	@echo "Running tests with coverage..."
-	uv run pytest --cov=app --cov-report=html --cov-report=term
+	uv run pytest --cov=app --cov-report=html:test-results/htmlcov --cov-report=xml:test-results/coverage.xml --cov-report=term --junitxml=test-results/junit-coverage.xml
 
 # =============================================================================
 # Code Quality
@@ -108,6 +108,7 @@ test-coverage: ## Run tests with coverage report
 
 lint: ## Run linting
 	@echo "Running linting..."
+	uv run ruff check app/ tests/ --output-format=junit > test-results/ruff-report.xml
 	uv run ruff check app/ tests/
 
 format: ## Format code
@@ -120,11 +121,13 @@ format-check: ## Check code formatting
 
 type-check: ## Run type checking
 	@echo "Running type checking..."
+	uv run mypy app/ --junit-xml test-results/mypy-report.xml
 	uv run mypy app/
 
 security-check: ## Run security checks
 	@echo "Running security checks..."
-	uv run bandit -r app/
+	uv run bandit -r app/ -f json -o test-results/bandit-report.json
+	uv run bandit -r app/ -f txt -o test-results/bandit-report.txt
 
 # =============================================================================
 # Docker Commands
