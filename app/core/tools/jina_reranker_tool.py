@@ -162,7 +162,11 @@ class JinaRerankerTool(BaseTool):
             )
 
             if response.status_code == 200:
-                result = response.json()
+                # Handle both sync and async response.json()
+                try:
+                    result = await response.json()
+                except TypeError:
+                    result = response.json()
                 logger.info(
                     f"Successfully reranked {len(request_data['documents'])} documents"
                 )

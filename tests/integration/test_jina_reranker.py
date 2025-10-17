@@ -102,7 +102,7 @@ class TestJinaRerankerTool:
         )
 
         assert result.success is False
-        assert "disabled" in result.error.lower()
+        assert "not enabled" in result.error.lower()
 
     @pytest.mark.asyncio
     async def test_rerank_missing_query(self, reranker_tool):

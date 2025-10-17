@@ -122,7 +122,9 @@ class TestResultCompressor:
         assert result.compressed_size == result.original_size
         assert result.compression_ratio == 1.0
         # The compressed data should be the serialized data when using NONE algorithm
-        assert result.compressed_data == pickle.dumps(test_data)
+        # Verify by deserializing instead of direct comparison to handle protocol differences
+        deserialized_data = pickle.loads(result.compressed_data)
+        assert deserialized_data == test_data
 
     @pytest.mark.asyncio
     async def test_compress_gzip(self, compressor):
@@ -200,7 +202,9 @@ class TestResultCompressor:
         # Should use NONE algorithm for small data (below min_size_for_compression=10)
         # The compressor automatically switches to NONE for small data regardless of requested algorithm
         assert result.algorithm == CompressionAlgorithm.NONE
-        assert result.compressed_data == pickle.dumps(test_data)
+        # Verify by deserializing instead of direct comparison to handle protocol differences
+        deserialized_data = pickle.loads(result.compressed_data)
+        assert deserialized_data == test_data
 
     @pytest.mark.asyncio
     async def test_decompress_none(self, compressor):

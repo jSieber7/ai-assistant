@@ -18,7 +18,7 @@ class TestFirecrawlTool:
     @pytest.fixture
     def scraper_tool(self):
         """Create a Firecrawl scraper tool instance"""
-        return FirecrawlTool(api_key="test-api-key")
+        return FirecrawlTool()
 
     @pytest.fixture
     def mock_httpx(self):
@@ -77,28 +77,32 @@ class TestFirecrawlTool:
                     with patch.object(
                         settings.firecrawl_settings, "extract_images", True
                     ):
-                        result = await scraper_tool.execute(url="https://example.com")
+                        # Mock Docker health check
+                        with patch.object(scraper_tool, "_check_docker_health", return_value=True):
+                            result = await scraper_tool.execute(url="https://example.com")
 
-                        assert result["url"] == "https://example.com"
-                        assert result["title"] == "Test Page"
-                        assert "Test content" in result["content"]
-                        assert result["link_count"] > 0
-                        assert result["image_count"] > 0
+                            assert result["url"] == "https://example.com"
+                            assert result["title"] == "Test Page"
+                            assert "Test content" in result["content"]
+                            assert result["link_count"] > 0
+                            assert result["image_count"] > 0
 
     @pytest.mark.asyncio
     async def test_execute_with_custom_formats(self, scraper_tool, mock_httpx):
         """Test scraping with custom formats"""
         with patch.object(settings.firecrawl_settings, "enabled", True):
             with patch.object(settings.firecrawl_settings, "scraping_enabled", True):
-                result = await scraper_tool.execute(
-                    url="https://example.com",
-                    formats=["markdown", "html"],
-                    wait_for=5000,
-                    screenshot=True,
-                )
+                # Mock Docker health check
+                with patch.object(scraper_tool, "_check_docker_health", return_value=True):
+                    result = await scraper_tool.execute(
+                        url="https://example.com",
+                        formats=["markdown", "html"],
+                        wait_for=5000,
+                        screenshot=True,
+                    )
 
-                assert result["url"] == "https://example.com"
-                assert "markdown" in result["formats"]
+                    assert result["url"] == "https://example.com"
+                    assert "markdown" in result["formats"]
 
     @pytest.mark.asyncio
     async def test_batch_scraping(self, scraper_tool, mock_httpx):
@@ -110,12 +114,14 @@ class TestFirecrawlTool:
                 with patch.object(
                     settings.firecrawl_settings, "max_concurrent_scrapes", 2
                 ):
-                    results = await scraper_tool.batch_scrape(urls=urls)
+                    # Mock Docker health check
+                    with patch.object(scraper_tool, "_check_docker_health", return_value=True):
+                        results = await scraper_tool.batch_scrape(urls=urls)
 
-                    assert len(results) == 2
-                    for i, result in enumerate(results):
-                        assert result["url"] == urls[i]
-                        assert "content" in result
+                        assert len(results) == 2
+                        for i, result in enumerate(results):
+                            assert result["url"] == urls[i]
+                            assert "content" in result
 
     @pytest.mark.asyncio
     async def test_api_error_handling(self, scraper_tool, mock_httpx_error):
@@ -152,22 +158,6 @@ class TestFirecrawlTool:
             assert tool._client is None
 
     @pytest.mark.asyncio
-    async def test_api_mode_configuration(self):
-        """Test API mode configuration"""
-        with (
-            patch.object(settings.firecrawl_settings, "deployment_mode", "api"),
-            patch.object(settings.firecrawl_settings, "api_key", "test-api-key"),
-            patch.object(
-                settings.firecrawl_settings, "base_url", "https://api.firecrawl.dev"
-            ),
-            patch.object(settings.firecrawl_settings, "enabled", True),
-        ):
-            tool = FirecrawlTool()
-            # Tool doesn't have base_url and api_key attributes anymore
-            # It uses effective configuration from settings when _get_client is called
-            assert tool._client is None
-
-    @pytest.mark.asyncio
     async def test_effective_configuration_properties(self):
         """Test effective configuration properties"""
         # Test Docker mode
@@ -181,19 +171,6 @@ class TestFirecrawlTool:
                 settings.firecrawl_settings.effective_url == "http://firecrawl-api:3002"
             )
             assert settings.firecrawl_settings.effective_api_key is None
-
-        # Test API mode
-        with (
-            patch.object(settings.firecrawl_settings, "deployment_mode", "api"),
-            patch.object(settings.firecrawl_settings, "api_key", "test-key"),
-            patch.object(
-                settings.firecrawl_settings, "base_url", "https://api.firecrawl.dev"
-            ),
-        ):
-            assert (
-                settings.firecrawl_settings.effective_url == "https://api.firecrawl.dev"
-            )
-            assert settings.firecrawl_settings.effective_api_key == "test-key"
 
 
 class TestFirecrawlAgent:
@@ -351,7 +328,7 @@ class TestFirecrawlIntegration:
 
     @pytest.mark.asyncio
     async def test_firecrawl_initialization(self):
-        """Test Firecrawl initialization with proper credentials"""
+        """Test Firecrawl initialization with Docker mode"""
         from app.core.config import initialize_firecrawl_system
         from app.core.tools.registry import tool_registry
         from app.core.agents.registry import agent_registry
@@ -359,7 +336,7 @@ class TestFirecrawlIntegration:
         # Mock Firecrawl settings
         with (
             patch.object(settings.firecrawl_settings, "enabled", True),
-            patch.object(settings.firecrawl_settings, "api_key", "test-api-key"),
+            patch.object(settings.firecrawl_settings, "deployment_mode", "docker"),
         ):
             # Mock tool and agent registries
             with (

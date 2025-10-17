@@ -3,7 +3,7 @@
 # =============================================================================
 # Provides convenient commands for development, testing, and deployment
 
-.PHONY: help install dev test lint format clean docker docker-down docker-logs firecrawl firecrawl-down firecrawl-logs health-check docs shutdown-everything nuke
+.PHONY: help install dev test lint format clean docker docker-down docker-logs firecrawl firecrawl-down firecrawl-logs health-check docs shutdown-everything nuke quality-check ci-test test-results-dir
 
 # Default target
 .DEFAULT_GOAL := help
@@ -53,14 +53,17 @@ dev-docker: ## Run development with Docker
 
 test: ## Run all tests
 	@echo "Running all tests..."
+	@mkdir -p test-results
 	uv run pytest --junitxml=test-results/junit.xml
 
 test-unit: ## Run unit tests only
 	@echo "Running unit tests..."
+	@mkdir -p test-results
 	uv run  pytest tests/unit/ --junitxml=test-results/junit-unit.xml
 
 test-integration: ## Run integration tests
 	@echo "Running integration tests..."
+	@mkdir -p test-results
 	uv run pytest tests/integration/ --junitxml=test-results/junit-integration.xml
 
 test-firecrawl: ## Run Firecrawl Docker tests
@@ -100,14 +103,47 @@ test-all-deep-search: ## Run all Deep Search tests
 
 test-coverage: ## Run tests with coverage report
 	@echo "Running tests with coverage..."
+	@mkdir -p test-results
 	uv run pytest --cov=app --cov-report=html:test-results/htmlcov --cov-report=xml:test-results/coverage.xml --cov-report=term --junitxml=test-results/junit-coverage.xml
 
 # =============================================================================
 # Code Quality
 # =============================================================================
 
+test-results-dir: ## Create test-results directory
+	@mkdir -p test-results
+
+quality-check: ## Run all code quality checks (lint, type-check, security-check, test-coverage)
+	@echo "Running comprehensive quality checks..."
+	$(MAKE) lint
+	$(MAKE) type-check
+	$(MAKE) security-check
+	$(MAKE) test-coverage
+	@echo ""
+	@echo "=== Quality Check Summary ==="
+	@echo "Linting report: test-results/ruff-report.xml"
+	@echo "Type checking report: test-results/mypy-report.xml"
+	@echo "Security report: test-results/bandit-report.json"
+	@echo "Coverage report: test-results/coverage.xml"
+	@echo "HTML coverage report: test-results/htmlcov/index.html"
+
+ci-test: ## Run CI pipeline (test, lint, type-check, security-check)
+	@echo "Running CI pipeline..."
+	$(MAKE) test
+	$(MAKE) lint
+	$(MAKE) type-check
+	$(MAKE) security-check
+	@echo ""
+	@echo "=== CI Test Summary ==="
+	@echo "Test report: test-results/junit.xml"
+	@echo "Linting report: test-results/ruff-report.xml"
+	@echo "Type checking report: test-results/mypy-report.xml"
+	@echo "Security report: test-results/bandit-report.json"
+
+
 lint: ## Run linting
 	@echo "Running linting..."
+	@mkdir -p test-results
 	uv run ruff check app/ tests/ --output-format=junit > test-results/ruff-report.xml
 	uv run ruff check app/ tests/
 
@@ -121,11 +157,13 @@ format-check: ## Check code formatting
 
 type-check: ## Run type checking
 	@echo "Running type checking..."
+	@mkdir -p test-results
 	uv run mypy app/ --junit-xml test-results/mypy-report.xml
 	uv run mypy app/
 
 security-check: ## Run security checks
 	@echo "Running security checks..."
+	@mkdir -p test-results
 	uv run bandit -r app/ -f json -o test-results/bandit-report.json
 	uv run bandit -r app/ -f txt -o test-results/bandit-report.txt
 
