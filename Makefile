@@ -80,6 +80,24 @@ test-firecrawl-live: ## Run live Firecrawl tests (requires Docker services)
 	@echo "Make sure Firecrawl Docker services are running: make firecrawl"
 	uv run pytest tests/integration/test_firecrawl_docker.py::TestFirecrawlDockerLive -v -s
 
+test-deep-search: ## Run Deep Search agent tests
+	@echo "Running Deep Search agent tests..."
+	uv run pytest tests/unit/test_deep_search_agent.py -v
+
+test-deep-search-integration: ## Run Deep Search integration tests (requires Docker services)
+	@echo "Running Deep Search integration tests..."
+	@echo "Make sure all services are running: make milvus"
+	uv run pytest tests/integration/test_deep_search_integration.py -v -s
+
+test-deep-search-live: ## Run live Deep Search tests (requires all services)
+	@echo "Running live Deep Search tests..."
+	@echo "Make sure all services are running: make milvus"
+	uv run pytest tests/integration/test_deep_search_integration.py::test_deep_search_full_workflow -v -s
+
+test-all-deep-search: ## Run all Deep Search tests
+	@echo "Running all Deep Search tests..."
+	uv run pytest tests/unit/test_deep_search_agent.py tests/integration/test_deep_search_integration.py -v
+
 test-coverage: ## Run tests with coverage report
 	@echo "Running tests with coverage..."
 	uv run pytest --cov=app --cov-report=html --cov-report=term
@@ -127,6 +145,42 @@ docker-logs: ## Show Docker logs
 docker-restart: ## Restart Docker services
 	@echo "Restarting Docker services..."
 	docker compose restart
+
+# =============================================================================
+# Milvus Docker Commands
+# =============================================================================
+
+milvus: ## Start Milvus Docker services
+	@echo "Starting Milvus Docker services..."
+	docker compose --profile milvus up -d
+	@echo "Waiting for services to be ready..."
+	@sleep 30
+	$(MAKE) milvus-health
+
+milvus-down: ## Stop Milvus Docker services
+	@echo "Stopping Milvus Docker services..."
+	docker compose --profile milvus down -v
+
+milvus-logs: ## Show Milvus Docker logs
+	@echo "Showing Milvus Docker logs..."
+	docker compose --profile milvus logs -f
+
+milvus-restart: ## Restart Milvus Docker services
+	@echo "Restarting Milvus Docker services..."
+	docker compose --profile milvus restart
+
+milvus-status: ## Show Milvus service status
+	@echo "Milvus service status:"
+	docker compose --profile milvus ps
+
+milvus-health: ## Check Milvus health
+	@echo "Checking Milvus health..."
+	@echo "Checking Etcd..."
+	docker compose exec milvus-etcd etcdctl endpoint health || echo "Etcd not healthy"
+	@echo "Checking MinIO..."
+	docker compose exec milvus-minio curl -f http://localhost:9000/minio/health/live || echo "MinIO not healthy"
+	@echo "Checking Milvus..."
+	docker compose exec milvus-standalone curl -f http://localhost:9091/healthz || echo "Milvus not healthy"
 
 # =============================================================================
 # Firecrawl Docker Commands
@@ -272,6 +326,7 @@ shutdown-everything: ## SHUT DOWN ALL DOCKER SERVICES ACROSS ALL PROFILES
 	docker compose --profile mongodb down --remove-orphans || true
 	docker compose --profile postgres down --remove-orphans || true
 	docker compose --profile jina-reranker down --remove-orphans || true
+	docker compose --profile milvus down --remove-orphans || true
 	@echo "Phase 3: Stopping any remaining services..."
 	docker compose down --remove-orphans || true
 	@echo "Phase 4: Force stopping any stubborn containers..."

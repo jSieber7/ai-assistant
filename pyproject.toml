@@ -19,6 +19,7 @@ dependencies = [
     "pip-audit>=2.9.0",
     "playwright>=1.40.0",
     "prometheus-client>=0.23.1",
+    "pymilvus>=2.4.0",
     "pydantic>=2.11.9",
     "pydantic-settings>=2.0.0",
     "pytz>=2023.3",
