@@ -243,35 +243,31 @@ orchestrator = await RAGOrchestrator.create_default(
 )
 ```
 
-## Migration from DeepSearchAgent
+## DeepSearchAgent Integration
 
-The DeepSearchAgent has been refactored to use the new modular services while maintaining backward compatibility:
+The DeepSearchAgent has been completely refactored to use the new modular services:
 
 ```python
-# New DeepSearchAgent uses modular services by default
+# DeepSearchAgent now uses modular services
 agent = DeepSearchAgent(
     tool_registry=tool_registry,
     llm=llm,
-    embeddings=embeddings,
-    use_modular_services=True  # Default
+    embeddings=embeddings
 )
 
-# Can still use legacy implementation if needed
-agent = DeepSearchAgent(
-    tool_registry=tool_registry,
-    llm=llm,
-    embeddings=embeddings,
-    use_modular_services=False
-)
+# Direct access to services through the agent
+documents = await agent.search_and_scrape("Python async programming")
+reranked_docs = await agent.retrieve_and_rerank(query, collection_name)
+answer = await agent.synthesize_answer(query, documents)
 ```
 
-## Error Handling and Fallbacks
+## Error Handling
 
 The modular architecture includes comprehensive error handling:
 
-1. **Service-level fallbacks**: Each service has fallback mechanisms
-2. **Orchestrator fallbacks**: The orchestrator can fall back to legacy implementation
-3. **Graceful degradation**: Services continue to work even if some components fail
+1. **Service-level error handling**: Each service handles its own errors gracefully
+2. **Orchestrator error handling**: The orchestrator manages errors across services
+3. **Resource cleanup**: Automatic cleanup of temporary resources
 
 ## Statistics and Monitoring
 
