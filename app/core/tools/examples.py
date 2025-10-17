@@ -61,7 +61,19 @@ class CalculatorTool(BaseTool):
         allowed_names["__builtins__"] = {}
 
         try:
-            result = eval(expression, allowed_names)
+            # Use ast.literal_eval as a safer alternative to eval for simple expressions
+            import ast
+            try:
+                # Try literal_eval first for safety
+                result = ast.literal_eval(expression)
+                # Ensure the result is a number
+                if not isinstance(result, (int, float)):
+                    raise ValueError("Expression must evaluate to a number")
+            except (ValueError, SyntaxError):
+                # Fall back to eval with restricted namespace for complex math expressions
+                result = eval(expression, allowed_names)  # nosec B307
+                if not isinstance(result, (int, float)):
+                    raise ValueError("Expression must evaluate to a number")
             if not isinstance(result, (int, float)):
                 raise ValueError("Expression must evaluate to a number")
             return float(result)

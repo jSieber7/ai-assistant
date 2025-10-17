@@ -7,6 +7,7 @@ from .core.config import (
     initialize_agent_system,
     initialize_llm_providers,
     initialize_firecrawl_system,
+    initialize_playwright_system,
 )
 from .core.tools import tool_registry
 from .core.agents.registry import agent_registry
@@ -70,6 +71,26 @@ if settings.firecrawl_settings.enabled:
     except Exception as e:
         print(f"Warning: Failed to initialize Firecrawl system: {str(e)}")
         print("Firecrawl system will be disabled until properly configured")
+
+# Initialize Playwright system
+if settings.playwright_settings.enabled:
+    try:
+        initialize_playwright_system()
+    except Exception as e:
+        print(f"Warning: Failed to initialize Playwright system: {str(e)}")
+        print("Playwright system will be disabled until properly configured")
+
+# Initialize Jina Reranker system
+if settings.jina_reranker_enabled:
+    try:
+        from .core.tools.jina_reranker_tool import JinaRerankerTool
+
+        jina_reranker_tool = JinaRerankerTool()
+        tool_registry.register(jina_reranker_tool, category="reranking")
+        print("Jina Reranker tool registered successfully")
+    except Exception as e:
+        print(f"Warning: Failed to initialize Jina Reranker system: {str(e)}")
+        print("Jina Reranker system will be disabled until properly configured")
 
 # Initialize multi-writer system (optional)
 multi_writer_config = None

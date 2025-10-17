@@ -117,11 +117,11 @@ class FirecrawlSettings(BaseSettings):
 
     enabled: bool = False
     deployment_mode: str = "api"  # "api" for external API, "docker" for self-hosted
-    
+
     # External API Configuration
     api_key: Optional[str] = None
     base_url: str = "https://api.firecrawl.dev"
-    
+
     # Docker Configuration
     docker_url: str = "http://firecrawl-api:3002"
     bull_auth_key: Optional[str] = None
@@ -140,7 +140,7 @@ class FirecrawlSettings(BaseSettings):
     screenshot: bool = False
     include_tags: List[str] = ["article", "main", "content"]
     exclude_tags: List[str] = ["nav", "footer", "aside", "script", "style"]
-    
+
     # Fallback settings
     enable_fallback: bool = True  # Fall back to external API if Docker fails
     fallback_timeout: int = 10  # Timeout for Docker health check
@@ -151,7 +151,7 @@ class FirecrawlSettings(BaseSettings):
         if self.deployment_mode == "docker":
             return self.docker_url
         return self.base_url
-    
+
     @property
     def effective_api_key(self) -> Optional[str]:
         """Get the effective API key based on deployment mode"""
@@ -162,6 +162,21 @@ class FirecrawlSettings(BaseSettings):
 
     class Config:
         env_prefix = "FIRECRAWL_"
+
+
+class PlaywrightSettings(BaseSettings):
+    """Playwright configuration for browser automation"""
+
+    enabled: bool = False
+    headless: bool = True
+    browser_type: str = "chromium"  # chromium, firefox, webkit
+    timeout: int = 30
+    viewport_width: int = 1280
+    viewport_height: int = 720
+    user_agent: str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+    class Config:
+        env_prefix = "PLAYWRIGHT_"
 
 
 class Settings(BaseSettings):
@@ -211,6 +226,17 @@ class Settings(BaseSettings):
 
     # Firecrawl settings
     firecrawl_settings: FirecrawlSettings = FirecrawlSettings()
+
+    # Playwright settings
+    playwright_settings: PlaywrightSettings = PlaywrightSettings()
+
+    # Jina Reranker settings
+    jina_reranker_enabled: bool = False
+    jina_reranker_url: str = "http://jina-reranker:8080"
+    jina_reranker_model: str = "jina-reranker-v2-base-multilingual"
+    jina_reranker_timeout: int = 30
+    jina_reranker_cache_ttl: int = 3600
+    jina_reranker_max_retries: int = 3
 
     # Models unused in the current stage of development
     router_model: str = "deepseek/deepseek-chat"
@@ -594,3 +620,23 @@ def initialize_firecrawl_system():
         logger.error(f"Failed to create Firecrawl scraper agent: {str(e)}")
 
     return tool_registry, agent_registry
+
+
+def initialize_playwright_system():
+    """Initialize the Playwright browser automation system with tools"""
+    from .tools.registry import tool_registry
+    from .tools.playwright_tool import PlaywrightTool
+
+    if not settings.playwright_settings.enabled:
+        logger.info("Playwright system disabled in settings")
+        return
+
+    # Create Playwright tool
+    playwright_tool = PlaywrightTool(
+        headless=settings.playwright_settings.headless,
+        browser_type=settings.playwright_settings.browser_type,
+    )
+    tool_registry.register(playwright_tool, category="playwright")
+    logger.info("Playwright automation tool registered")
+
+    return tool_registry

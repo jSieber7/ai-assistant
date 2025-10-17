@@ -516,9 +516,9 @@ async def shutdown_batch_processors() -> None:
 # Example batch processing functions
 
 
-def create_tool_execution_batch_processor() -> (
-    BatchProcessor[Dict[str, Any], Dict[str, Any]]
-):
+def create_tool_execution_batch_processor() -> BatchProcessor[
+    Dict[str, Any], Dict[str, Any]
+]:
     """
     Create a batch processor for tool execution requests.
 

@@ -64,9 +64,9 @@ PORT=8000
             assert len(models) > 0, "No models returned"
 
             # Should not contain placeholder text
-            assert not any(
-                "placeholder" in model.lower() for model in models
-            ), "Placeholder models found"
+            assert not any("placeholder" in model.lower() for model in models), (
+                "Placeholder models found"
+            )
 
             # Should contain actual model names (not just placeholders)
             assert len(models) > 0, "No models returned"
@@ -89,9 +89,9 @@ PORT=8000
             assert providers_info, "No provider information returned"
 
             # Check if providers_info is a string
-            assert isinstance(
-                providers_info, str
-            ), f"Expected string, got {type(providers_info)}"
+            assert isinstance(providers_info, str), (
+                f"Expected string, got {type(providers_info)}"
+            )
 
             # Should contain provider status information
             has_configured = "Configured" in providers_info
@@ -120,9 +120,9 @@ PORT=8000
             assert tools_info, "No tool information returned"
 
             # Should not indicate initialization failure
-            assert (
-                "Failed to initialize" not in tools_info
-            ), "Tool initialization failed"
+            assert "Failed to initialize" not in tools_info, (
+                "Tool initialization failed"
+            )
 
             # Should contain tool descriptions
             if "No tools available" not in tools_info:
@@ -144,14 +144,14 @@ PORT=8000
             # Should indicate system state properly
             if settings.agent_system_enabled:
                 # If enabled, should have more than just disabled placeholder
-                assert not all(
-                    "disabled" in agent.lower() for agent in agents
-                ), "All agents marked as disabled"
+                assert not all("disabled" in agent.lower() for agent in agents), (
+                    "All agents marked as disabled"
+                )
             else:
                 # If disabled, should indicate this
-                assert any(
-                    "disabled" in agent.lower() for agent in agents
-                ), "No indication that agent system is disabled"
+                assert any("disabled" in agent.lower() for agent in agents), (
+                    "No indication that agent system is disabled"
+                )
 
         except Exception as e:
             pytest.fail(f"get_agents_list failed: {str(e)}")
@@ -166,13 +166,13 @@ PORT=8000
 
             # Should properly indicate system state
             if settings.agent_system_enabled:
-                assert (
-                    "disabled" not in agents_info.lower()
-                ), "Agent system marked as disabled when enabled"
+                assert "disabled" not in agents_info.lower(), (
+                    "Agent system marked as disabled when enabled"
+                )
             else:
-                assert (
-                    "disabled" in agents_info.lower()
-                ), "No indication that agent system is disabled"
+                assert "disabled" in agents_info.lower(), (
+                    "No indication that agent system is disabled"
+                )
 
         except Exception as e:
             pytest.fail(f"get_agents_info failed: {str(e)}")
@@ -193,9 +193,9 @@ PORT=8000
             assert tool_registry.list_tools(), "No tools initialized"
 
             # Status should contain initialization information
-            assert any(
-                "initialized" in item.lower() for item in status.split("\n")
-            ), "No initialization status found"
+            assert any("initialized" in item.lower() for item in status.split("\n")), (
+                "No initialization status found"
+            )
 
         except Exception as e:
             pytest.fail(f"initialize_gradio_components failed: {str(e)}")
@@ -256,9 +256,9 @@ PORT=8000
             assert "Changes applied:" in result, "No changes indicated"
 
             # Settings should be updated in memory
-            assert (
-                settings.tool_system_enabled != original_tool_enabled
-            ), "Tool system setting not updated"
+            assert settings.tool_system_enabled != original_tool_enabled, (
+                "Tool system setting not updated"
+            )
             assert settings.debug != original_debug, "Debug setting not updated"
 
             # Restore original settings
@@ -338,9 +338,9 @@ PORT=8000
                     # Should return fallback model
                     assert len(models) > 0, "No fallback models returned"
                     # Check if the fallback model contains the default model name (may have error suffix)
-                    assert (
-                        settings.default_model in models[0]
-                    ), "Incorrect fallback model"
+                    assert settings.default_model in models[0], (
+                        "Incorrect fallback model"
+                    )
 
                 except Exception as e:
                     pytest.fail(f"Model listing with provider errors failed: {str(e)}")
@@ -414,9 +414,9 @@ class TestGradioIntegration:
             result = update_settings(**config)
 
             # Should succeed
-            assert (
-                "Settings updated successfully" in result
-            ), "Settings update failed with real config"
+            assert "Settings updated successfully" in result, (
+                "Settings update failed with real config"
+            )
 
         except Exception as e:
             pytest.fail(f"Gradio with real configuration failed: {str(e)}")
