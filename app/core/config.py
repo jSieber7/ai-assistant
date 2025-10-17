@@ -6,6 +6,7 @@ import os
 
 # Import MultiWriterSettings before using it
 from .multi_writer_config import MultiWriterSettings
+from .secure_settings import secure_settings
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +93,23 @@ class OllamaSettings(BaseSettings):
     health_check_interval: int = 60  # seconds
     auto_health_check: bool = True
 
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Load from secure settings if available
+        try:
+            secure_ollama_config = secure_settings.get_category("llm_providers").get("ollama", {})
+            if secure_ollama_config:
+                self.enabled = secure_ollama_config.get("enabled", self.enabled)
+                self.base_url = secure_ollama_config.get("base_url", self.base_url)
+                self.default_model = secure_ollama_config.get("default_model", self.default_model)
+                self.timeout = secure_ollama_config.get("timeout", self.timeout)
+                self.max_retries = secure_ollama_config.get("max_retries", self.max_retries)
+                self.temperature = secure_ollama_config.get("temperature", self.temperature)
+                self.max_tokens = secure_ollama_config.get("max_tokens", self.max_tokens)
+                self.streaming = secure_ollama_config.get("streaming", self.streaming)
+        except Exception as e:
+            logger.warning(f"Failed to load Ollama settings from secure storage: {e}")
+
     class Config:
         env_prefix = "OLLAMA_SETTINGS_"
 
@@ -107,6 +125,23 @@ class OpenAISettings(BaseSettings):
     custom_headers: Dict[str, str] = {}
     timeout: int = 30
     max_retries: int = 3
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Load from secure settings if available
+        try:
+            secure_openai_config = secure_settings.get_category("llm_providers").get("openai_compatible", {})
+            if secure_openai_config:
+                self.enabled = secure_openai_config.get("enabled", self.enabled)
+                if secure_openai_config.get("api_key"):
+                    self.api_key = SecretStr(secure_openai_config["api_key"])
+                self.base_url = secure_openai_config.get("base_url", self.base_url)
+                self.default_model = secure_openai_config.get("default_model", self.default_model)
+                self.provider_name = secure_openai_config.get("provider_name", self.provider_name)
+                self.timeout = secure_openai_config.get("timeout", self.timeout)
+                self.max_retries = secure_openai_config.get("max_retries", self.max_retries)
+        except Exception as e:
+            logger.warning(f"Failed to load OpenAI settings from secure storage: {e}")
 
     class Config:
         env_prefix = "OPENAI_COMPATIBLE_"
@@ -139,6 +174,22 @@ class FirecrawlSettings(BaseSettings):
 
     # Health check timeout
     health_check_timeout: int = 10  # Timeout for Docker health check
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Load from secure settings if available
+        try:
+            secure_firecrawl_config = secure_settings.get_category("external_services").get("firecrawl", {})
+            if secure_firecrawl_config:
+                self.enabled = secure_firecrawl_config.get("enabled", self.enabled)
+                self.deployment_mode = secure_firecrawl_config.get("deployment_mode", self.deployment_mode)
+                self.docker_url = secure_firecrawl_config.get("docker_url", self.docker_url)
+                self.bull_auth_key = secure_firecrawl_config.get("bull_auth_key", self.bull_auth_key)
+                self.scraping_enabled = secure_firecrawl_config.get("scraping_enabled", self.scraping_enabled)
+                self.max_concurrent_scrapes = secure_firecrawl_config.get("max_concurrent_scrapes", self.max_concurrent_scrapes)
+                self.scrape_timeout = secure_firecrawl_config.get("scrape_timeout", self.scrape_timeout)
+        except Exception as e:
+            logger.warning(f"Failed to load Firecrawl settings from secure storage: {e}")
 
     @property
     def effective_url(self) -> str:
@@ -260,6 +311,7 @@ class Settings(BaseSettings):
     jina_reranker_timeout: int = 30
     jina_reranker_cache_ttl: int = 3600
     jina_reranker_max_retries: int = 3
+    jina_reranker_api_key: Optional[str] = None
 
     # Models unused in the current stage of development
     router_model: str = "deepseek/deepseek-chat"
@@ -272,6 +324,41 @@ class Settings(BaseSettings):
     secret_key: Optional[str] = None
     # SearXNG URL is hardcoded since it's an internal service
     searxng_url: str = "http://searxng:8080"
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Load system config from secure settings
+        try:
+            secure_system_config = secure_settings.get_category("system_config", {})
+            if secure_system_config:
+                self.tool_system_enabled = secure_system_config.get("tool_system_enabled", self.tool_system_enabled)
+                self.agent_system_enabled = secure_system_config.get("agent_system_enabled", self.agent_system_enabled)
+                self.preferred_provider = secure_system_config.get("preferred_provider", self.preferred_provider)
+                self.enable_fallback = secure_system_config.get("enable_fallback", self.enable_fallback)
+                self.debug = secure_system_config.get("debug", self.debug)
+                self.host = secure_system_config.get("host", self.host)
+                self.port = secure_system_config.get("port", self.port)
+                self.environment = secure_system_config.get("environment", self.environment)
+                self.secret_key = secure_system_config.get("secret_key", self.secret_key)
+
+            # Load Jina Reranker settings from secure settings
+            secure_jina_config = secure_settings.get_category("external_services", {}).get("jina_reranker", {})
+            if secure_jina_config:
+                self.jina_reranker_enabled = secure_jina_config.get("enabled", self.jina_reranker_enabled)
+                self.jina_reranker_api_key = secure_jina_config.get("api_key", self.jina_reranker_api_key)
+                self.jina_reranker_url = secure_jina_config.get("url", self.jina_reranker_url)
+                self.jina_reranker_model = secure_jina_config.get("model", self.jina_reranker_model)
+                self.jina_reranker_timeout = secure_jina_config.get("timeout", self.jina_reranker_timeout)
+                self.jina_reranker_cache_ttl = secure_jina_config.get("cache_ttl", self.jina_reranker_cache_ttl)
+                self.jina_reranker_max_retries = secure_jina_config.get("max_retries", self.jina_reranker_max_retries)
+
+            # Load SearXNG settings from secure settings
+            secure_searxng_config = secure_settings.get_category("external_services", {}).get("searxng", {})
+            if secure_searxng_config:
+                self.searxng_url = secure_searxng_config.get("url", self.searxng_url)
+
+        except Exception as e:
+            logger.warning(f"Failed to load system settings from secure storage: {e}")
 
     class Config:
         env_file = ".env"

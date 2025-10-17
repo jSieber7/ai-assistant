@@ -15,6 +15,7 @@ from typing import List, Optional, Tuple
 from ..core.config import settings, get_available_models, initialize_llm_providers
 from ..core.tools import tool_registry
 from ..core.llm_providers import provider_registry
+from .settings_page import create_settings_page
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -686,6 +687,10 @@ def create_gradio_app() -> gr.Blocks:
             )
 
         with gr.Tabs():
+            # Settings Tab (new)
+            with gr.TabItem("🔐 Settings"):
+                settings_app = create_settings_page()
+            
             # System Information Tab
             with gr.TabItem("System Information"):
                 gr.Markdown("## Current Configuration Status")
