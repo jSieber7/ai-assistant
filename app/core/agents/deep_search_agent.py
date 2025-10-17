@@ -4,6 +4,9 @@ Deep Search Agent for advanced web search and RAG pipeline.
 This agent implements a sophisticated search workflow that combines web search,
 content scraping, vector storage, and re-ranking to provide comprehensive
 answers to user queries.
+
+This agent now uses the modular RAG services architecture for better
+maintainability and reusability.
 """
 
 import asyncio
@@ -26,25 +29,51 @@ from .base import BaseAgent, AgentResult, AgentState
 from ..tools.registry import ToolRegistry
 from ..tools.dynamic_executor import DynamicToolExecutor, TaskRequest, TaskType
 from ..storage.milvus_client import MilvusClient
+from ..services.rag_orchestrator import RAGOrchestrator
+from ..services.query_processing import QueryProcessingService
+from ..services.search import SearchService
+from ..services.ingestion import IngestionService
+from ..services.retrieval import RetrievalService
+from ..services.synthesis import SynthesisService
 from ..config import settings
 
 logger = logging.getLogger(__name__)
+
+
+class CustomRetriever(BaseRetriever):
+    """
+    Custom retriever that returns pre-retrieved documents.
+    """
+    
+    def __init__(self, documents: List[Document]):
+        super().__init__()
+        self._documents = documents
+    
+    def _get_relevant_documents(self, query: str) -> List[Document]:
+        """Return the stored documents."""
+        return self._documents
+    
+    async def _aget_relevant_documents(self, query: str) -> List[Document]:
+        """Async version of _get_relevant_documents."""
+        return self._documents
 
 
 class DeepSearchAgent(BaseAgent):
     """
     Advanced agent for deep web search and RAG-based answer generation.
     
-    This agent implements the following workflow:
-    1. Generate optimized search query from user input
-    2. Search using SearXNG tool
-    3. Scrape results using Firecrawl tool
-    4. Split content and create embeddings
-    5. Store in temporary Milvus collection
-    6. Retrieve with Milvus retriever
-    7. Re-rank with Jina Reranker
-    8. Generate final response using LCEL chain
-    9. Clean up temporary collection
+    This agent implements the following workflow using modular services:
+    1. Generate optimized search query from user input (QueryProcessingService)
+    2. Search using SearXNG tool and scrape with Firecrawl (SearchService)
+    3. Split content and create embeddings (IngestionService)
+    4. Store in temporary Milvus collection (IngestionService)
+    5. Retrieve with Milvus retriever (RetrievalService)
+    6. Re-rank with Jina Reranker (RetrievalService)
+    7. Generate final response using LCEL chain (SynthesisService)
+    8. Clean up temporary collection (RAGOrchestrator)
+    
+    This agent maintains backward compatibility while using the new modular
+    architecture internally.
     """
 
     def __init__(
@@ -53,26 +82,69 @@ class DeepSearchAgent(BaseAgent):
         llm,
         embeddings: Embeddings,
         max_iterations: int = 1,
+        use_modular_services: bool = True,
     ):
         super().__init__(tool_registry, max_iterations)
         self.llm = llm
         self.embeddings = embeddings
         self.milvus_client: Optional[MilvusClient] = None
+        self.use_modular_services = use_modular_services
         
-        # Initialize dynamic tool executor
-        self.dynamic_executor = DynamicToolExecutor(tool_registry)
-        
-        # Text splitter configuration
-        self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
-            length_function=len,
-        )
+        # Initialize modular services if enabled
+        if self.use_modular_services:
+            self._initialize_modular_services()
+        else:
+            # Legacy initialization
+            self.dynamic_executor = DynamicToolExecutor(tool_registry)
+            
+            # Text splitter configuration
+            self.text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=1000,
+                chunk_overlap=200,
+                length_function=len,
+            )
         
         # Search configuration
         self.max_search_results = 5
         self.retrieval_k = 50
         self.rerank_top_n = 5
+
+    def _initialize_modular_services(self):
+        """Initialize the modular RAG services."""
+        try:
+            # Initialize Milvus client
+            if self.milvus_client is None:
+                self.milvus_client = MilvusClient(self.embeddings)
+            
+            # Create services
+            self.query_service = QueryProcessingService(self.llm)
+            self.search_service = SearchService(self.tool_registry)
+            self.ingestion_service = IngestionService(self.embeddings, self.milvus_client)
+            self.retrieval_service = RetrievalService(self.milvus_client, self.tool_registry)
+            self.synthesis_service = SynthesisService(self.llm)
+            
+            # Create orchestrator
+            self.rag_orchestrator = RAGOrchestrator(
+                query_service=self.query_service,
+                search_service=self.search_service,
+                ingestion_service=self.ingestion_service,
+                retrieval_service=self.retrieval_service,
+                synthesis_service=self.synthesis_service,
+                auto_cleanup=True
+            )
+            
+            logger.info("Modular RAG services initialized successfully")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize modular services: {str(e)}")
+            # Fallback to legacy mode
+            self.use_modular_services = False
+            self.dynamic_executor = DynamicToolExecutor(self.tool_registry)
+            self.text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=1000,
+                chunk_overlap=200,
+                length_function=len,
+            )
 
     @property
     def name(self) -> str:
@@ -103,85 +175,11 @@ class DeepSearchAgent(BaseAgent):
         self.add_to_conversation("user", message, {"timestamp": start_time})
 
         try:
-            # Initialize Milvus connection
-            if not await self._initialize_milvus():
-                raise RuntimeError("Failed to initialize Milvus connection")
-
-            # Step 1: Generate optimized search query
-            self.state = AgentState.THINKING
-            optimized_query = await self._generate_search_query(message)
-            logger.info(f"Generated optimized search query: {optimized_query}")
-
-            # Step 2: Search and scrape
-            self.state = AgentState.EXECUTING_TOOL
-            scraped_documents = await self._search_and_scrape(optimized_query)
-            
-            if not scraped_documents:
-                return AgentResult(
-                    success=False,
-                    response="I couldn't find relevant information for your query. Please try rephrasing or providing more specific terms.",
-                    tool_results=[],
-                    agent_name=self.name,
-                    execution_time=time.time() - start_time,
-                    conversation_id=self._current_conversation_id,
-                    metadata={"error": "No search results found"},
-                )
-
-            # Step 3: Create temporary Milvus collection
-            session_id = str(uuid.uuid4())
-            collection_name = await self.milvus_client.create_temporary_collection(session_id)
-            logger.info(f"Created temporary collection: {collection_name}")
-
-            try:
-                # Step 4: Process and ingest documents
-                self.state = AgentState.THINKING
-                processed_docs = await self._process_documents(scraped_documents)
-                await self.milvus_client.ingest_documents(collection_name, processed_docs)
-                logger.info(f"Ingested {len(processed_docs)} document chunks")
-
-                # Step 5: Retrieve, re-rank, and synthesize
-                self.state = AgentState.RESPONDING
-                final_answer = await self._retrieve_and_synthesize(
-                    collection_name, message, processed_docs
-                )
-
-                execution_time = time.time() - start_time
-
-                # Add assistant response to conversation history
-                self.add_to_conversation(
-                    "assistant",
-                    final_answer,
-                    {
-                        "execution_time": execution_time,
-                        "search_query": optimized_query,
-                        "documents_processed": len(processed_docs),
-                        "collection_name": collection_name,
-                    },
-                )
-
-                self._usage_count += 1
-                self._last_used = time.time()
-                self.state = AgentState.IDLE
-
-                return AgentResult(
-                    success=True,
-                    response=final_answer,
-                    tool_results=[],
-                    agent_name=self.name,
-                    execution_time=execution_time,
-                    conversation_id=self._current_conversation_id,
-                    metadata={
-                        "optimized_query": optimized_query,
-                        "documents_count": len(scraped_documents),
-                        "chunks_count": len(processed_docs),
-                        "collection_name": collection_name,
-                    },
-                )
-
-            finally:
-                # Step 6: Cleanup
-                await self.milvus_client.drop_collection(collection_name)
-                logger.info(f"Cleaned up collection: {collection_name}")
+            # Use modular services if enabled
+            if self.use_modular_services:
+                return await self._process_with_modular_services(message, context, start_time)
+            else:
+                return await self._process_with_legacy_implementation(message, context, start_time)
 
         except Exception as e:
             execution_time = time.time() - start_time
@@ -199,6 +197,181 @@ class DeepSearchAgent(BaseAgent):
                 conversation_id=self._current_conversation_id,
                 metadata={"error_type": type(e).__name__},
             )
+
+    async def _process_with_modular_services(
+        self,
+        message: str,
+        context: Optional[Dict[str, Any]],
+        start_time: float
+    ) -> AgentResult:
+        """
+        Process message using modular RAG services.
+        """
+        try:
+            # Initialize Milvus connection if needed
+            if not await self._initialize_milvus():
+                raise RuntimeError("Failed to initialize Milvus connection")
+
+            # Prepare options for the orchestrator
+            options = {
+                "search_params": {
+                    "results_count": self.max_search_results,
+                    "category": "general"
+                },
+                "retrieval_k": self.retrieval_k,
+                "rerank_top_n": self.rerank_top_n
+            }
+
+            # Process using the RAG orchestrator
+            self.state = AgentState.EXECUTING_TOOL
+            result = await self.rag_orchestrator.process_query(message, context, options)
+
+            # Convert orchestrator result to AgentResult
+            if result["success"]:
+                execution_time = time.time() - start_time
+
+                # Add assistant response to conversation history
+                self.add_to_conversation(
+                    "assistant",
+                    result["answer"],
+                    {
+                        "execution_time": execution_time,
+                        "search_query": result.get("metadata", {}).get("optimized_query", message),
+                        "documents_processed": result.get("metadata", {}).get("documents_used", 0),
+                        "collection_name": result.get("metadata", {}).get("collection_name", ""),
+                        "pipeline_steps": result.get("pipeline_steps", {}),
+                    },
+                )
+
+                self._usage_count += 1
+                self._last_used = time.time()
+                self.state = AgentState.IDLE
+
+                return AgentResult(
+                    success=True,
+                    response=result["answer"],
+                    tool_results=[],
+                    agent_name=self.name,
+                    execution_time=execution_time,
+                    conversation_id=self._current_conversation_id,
+                    metadata={
+                        "optimized_query": result.get("metadata", {}).get("optimized_query", message),
+                        "documents_count": result.get("metadata", {}).get("documents_used", 0),
+                        "chunks_count": result.get("metadata", {}).get("chunks_created", 0),
+                        "collection_name": result.get("metadata", {}).get("collection_name", ""),
+                        "pipeline_steps": result.get("pipeline_steps", {}),
+                        "sources": result.get("sources", []),
+                    },
+                )
+            else:
+                return AgentResult(
+                    success=False,
+                    response=result.get("answer", "I couldn't process your request. Please try again."),
+                    tool_results=[],
+                    error=result.get("error", "Unknown error"),
+                    agent_name=self.name,
+                    execution_time=time.time() - start_time,
+                    conversation_id=self._current_conversation_id,
+                    metadata={"error": result.get("error", "Unknown error")},
+                )
+
+        except Exception as e:
+            execution_time = time.time() - start_time
+            error_msg = f"Modular services processing failed: {str(e)}"
+            logger.error(error_msg)
+            
+            # Fallback to legacy implementation
+            logger.info("Falling back to legacy implementation")
+            return await self._process_with_legacy_implementation(message, context, start_time)
+
+    async def _process_with_legacy_implementation(
+        self,
+        message: str,
+        context: Optional[Dict[str, Any]],
+        start_time: float
+    ) -> AgentResult:
+        """
+        Process message using legacy implementation (fallback).
+        """
+        # Initialize Milvus connection
+        if not await self._initialize_milvus():
+            raise RuntimeError("Failed to initialize Milvus connection")
+
+        # Step 1: Generate optimized search query
+        self.state = AgentState.THINKING
+        optimized_query = await self._generate_search_query(message)
+        logger.info(f"Generated optimized search query: {optimized_query}")
+
+        # Step 2: Search and scrape
+        self.state = AgentState.EXECUTING_TOOL
+        scraped_documents = await self._search_and_scrape(optimized_query)
+        
+        if not scraped_documents:
+            return AgentResult(
+                success=False,
+                response="I couldn't find relevant information for your query. Please try rephrasing or providing more specific terms.",
+                tool_results=[],
+                agent_name=self.name,
+                execution_time=time.time() - start_time,
+                conversation_id=self._current_conversation_id,
+                metadata={"error": "No search results found"},
+            )
+
+        # Step 3: Create temporary Milvus collection
+        session_id = str(uuid.uuid4())
+        collection_name = await self.milvus_client.create_temporary_collection(session_id)
+        logger.info(f"Created temporary collection: {collection_name}")
+
+        try:
+            # Step 4: Process and ingest documents
+            self.state = AgentState.THINKING
+            processed_docs = await self._process_documents(scraped_documents)
+            await self.milvus_client.ingest_documents(collection_name, processed_docs)
+            logger.info(f"Ingested {len(processed_docs)} document chunks")
+
+            # Step 5: Retrieve, re-rank, and synthesize
+            self.state = AgentState.RESPONDING
+            final_answer = await self._retrieve_and_synthesize(
+                collection_name, message, processed_docs
+            )
+
+            execution_time = time.time() - start_time
+
+            # Add assistant response to conversation history
+            self.add_to_conversation(
+                "assistant",
+                final_answer,
+                {
+                    "execution_time": execution_time,
+                    "search_query": optimized_query,
+                    "documents_processed": len(processed_docs),
+                    "collection_name": collection_name,
+                },
+            )
+
+            self._usage_count += 1
+            self._last_used = time.time()
+            self.state = AgentState.IDLE
+
+            return AgentResult(
+                success=True,
+                response=final_answer,
+                tool_results=[],
+                agent_name=self.name,
+                execution_time=execution_time,
+                conversation_id=self._current_conversation_id,
+                metadata={
+                    "optimized_query": optimized_query,
+                    "documents_count": len(scraped_documents),
+                    "chunks_count": len(processed_docs),
+                    "collection_name": collection_name,
+                },
+            )
+
+        finally:
+            # Step 6: Cleanup
+            await self.milvus_client.drop_collection(collection_name)
+            logger.info(f"Cleaned up collection: {collection_name}")
 
     async def _initialize_milvus(self) -> bool:
         """Initialize Milvus connection."""
@@ -222,6 +395,11 @@ class DeepSearchAgent(BaseAgent):
         Returns:
             Optimized search query
         """
+        # Use modular service if available
+        if self.use_modular_services and hasattr(self, 'query_service'):
+            return await self.query_service.generate_search_query(user_query)
+        
+        # Legacy implementation
         prompt = ChatPromptTemplate.from_template("""
         You are an expert at crafting effective search queries. Given the user's question, 
         generate an optimized search query that will return the most relevant and comprehensive results.
@@ -263,6 +441,11 @@ class DeepSearchAgent(BaseAgent):
         Returns:
             List of scraped documents
         """
+        # Use modular service if available
+        if self.use_modular_services and hasattr(self, 'search_service'):
+            return await self.search_service.search_and_scrape(query)
+        
+        # Legacy implementation
         try:
             # Step 1: Execute search task using dynamic executor
             search_request = TaskRequest(
@@ -359,6 +542,13 @@ class DeepSearchAgent(BaseAgent):
         Returns:
             List of document chunks
         """
+        # Use modular service if available
+        if self.use_modular_services and hasattr(self, 'ingestion_service'):
+            # The ingestion service handles chunking internally
+            # For legacy compatibility, we'll still return chunks
+            return await self.ingestion_service._chunk_documents(documents)
+        
+        # Legacy implementation
         chunks = []
         
         for doc in documents:
@@ -394,6 +584,26 @@ class DeepSearchAgent(BaseAgent):
         Returns:
             Final synthesized answer
         """
+        # Use modular services if available
+        if self.use_modular_services and hasattr(self, 'retrieval_service') and hasattr(self, 'synthesis_service'):
+            try:
+                # Retrieve and rerank documents
+                retrieved_docs = await self.retrieval_service.retrieve_and_rerank(
+                    original_query, collection_name, self.retrieval_k, self.rerank_top_n
+                )
+                
+                # Synthesize answer
+                synthesis_result = await self.synthesis_service.synthesize_answer(
+                    original_query, retrieved_docs
+                )
+                
+                return synthesis_result.get("answer", "I couldn't generate a comprehensive answer from the search results.")
+                
+            except Exception as e:
+                logger.error(f"Modular retrieval and synthesis failed: {str(e)}")
+                # Fallback to legacy implementation
+        
+        # Legacy implementation
         try:
             # Step 1: Retrieve documents from Milvus
             retrieved_docs_with_scores = await self.milvus_client.similarity_search(
@@ -461,6 +671,12 @@ class DeepSearchAgent(BaseAgent):
         Returns:
             Synthesized answer
         """
+        # Use modular service if available
+        if self.use_modular_services and hasattr(self, 'synthesis_service'):
+            synthesis_result = await self.synthesis_service.synthesize_answer(query, documents)
+            return synthesis_result.get("answer", "I couldn't generate a comprehensive answer from the search results.")
+        
+        # Legacy implementation
         # Create prompt template
         prompt = ChatPromptTemplate.from_template("""
         You are an expert research assistant. Based on the provided documents,
@@ -494,20 +710,34 @@ class DeepSearchAgent(BaseAgent):
         
         return response.get("answer", "I couldn't generate a comprehensive answer from the search results.")
 
+    def get_agent_stats(self) -> Dict[str, Any]:
+        """Get agent statistics including service stats."""
+        base_stats = {
+            "agent_name": self.name,
+            "use_modular_services": self.use_modular_services,
+            "max_search_results": self.max_search_results,
+            "retrieval_k": self.retrieval_k,
+            "rerank_top_n": self.rerank_top_n,
+        }
+        
+        # Add service stats if using modular services
+        if self.use_modular_services and hasattr(self, 'rag_orchestrator'):
+            base_stats["service_stats"] = self.rag_orchestrator.get_orchestrator_stats()
+        
+        return base_stats
 
-class CustomRetriever(BaseRetriever):
-    """
-    Custom retriever that returns pre-retrieved documents.
-    """
-    
-    def __init__(self, documents: List[Document]):
-        super().__init__()
-        self._documents = documents
-    
-    def _get_relevant_documents(self, query: str) -> List[Document]:
-        """Return the stored documents."""
-        return self._documents
-    
-    async def _aget_relevant_documents(self, query: str) -> List[Document]:
-        """Async version of _get_relevant_documents."""
-        return self._documents
+    async def cleanup_resources(self):
+        """Clean up agent resources."""
+        try:
+            # Cleanup orchestrator resources
+            if self.use_modular_services and hasattr(self, 'rag_orchestrator'):
+                await self.rag_orchestrator.cleanup_all_collections()
+            
+            # Cleanup Milvus connection
+            if self.milvus_client:
+                await self.milvus_client.disconnect()
+                
+            logger.info("DeepSearchAgent resources cleaned up")
+            
+        except Exception as e:
+            logger.error(f"Error during resource cleanup: {str(e)}")
