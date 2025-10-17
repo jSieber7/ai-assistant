@@ -24,6 +24,7 @@ from langchain_community.document_compressors import JinaRerank
 
 from .base import BaseAgent, AgentResult, AgentState
 from ..tools.registry import ToolRegistry
+from ..tools.dynamic_executor import DynamicToolExecutor, TaskRequest, TaskType
 from ..storage.milvus_client import MilvusClient
 from ..config import settings
 
@@ -58,6 +59,9 @@ class DeepSearchAgent(BaseAgent):
         self.embeddings = embeddings
         self.milvus_client: Optional[MilvusClient] = None
         
+        # Initialize dynamic tool executor
+        self.dynamic_executor = DynamicToolExecutor(tool_registry)
+        
         # Text splitter configuration
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
@@ -69,11 +73,6 @@ class DeepSearchAgent(BaseAgent):
         self.max_search_results = 5
         self.retrieval_k = 50
         self.rerank_top_n = 5
-        
-        # Initialize tools
-        self.searxng_tool = tool_registry.get_tool("searxng_search")
-        self.firecrawl_tool = tool_registry.get_tool("firecrawl_scrape")
-        self.jina_reranker_tool = tool_registry.get_tool("jina_reranker")
 
     @property
     def name(self) -> str:
@@ -256,7 +255,7 @@ class DeepSearchAgent(BaseAgent):
 
     async def _search_and_scrape(self, query: str) -> List[Document]:
         """
-        Search using SearXNG and scrape results using Firecrawl.
+        Search and scrape using dynamic tool execution.
         
         Args:
             query: Search query
@@ -265,24 +264,29 @@ class DeepSearchAgent(BaseAgent):
             List of scraped documents
         """
         try:
-            # Step 1: Search using SearXNG
-            search_result = await self.searxng_tool.execute(
+            # Step 1: Execute search task using dynamic executor
+            search_request = TaskRequest(
+                task_type=TaskType.SEARCH,
                 query=query,
-                results_count=self.max_search_results,
-                category="general"
+                context={"results_count": self.max_search_results, "category": "general"},
+                required_tools=["searxng_search"],
+                max_tools=1
             )
             
+            search_result = await self.dynamic_executor.execute_task(search_request)
+            
             if not search_result.success:
-                logger.error(f"SearXNG search failed: {search_result.error}")
+                logger.error(f"Search task failed: {search_result.error}")
                 return []
             
             # Extract URLs from search results
             search_data = search_result.data
             urls = []
-            for result in search_data.get("results", []):
-                url = result.get("url", "")
-                if url:
-                    urls.append(url)
+            if isinstance(search_data, dict) and "results" in search_data:
+                for result in search_data.get("results", []):
+                    url = result.get("url", "")
+                    if url:
+                        urls.append(url)
             
             if not urls:
                 logger.warning("No URLs found in search results")
@@ -290,36 +294,49 @@ class DeepSearchAgent(BaseAgent):
             
             logger.info(f"Found {len(urls)} URLs to scrape")
             
-            # Step 2: Scrape each URL using Firecrawl
+            # Step 2: Scrape each URL using dynamic executor
             scraped_documents = []
             
             for url in urls:
                 try:
-                    scrape_result = await self.firecrawl_tool.execute(
-                        url=url,
-                        formats=["markdown"],
-                        wait_for=2000,
-                        timeout=30
+                    scrape_request = TaskRequest(
+                        task_type=TaskType.SCRAPE,
+                        query=f"Scrape content from {url}",
+                        context={"url": url},
+                        required_tools=["firecrawl_scrape"],
+                        parameters={
+                            "formats": ["markdown"],
+                            "wait_for": 2000,
+                            "timeout": 30
+                        },
+                        max_tools=1
                     )
                     
-                    if scrape_result.success:
-                        scrape_data = scrape_result.data
-                        content = scrape_data.get("content", "")
-                        title = scrape_data.get("title", "")
-                        
-                        if content and len(content.strip()) > 100:  # Filter out very short content
-                            doc = Document(
-                                page_content=content,
-                                metadata={
-                                    "source": url,
-                                    "title": title,
-                                    "scraped_at": time.time(),
-                                }
-                            )
-                            scraped_documents.append(doc)
-                            logger.debug(f"Successfully scraped: {url}")
+                    scrape_result = await self.dynamic_executor.execute_task(scrape_request)
+                    
+                    if scrape_result.success and scrape_result.tool_results:
+                        # Get the first successful tool result
+                        tool_result = scrape_result.tool_results[0]
+                        if tool_result.success:
+                            scrape_data = tool_result.data
+                            content = scrape_data.get("content", "")
+                            title = scrape_data.get("title", "")
+                            
+                            if content and len(content.strip()) > 100:  # Filter out very short content
+                                doc = Document(
+                                    page_content=content,
+                                    metadata={
+                                        "source": url,
+                                        "title": title,
+                                        "scraped_at": time.time(),
+                                    }
+                                )
+                                scraped_documents.append(doc)
+                                logger.debug(f"Successfully scraped: {url}")
+                        else:
+                            logger.warning(f"Failed to scrape {url}: {tool_result.error}")
                     else:
-                        logger.warning(f"Failed to scrape {url}: {scrape_result.error}")
+                        logger.warning(f"Scrape task failed for {url}: {scrape_result.error}")
                         
                 except Exception as e:
                     logger.error(f"Error scraping {url}: {str(e)}")
@@ -388,28 +405,40 @@ class DeepSearchAgent(BaseAgent):
             retrieved_docs = [doc for doc, score in retrieved_docs_with_scores]
             logger.info(f"Retrieved {len(retrieved_docs)} documents from Milvus")
             
-            # Step 2: Re-rank with Jina Reranker
-            if self.jina_reranker_tool and settings.jina_reranker_enabled:
+            # Step 2: Re-rank with Jina Reranker using dynamic executor
+            if settings.jina_reranker_enabled:
                 try:
                     # Extract content for reranking
                     doc_contents = [doc.page_content for doc in retrieved_docs]
                     
-                    rerank_result = await self.jina_reranker_tool.execute(
+                    rerank_request = TaskRequest(
+                        task_type=TaskType.RERANK,
                         query=original_query,
-                        documents=doc_contents,
-                        top_n=self.rerank_top_n
+                        context={"documents": doc_contents},
+                        required_tools=["jina_reranker"],
+                        parameters={
+                            "documents": doc_contents,
+                            "top_n": self.rerank_top_n
+                        },
+                        max_tools=1
                     )
                     
-                    if rerank_result.success:
-                        rerank_data = rerank_result.data
-                        reranked_indices = [item.get("index") for item in rerank_data.get("results", [])]
-                        
-                        # Reorder documents based on reranking
-                        reranked_docs = [retrieved_docs[i] for i in reranked_indices if 0 <= i < len(retrieved_docs)]
-                        retrieved_docs = reranked_docs[:self.rerank_top_n]
-                        logger.info(f"Re-ranked to {len(retrieved_docs)} top documents")
+                    rerank_result = await self.dynamic_executor.execute_task(rerank_request)
+                    
+                    if rerank_result.success and rerank_result.tool_results:
+                        tool_result = rerank_result.tool_results[0]
+                        if tool_result.success:
+                            rerank_data = tool_result.data
+                            reranked_indices = [item.get("index") for item in rerank_data.get("results", [])]
+                            
+                            # Reorder documents based on reranking
+                            reranked_docs = [retrieved_docs[i] for i in reranked_indices if 0 <= i < len(retrieved_docs)]
+                            retrieved_docs = reranked_docs[:self.rerank_top_n]
+                            logger.info(f"Re-ranked to {len(retrieved_docs)} top documents")
+                        else:
+                            logger.warning(f"Jina reranking failed: {tool_result.error}")
                     else:
-                        logger.warning(f"Jina reranking failed: {rerank_result.error}")
+                        logger.warning(f"Rerank task failed: {rerank_result.error}")
                         
                 except Exception as e:
                     logger.error(f"Error during reranking: {str(e)}")

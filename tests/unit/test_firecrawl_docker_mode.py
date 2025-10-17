@@ -25,23 +25,10 @@ class TestFirecrawlDockerMode:
             ),
             patch.object(settings.firecrawl_settings, "enabled", True),
             patch.object(settings.firecrawl_settings, "scraping_enabled", True),
-            patch.object(settings.firecrawl_settings, "enable_fallback", True),
         ):
             yield settings.firecrawl_settings
 
-    @pytest.fixture
-    def api_settings(self):
-        """Configure settings for API mode"""
-        with (
-            patch.object(settings.firecrawl_settings, "deployment_mode", "api"),
-            patch.object(settings.firecrawl_settings, "api_key", "test-api-key"),
-            patch.object(
-                settings.firecrawl_settings, "base_url", "https://api.firecrawl.dev"
-            ),
-            patch.object(settings.firecrawl_settings, "enabled", True),
-            patch.object(settings.firecrawl_settings, "scraping_enabled", True),
-        ):
-            yield settings.firecrawl_settings
+    # API mode is no longer supported - Docker-only mode
 
     def test_docker_mode_configuration(self, docker_settings):
         """Test Docker mode configuration properties"""
@@ -49,27 +36,12 @@ class TestFirecrawlDockerMode:
         assert docker_settings.effective_url == "http://firecrawl-api:3002"
         assert docker_settings.effective_api_key is None
 
-    def test_api_mode_configuration(self, api_settings):
-        """Test API mode configuration properties"""
-        assert api_settings.deployment_mode == "api"
-        assert api_settings.effective_url == "https://api.firecrawl.dev"
-        assert api_settings.effective_api_key == "test-api-key"
-
     def test_docker_tool_initialization(self, docker_settings):
         """Test Firecrawl tool initialization in Docker mode"""
         tool = FirecrawlTool()
         # Tool should use effective configuration from settings when _get_client is called
         # Tool doesn't have base_url and api_key attributes anymore
         assert tool._client is None
-        assert tool._fallback_client is None
-
-    def test_api_tool_initialization(self, api_settings):
-        """Test Firecrawl tool initialization in API mode"""
-        tool = FirecrawlTool()
-        # Tool should use effective configuration from settings when _get_client is called
-        # Tool doesn't have base_url and api_key attributes anymore
-        assert tool._client is None
-        assert tool._fallback_client is None
 
     @pytest.mark.asyncio
     async def test_docker_health_check_success(self, docker_settings):
@@ -127,47 +99,15 @@ class TestFirecrawlDockerMode:
             assert "Test content from Docker" in result["content"]
 
     @pytest.mark.asyncio
-    async def test_docker_scraping_with_fallback(self, docker_settings):
-        """Test scraping with fallback to API when Docker fails"""
+    async def test_docker_scraping_failure(self, docker_settings):
+        """Test Docker scraping failure"""
         tool = FirecrawlTool()
 
-        # Mock failed health check
         with patch.object(tool, "_check_docker_health", return_value=False):
-            # Mock successful fallback API call
-            mock_fallback_client = AsyncMock()
-            mock_fallback_response = AsyncMock()
-            mock_fallback_response.status_code = 200
-            mock_fallback_response.json = AsyncMock(return_value={
-                "data": {
-                    "markdown": "# Test Page\n\nTest content from API fallback.",
-                    "metadata": {"title": "Test Page"},
-                    "links": [],
-                    "images": [],
-                }
-            })
-            mock_fallback_client.post.return_value = mock_fallback_response
+            with pytest.raises(Exception) as exc_info:
+                await tool.execute(url="https://example.com")
 
-            with patch.object(
-                tool, "_get_fallback_client", return_value=mock_fallback_client
-            ):
-                result = await tool.execute(url="https://example.com")
-
-                assert result["url"] == "https://example.com"
-                assert result["title"] == "Test Page"
-                assert "Test content from API fallback" in result["content"]
-
-    @pytest.mark.asyncio
-    async def test_docker_scraping_without_fallback(self, docker_settings):
-        """Test Docker scraping failure without fallback"""
-        # Disable fallback
-        with patch.object(docker_settings, "enable_fallback", False):
-            tool = FirecrawlTool()
-
-            with patch.object(tool, "_check_docker_health", return_value=False):
-                with pytest.raises(Exception) as exc_info:
-                    await tool.execute(url="https://example.com")
-
-                assert "unhealthy" in str(exc_info.value).lower()
+            assert "unhealthy" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
     async def test_docker_agent_configuration(self, docker_settings):
@@ -187,9 +127,8 @@ class TestFirecrawlDockerMode:
             # Tool doesn't have base_url and api_key attributes anymore
             assert tool is not None
 
-    def test_mode_switching(self):
-        """Test switching between deployment modes"""
-        # Test Docker mode
+    def test_docker_mode_configuration(self):
+        """Test Docker mode configuration properties"""
         with (
             patch.object(settings.firecrawl_settings, "deployment_mode", "docker"),
             patch.object(
@@ -200,31 +139,6 @@ class TestFirecrawlDockerMode:
                 settings.firecrawl_settings.effective_url == "http://firecrawl-api:3002"
             )
             assert settings.firecrawl_settings.effective_api_key is None
-
-        # Test API mode
-        with (
-            patch.object(settings.firecrawl_settings, "deployment_mode", "api"),
-            patch.object(settings.firecrawl_settings, "api_key", "test-key"),
-            patch.object(
-                settings.firecrawl_settings, "base_url", "https://api.firecrawl.dev"
-            ),
-        ):
-            assert (
-                settings.firecrawl_settings.effective_url == "https://api.firecrawl.dev"
-            )
-            assert settings.firecrawl_settings.effective_api_key == "test-key"
-
-    def test_fallback_configuration(self):
-        """Test fallback configuration properties"""
-        with (
-            patch.object(settings.firecrawl_settings, "enable_fallback", True),
-            patch.object(settings.firecrawl_settings, "fallback_timeout", 15),
-            patch.object(settings.firecrawl_settings, "api_key", "fallback-key"),
-        ):
-            assert settings.firecrawl_settings.enable_fallback is True
-            assert settings.firecrawl_settings.fallback_timeout == 15
-            # API key should be available for fallback
-            assert settings.firecrawl_settings.api_key == "fallback-key"
 
     @pytest.mark.asyncio
     async def test_batch_scraping_docker_mode(self, docker_settings):
@@ -260,52 +174,30 @@ class TestFirecrawlDockerMode:
                 assert "content" in result
 
     @pytest.mark.asyncio
-    async def test_cleanup_multiple_clients(self):
-        """Test cleanup of multiple HTTP clients"""
+    async def test_cleanup_client(self):
+        """Test cleanup of HTTP client"""
         tool = FirecrawlTool()
 
-        # Mock clients
+        # Mock client
         tool._client = AsyncMock()
-        tool._fallback_client = AsyncMock()
-
-        # Mock cleanup methods
         tool._client.aclose = AsyncMock()
-        tool._fallback_client.aclose = AsyncMock()
 
         # Run cleanup
         await tool.cleanup()
 
-        # Verify clients are cleaned up
+        # Verify client is cleaned up
         assert tool._client is None
-        assert tool._fallback_client is None
 
 
 class TestFirecrawlDockerModeEdgeCases:
     """Test edge cases and error conditions for Docker mode"""
 
     @pytest.mark.asyncio
-    async def test_fallback_client_creation_without_api_key(self):
-        """Test fallback client creation when API key is not configured"""
+    async def test_docker_failure_handling(self):
+        """Test behavior when Docker fails"""
         tool = FirecrawlTool()
 
-        with (
-            patch.object(settings.firecrawl_settings, "enable_fallback", True),
-            patch.object(settings.firecrawl_settings, "api_key", None),
-        ):
-            with pytest.raises(Exception) as exc_info:
-                await tool._get_fallback_client()
-
-            assert "API key not configured" in str(exc_info.value)
-
-    @pytest.mark.asyncio
-    async def test_fallback_disabled_when_docker_fails(self):
-        """Test behavior when fallback is disabled and Docker fails"""
-        tool = FirecrawlTool()
-
-        with (
-            patch.object(settings.firecrawl_settings, "enable_fallback", False),
-            patch.object(tool, "_check_docker_health", return_value=False),
-        ):
+        with patch.object(tool, "_check_docker_health", return_value=False):
             with pytest.raises(Exception) as exc_info:
                 await tool.execute(url="https://example.com")
 

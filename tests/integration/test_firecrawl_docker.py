@@ -28,7 +28,6 @@ class TestFirecrawlDockerIntegration:
             ),
             patch.object(settings.firecrawl_settings, "enabled", True),
             patch.object(settings.firecrawl_settings, "scraping_enabled", True),
-            patch.object(settings.firecrawl_settings, "enable_fallback", True),
         ):
             yield
 
@@ -116,39 +115,18 @@ class TestFirecrawlDockerIntegration:
             assert result["title"] == "Test Page"
             assert "Test Page" in result["content"]
             assert result["link_count"] > 0
-            assert result["image_count"] > 0
+            # Don't check for images since extract_images is False by default
 
     @pytest.mark.asyncio
-    async def test_docker_scraping_with_fallback(
-        self, docker_config, mock_docker_response, mock_health_response
-    ):
-        """Test fallback to external API when Docker fails"""
+    async def test_docker_scraping_failure(self, docker_config):
+        """Test Docker scraping failure"""
         tool = FirecrawlTool()
 
-        # Mock Docker failure and API success
-        with (
-            patch.object(tool, "_check_docker_health", return_value=False),
-            patch.object(
-                tool, "_get_fallback_client", return_value=AsyncMock(post=AsyncMock(return_value=mock_docker_response))
-            ),
-        ):
-            result = await tool.execute(url="https://example.com")
+        with patch.object(tool, "_check_docker_health", return_value=False):
+            with pytest.raises(Exception) as exc_info:
+                await tool.execute(url="https://example.com")
 
-            assert result["url"] == "https://example.com"
-            assert result["title"] == "Test Page"
-
-    @pytest.mark.asyncio
-    async def test_docker_scraping_no_fallback(self, docker_config):
-        """Test Docker scraping failure without fallback"""
-        # Disable fallback
-        with patch.object(settings.firecrawl_settings, "enable_fallback", False):
-            tool = FirecrawlTool()
-
-            with patch.object(tool, "_check_docker_health", return_value=False):
-                with pytest.raises(Exception) as exc_info:
-                    await tool.execute(url="https://example.com")
-
-                assert "unhealthy" in str(exc_info.value).lower()
+            assert "unhealthy" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
     async def test_docker_agent_integration(
@@ -206,21 +184,8 @@ class TestFirecrawlDockerIntegration:
                 assert "content" in result
 
     @pytest.mark.asyncio
-    async def test_docker_mode_switching(self):
-        """Test switching between API and Docker modes"""
-        # Test API mode
-        with (
-            patch.object(settings.firecrawl_settings, "deployment_mode", "api"),
-            patch.object(settings.firecrawl_settings, "api_key", "test-key"),
-            patch.object(
-                settings.firecrawl_settings, "base_url", "https://api.firecrawl.dev"
-            ),
-        ):
-            assert (
-                settings.firecrawl_settings.effective_url == "https://api.firecrawl.dev"
-            )
-            assert settings.firecrawl_settings.effective_api_key == "test-key"
-
+    async def test_docker_mode_configuration(self):
+        """Test Docker mode configuration"""
         # Test Docker mode
         with (
             patch.object(settings.firecrawl_settings, "deployment_mode", "docker"),

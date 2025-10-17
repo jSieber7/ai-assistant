@@ -18,9 +18,10 @@ logger = logging.getLogger(__name__)
 class FirecrawlTool(BaseTool):
     """Scrape web content using Firecrawl Docker service with advanced options"""
 
-    def __init__(self):
+    def __init__(self, api_key: Optional[str] = None):
         super().__init__()
         # Use effective configuration from settings
+        # api_key parameter is ignored in Docker-only mode
         self._client = None
 
     @property
