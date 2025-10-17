@@ -34,8 +34,8 @@ examples/
 # Test reports
 *.xml
 junit*.xml
-test-results/
 reports/
+test-results/
 .ruff_cache/
 .mypy_cache/
 .uv-cache/
