@@ -179,6 +179,36 @@ class PlaywrightSettings(BaseSettings):
         env_prefix = "PLAYWRIGHT_"
 
 
+class MilvusSettings(BaseSettings):
+    """Milvus vector database configuration for Deep Search agent"""
+
+    # Connection settings
+    enabled: bool = True
+    host: str = "milvus"
+    port: int = 19530
+    user: Optional[str] = None
+    password: Optional[str] = None
+    database: str = "default"
+
+    # Collection settings
+    collection_prefix: str = "deep_search_"
+    embedding_dimension: int = 1536  # Default for OpenAI embeddings
+    index_type: str = "HNSW"  # HNSW, IVF_FLAT, IVF_PQ, etc.
+    metric_type: str = "COSINE"  # COSINE, L2, IP
+
+    # Performance settings
+    connection_pool_size: int = 10
+    connection_timeout: int = 10
+    max_retries: int = 3
+
+    # Collection management
+    auto_cleanup: bool = True  # Auto-cleanup temporary collections
+    cleanup_delay: int = 3600  # Delay before cleanup (seconds)
+
+    class Config:
+        env_prefix = "MILVUS_"
+
+
 class Settings(BaseSettings):
     # OpenAI-compatible provider settings (new generic approach)
     openai_settings: OpenAISettings = OpenAISettings()
@@ -229,6 +259,9 @@ class Settings(BaseSettings):
 
     # Playwright settings
     playwright_settings: PlaywrightSettings = PlaywrightSettings()
+
+    # Milvus settings
+    milvus_settings: MilvusSettings = MilvusSettings()
 
     # Jina Reranker settings
     jina_reranker_enabled: bool = False
