@@ -113,14 +113,10 @@ class OpenAISettings(BaseSettings):
 
 
 class FirecrawlSettings(BaseSettings):
-    """Firecrawl configuration for web scraping and data storage"""
+    """Firecrawl configuration for web scraping and data storage (Docker-only)"""
 
     enabled: bool = False
-    deployment_mode: str = "api"  # "api" for external API, "docker" for self-hosted
-
-    # External API Configuration
-    api_key: Optional[str] = None
-    base_url: str = "https://api.firecrawl.dev"
+    deployment_mode: str = "docker"  # Docker-only mode
 
     # Docker Configuration
     docker_url: str = "http://firecrawl-api:3002"
@@ -141,24 +137,18 @@ class FirecrawlSettings(BaseSettings):
     include_tags: List[str] = ["article", "main", "content"]
     exclude_tags: List[str] = ["nav", "footer", "aside", "script", "style"]
 
-    # Fallback settings
-    enable_fallback: bool = True  # Fall back to external API if Docker fails
-    fallback_timeout: int = 10  # Timeout for Docker health check
+    # Health check timeout
+    health_check_timeout: int = 10  # Timeout for Docker health check
 
     @property
     def effective_url(self) -> str:
-        """Get the effective URL based on deployment mode"""
-        if self.deployment_mode == "docker":
-            return self.docker_url
-        return self.base_url
+        """Get the Docker URL"""
+        return self.docker_url
 
     @property
     def effective_api_key(self) -> Optional[str]:
-        """Get the effective API key based on deployment mode"""
-        if self.deployment_mode == "docker":
-            # Docker mode doesn't need API key for basic operations
-            return None
-        return self.api_key
+        """Docker mode doesn't need API key"""
+        return None
 
     class Config:
         env_prefix = "FIRECRAWL_"
@@ -607,7 +597,7 @@ def initialize_agent_system():
 
 
 def initialize_firecrawl_system():
-    """Initialize the Firecrawl scraping system with tools and agents"""
+    """Initialize the Firecrawl Docker scraping system with tools and agents"""
     from .tools.registry import tool_registry
     from .tools.firecrawl_tool import FirecrawlTool
     from .agents.registry import agent_registry
@@ -620,13 +610,10 @@ def initialize_firecrawl_system():
     # Initialize LLM providers first
     initialize_llm_providers()
 
-    # Create Firecrawl scraper tool
-    firecrawl_tool = FirecrawlTool(
-        api_key=settings.firecrawl_settings.effective_api_key,
-        base_url=settings.firecrawl_settings.effective_url,
-    )
+    # Create Firecrawl scraper tool (Docker-only)
+    firecrawl_tool = FirecrawlTool()
     tool_registry.register(firecrawl_tool, category="firecrawl")
-    logger.info("Firecrawl scraper tool registered")
+    logger.info("Firecrawl Docker scraper tool registered")
 
     # Create Firecrawl scraper agent
     try:
@@ -647,7 +634,7 @@ def initialize_firecrawl_system():
 
         firecrawl_agent = FirecrawlAgent(llm=llm)
         agent_registry.register(firecrawl_agent, category="firecrawl")
-        logger.info("Firecrawl scraper agent registered")
+        logger.info("Firecrawl Docker scraper agent registered")
 
     except Exception as e:
         logger.error(f"Failed to create Firecrawl scraper agent: {str(e)}")

@@ -88,12 +88,7 @@ Remember to handle errors gracefully and provide helpful feedback to users."""
     async def _get_scraper_tool(self) -> FirecrawlTool:
         """Get or create the Firecrawl scraper tool"""
         if self._scraper_tool is None:
-            from ..config import settings
-
-            self._scraper_tool = FirecrawlTool(
-                api_key=settings.firecrawl_settings.effective_api_key,
-                base_url=settings.firecrawl_settings.effective_url,
-            )
+            self._scraper_tool = FirecrawlTool()
         return self._scraper_tool
 
     async def _analyze_scraping_task(self, query: str) -> Dict[str, Any]:

@@ -9,43 +9,33 @@ Firecrawl is a powerful web scraping tool that can:
 - Handle JavaScript-rendered pages
 - Provide content in multiple formats (Markdown, HTML, raw text)
 - Extract links and images
-- Work with both self-hosted Docker instances and external API
+- Works with self-hosted Docker instances
 
-## Deployment Modes
+## Deployment Mode
 
-Firecrawl supports two deployment modes:
+Firecrawl now supports Docker-only deployment:
 
-### 1. API Mode (Default)
-- Uses the external Firecrawl API service
-- Requires an API key
-- Easy to set up
-- Usage-based pricing
-
-### 2. Docker Mode
+### Docker Mode (Required)
 - Uses a self-hosted Firecrawl instance
 - No API costs
-- More control over data
+- Complete control over data
 - Requires Docker setup
 
 ## Quick Start
 
-### 1. Choose Your Deployment Mode
+### 1. Configure Docker Mode
 
 Set the deployment mode in your `.env` file:
 
 ```bash
-# For API mode (default)
-FIRECRAWL_DEPLOYMENT_MODE=api
-FIRECRAWL_API_KEY=your_api_key_here
-
-# For Docker mode
+# Docker mode (required)
 FIRECRAWL_DEPLOYMENT_MODE=docker
 FIRECRAWL_DOCKER_URL=http://firecrawl-api:3002
+FIRECRAWL_BULL_AUTH_KEY=change_me_firecrawl
 ```
 
-### 2. Start Firecrawl Services
+### 2. Start Firecrawl Docker Services
 
-#### For Docker Mode:
 ```bash
 # Start Firecrawl Docker services
 make firecrawl
@@ -56,9 +46,6 @@ make firecrawl-status
 # View logs
 make firecrawl-logs
 ```
-
-#### For API Mode:
-No additional services needed. Just ensure your API key is valid.
 
 ### 3. Use Firecrawl in Your Application
 
@@ -107,19 +94,15 @@ for result in results:
 
 ### Basic Configuration:
 ```bash
-# Deployment mode (api or docker)
+# Deployment mode (docker only)
 FIRECRAWL_DEPLOYMENT_MODE=docker
-
-# API mode settings
-FIRECRAWL_API_KEY=your_api_key
-FIRECRAWL_BASE_URL=https://api.firecrawl.dev
 
 # Docker mode settings
 FIRECRAWL_DOCKER_URL=http://firecrawl-api:3002
+FIRECRAWL_BULL_AUTH_KEY=change_me_firecrawl
 
-# Fallback settings
-FIRECRAWL_ENABLE_FALLBACK=true
-FIRECRAWL_FALLBACK_TIMEOUT=10
+# Health check timeout
+FIRECRAWL_HEALTH_CHECK_TIMEOUT=10
 ```
 
 ### Scraping Settings:
@@ -145,13 +128,16 @@ FIRECRAWL_SCRAPE_TIMEOUT=60
 FIRECRAWL_MAX_CONCURRENT_SCRAPES=5
 ```
 
-## Fallback Mechanism
+## Docker Service Requirements
 
-Firecrawl includes a built-in fallback mechanism:
+Firecrawl requires Docker services to be running:
 
-- If Docker mode is enabled but the Docker instance is unhealthy, it will automatically fall back to the external API
-- This ensures high availability and reliability
-- You can disable fallback by setting `FIRECRAWL_ENABLE_FALLBACK=false`
+- Firecrawl API service (firecrawl-api)
+- Redis for queue management (firecrawl-redis)
+- PostgreSQL for data storage (firecrawl-postgres)
+- Playwright for browser automation (firecrawl-playwright)
+
+All services must be healthy for Firecrawl to function properly.
 
 ## Testing
 
@@ -204,21 +190,18 @@ python utility/test_firecrawl_docker.py
 
 ## Best Practices
 
-1. **Use Docker Mode for:**
+1. **Always Use Docker Mode:**
    - High-volume scraping
-   - Sensitive data
+   - Sensitive data protection
    - Cost control
+   - Complete data ownership
 
-2. **Use API Mode for:**
-   - Quick prototyping
-   - Low-volume scraping
-   - Simpler setup
+2. **Ensure Docker Services Are Running:**
+   - Check service health before scraping
+   - Monitor resource usage
+   - Scale workers as needed
 
-3. **Enable Fallback:**
-   - For production systems
-   - When high availability is required
-
-4. **Monitor Performance:**
+3. **Monitor Performance:**
    - Use the built-in metrics
    - Monitor error rates
    - Adjust timeout and concurrency settings as needed
