@@ -3,7 +3,7 @@
 # =============================================================================
 # Provides convenient commands for development, testing, and deployment
 
-.PHONY: help install dev test lint format clean docker docker-down docker-logs firecrawl firecrawl-down firecrawl-logs health-check docs
+.PHONY: help install dev test lint format clean docker docker-down docker-logs firecrawl firecrawl-down firecrawl-logs health-check docs shutdown-everything nuke
 
 # Default target
 .DEFAULT_GOAL := help
@@ -41,7 +41,7 @@ setup-dev: ## Set up development environment
 
 dev: ## Run development server
 	@echo "Starting development server..."
-	uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+	uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 dev-docker: ## Run development with Docker
 	@echo "Starting development environment with Docker..."
@@ -53,36 +53,36 @@ dev-docker: ## Run development with Docker
 
 test: ## Run all tests
 	@echo "Running all tests..."
-	pytest
+	uv run pytest
 
 test-unit: ## Run unit tests only
 	@echo "Running unit tests..."
-	pytest tests/unit/
+	uv run  pytest tests/unit/
 
 test-integration: ## Run integration tests
 	@echo "Running integration tests..."
-	pytest tests/integration/
+	uv run pytest tests/integration/
 
 test-firecrawl: ## Run Firecrawl Docker tests
 	@echo "Running Firecrawl Docker tests..."
-	pytest tests/unit/test_firecrawl_docker_mode.py tests/integration/test_firecrawl_docker.py -v
+	uv run pytest tests/unit/test_firecrawl_docker_mode.py tests/integration/test_firecrawl_docker.py -v
 
 test-firecrawl-unit: ## Run Firecrawl unit tests only
 	@echo "Running Firecrawl unit tests..."
-	pytest tests/unit/test_firecrawl_docker_mode.py tests/unit/test_firecrawl_scraping.py -v
+	uv run pytest tests/unit/test_firecrawl_docker_mode.py tests/unit/test_firecrawl_scraping.py -v
 
 test-firecrawl-integration: ## Run Firecrawl integration tests
 	@echo "Running Firecrawl integration tests..."
-	pytest tests/integration/test_firecrawl_docker.py -v
+	uv run pytest tests/integration/test_firecrawl_docker.py -v
 
 test-firecrawl-live: ## Run live Firecrawl tests (requires Docker services)
 	@echo "Running live Firecrawl tests..."
 	@echo "Make sure Firecrawl Docker services are running: make firecrawl"
-	pytest tests/integration/test_firecrawl_docker.py::TestFirecrawlDockerLive -v -s
+	uv run pytest tests/integration/test_firecrawl_docker.py::TestFirecrawlDockerLive -v -s
 
 test-coverage: ## Run tests with coverage report
 	@echo "Running tests with coverage..."
-	pytest --cov=app --cov-report=html --cov-report=term
+	uv run pytest --cov=app --cov-report=html --cov-report=term
 
 # =============================================================================
 # Code Quality
@@ -90,23 +90,23 @@ test-coverage: ## Run tests with coverage report
 
 lint: ## Run linting
 	@echo "Running linting..."
-	ruff check app/ tests/
+	uv run ruff check app/ tests/
 
 format: ## Format code
 	@echo "Formatting code..."
-	ruff format app/ tests/
+	uv run ruff format app/ tests/
 
 format-check: ## Check code formatting
 	@echo "Checking code formatting..."
-	ruff format --check app/ tests/
+	uv run ruff format --check app/ tests/
 
 type-check: ## Run type checking
 	@echo "Running type checking..."
-	mypy app/
+	uv run mypy app/
 
 security-check: ## Run security checks
 	@echo "Running security checks..."
-	bandit -r app/
+	uv run bandit -r app/
 
 # =============================================================================
 # Docker Commands
@@ -255,6 +255,52 @@ clean-docker: ## Clean up Docker resources
 	docker volume prune -f
 
 clean-all: clean clean-docker ## Clean up everything
+
+# =============================================================================
+# EMERGENCY SHUTDOWN COMMANDS
+# =============================================================================
+
+shutdown-everything: ## SHUT DOWN ALL DOCKER SERVICES ACROSS ALL PROFILES
+	@echo "🚨 EMERGENCY SHUTDOWN INITIATED - STOPPING ALL SERVICES 🚨"
+	@echo "Stopping all Docker services across all profiles..."
+	@echo "Phase 1: Stopping main profiles..."
+	docker compose --profile dev down --remove-orphans || true
+	docker compose --profile production down --remove-orphans || true
+	docker compose --profile firecrawl down --remove-orphans || true
+	@echo "Phase 2: Stopping optional profiles..."
+	docker compose --profile monitoring down --remove-orphans || true
+	docker compose --profile mongodb down --remove-orphans || true
+	docker compose --profile postgres down --remove-orphans || true
+	docker compose --profile jina-reranker down --remove-orphans || true
+	@echo "Phase 3: Stopping any remaining services..."
+	docker compose down --remove-orphans || true
+	@echo "Phase 4: Force stopping any stubborn containers..."
+	docker stop $$(docker ps -q) 2>/dev/null || true
+# 	@echo "Phase 5: Removing all containers..."
+# 	docker rm $$(docker ps -aq) 2>/dev/null || true
+# 	@echo "Phase 6: Removing all networks..."
+# 	docker network prune -f || true
+# 	@echo "Phase 7: Cleaning up system resources..."
+# 	docker system prune -af || true
+	@echo "✅ ALL SERVICES SHUT DOWN SUCCESSFULLY!"
+
+nuke: ## NUCLEAR OPTION - COMPLETE DOCKER SYSTEM RESET
+	@echo "☢️  NUCLEAR OPTION INITIATED - COMPLETE SYSTEM RESET ☢️"
+	@echo "This will remove ALL Docker data - containers, networks, volumes, images!"
+	@read -p "Are you absolutely sure? Type 'NUKE' to confirm: " confirm && [ "$$confirm" = "NUKE" ] || exit 1
+	@echo "Phase 1: Stopping ALL containers..."
+	docker stop $$(docker ps -aq) 2>/dev/null || true
+	@echo "Phase 2: Removing ALL containers..."
+	docker rm $$(docker ps -aq) 2>/dev/null || true
+	@echo "Phase 3: Removing ALL networks..."
+	docker network rm $$(docker network ls -q) 2>/dev/null || true
+	@echo "Phase 4: Removing ALL volumes (THIS WILL DELETE ALL DATA)..."
+	docker volume rm $$(docker volume ls -q) 2>/dev/null || true
+	@echo "Phase 5: Removing ALL images..."
+	docker rmi $$(docker images -q) 2>/dev/null || true
+	@echo "Phase 6: System cleanup..."
+	docker system prune -af --volumes || true
+	@echo "☢️  COMPLETE SYSTEM RESET FINISHED - ALL DOCKER DATA REMOVED!"
 
 # =============================================================================
 # Production

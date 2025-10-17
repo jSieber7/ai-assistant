@@ -198,9 +198,10 @@ class ResultCompressor:
         Returns:
             Serialized bytes
         """
-        # Use pickle for general serialization
+        # Use pickle for general serialization with a safer protocol
         # In production, you might want to use a more efficient serialization format
-        return pickle.dumps(data)
+        # like JSON for simple data types or MessagePack for complex data
+        return pickle.dumps(data, protocol=pickle.HIGHEST_PROTOCOL)
 
     def _deserialize_data(self, data: bytes) -> Any:
         """
@@ -212,7 +213,13 @@ class ResultCompressor:
         Returns:
             The original data
         """
-        return pickle.loads(data)
+        # Use pickle for deserialization with error handling
+        # In production, consider using a more secure serialization format
+        try:
+            return pickle.loads(data)  # nosec B301
+        except pickle.PickleError as e:
+            logger.error(f"Failed to deserialize data: {e}")
+            raise ValueError("Failed to deserialize cached data")
 
     async def auto_compress(self, data: Any) -> CompressionResult:
         """

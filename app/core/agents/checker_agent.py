@@ -108,11 +108,11 @@ class CheckerAgent(BaseAgent):
 
         prompt = f"""
         Content to Check:
-        Writer ID: {content.get('writer_id', 'unknown')}
-        Specialty: {content.get('specialty', 'unknown')}
+        Writer ID: {content.get("writer_id", "unknown")}
+        Specialty: {content.get("specialty", "unknown")}
         
         Content:
-        {content.get('content', '')}
+        {content.get("content", "")}
         
         Please analyze this content and provide:
         1. Overall quality score (0-100)

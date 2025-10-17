@@ -94,12 +94,12 @@ class MultiContentOrchestrator:
             logger.info(
                 f"Starting Stage 2: Content generation for workflow {workflow_id}"
             )
-            result["stages"]["content_generation"] = (
-                await self._stage_2_generate_content(
-                    prompt,
-                    result["stages"]["source_processing"]["processed_content"],
-                    style_guide,
-                )
+            result["stages"][
+                "content_generation"
+            ] = await self._stage_2_generate_content(
+                prompt,
+                result["stages"]["source_processing"]["processed_content"],
+                style_guide,
             )
 
             # Stage 3: Quality checking and improvement
@@ -116,10 +116,10 @@ class MultiContentOrchestrator:
             logger.info(
                 f"Starting Stage 4: Template rendering for workflow {workflow_id}"
             )
-            result["stages"]["template_rendering"] = (
-                await self._stage_4_template_rendering(
-                    result["stages"]["quality_checking"]["best_content"], template_name
-                )
+            result["stages"][
+                "template_rendering"
+            ] = await self._stage_4_template_rendering(
+                result["stages"]["quality_checking"]["best_content"], template_name
             )
 
             # Final result

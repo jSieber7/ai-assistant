@@ -16,17 +16,17 @@ class TestGradioInterface:
         """Test if Gradio app can be imported"""
         from app.ui import create_gradio_app
 
-        assert (
-            create_gradio_app is not None
-        ), "Failed to import create_gradio_app function"
+        assert create_gradio_app is not None, (
+            "Failed to import create_gradio_app function"
+        )
 
     def test_gradio_mount_function_import(self):
         """Test if mount_gradio_app function can be imported"""
         from app.ui import mount_gradio_app
 
-        assert (
-            mount_gradio_app is not None
-        ), "Failed to import mount_gradio_app function"
+        assert mount_gradio_app is not None, (
+            "Failed to import mount_gradio_app function"
+        )
 
     def test_gradio_dependency_installed(self):
         """Test if Gradio is installed"""
@@ -34,9 +34,9 @@ class TestGradioInterface:
             import gradio as gr
 
             assert hasattr(gr, "Blocks"), "Gradio Blocks class not found"
-            assert hasattr(
-                gr, "mount_gradio_app"
-            ), "Gradio mount_gradio_app function not found"
+            assert hasattr(gr, "mount_gradio_app"), (
+                "Gradio mount_gradio_app function not found"
+            )
         except ImportError:
             pytest.fail("Gradio is not installed")
 

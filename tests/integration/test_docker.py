@@ -241,9 +241,9 @@ class TestDockerIntegration:
                     200,
                     404,
                 ]  # 404 is acceptable for some endpoints
-                assert (
-                    success
-                ), f"{description} ({endpoint}) returned status {response.status_code}"
+                assert success, (
+                    f"{description} ({endpoint}) returned status {response.status_code}"
+                )
             except Exception as e:
                 pytest.fail(f"{description} ({endpoint}) failed with error: {str(e)}")
 

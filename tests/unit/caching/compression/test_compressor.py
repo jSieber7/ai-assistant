@@ -121,6 +121,7 @@ class TestResultCompressor:
         assert result.original_size > 0
         assert result.compressed_size == result.original_size
         assert result.compression_ratio == 1.0
+        # The compressed data should be the serialized data when using NONE algorithm
         assert result.compressed_data == pickle.dumps(test_data)
 
     @pytest.mark.asyncio
@@ -197,6 +198,7 @@ class TestResultCompressor:
         result = await compressor.compress(test_data, CompressionAlgorithm.GZIP)
 
         # Should use NONE algorithm for small data (below min_size_for_compression=10)
+        # The compressor automatically switches to NONE for small data regardless of requested algorithm
         assert result.algorithm == CompressionAlgorithm.NONE
         assert result.compressed_data == pickle.dumps(test_data)
 
@@ -445,14 +447,14 @@ class TestCompressedCacheBackend:
         assert metadata_call is not None, "Metadata call not found"
 
         # Verify the value is bytes (compressed data)
-        assert isinstance(
-            value_call[1], bytes
-        ), f"Expected bytes, got {type(value_call[1])}"
+        assert isinstance(value_call[1], bytes), (
+            f"Expected bytes, got {type(value_call[1])}"
+        )
 
         # Verify the metadata is a dict with expected keys
-        assert isinstance(
-            metadata_call[1], dict
-        ), f"Expected dict, got {type(metadata_call[1])}"
+        assert isinstance(metadata_call[1], dict), (
+            f"Expected dict, got {type(metadata_call[1])}"
+        )
         assert "algorithm" in metadata_call[1]
         assert "original_size" in metadata_call[1]
         assert "compressed_size" in metadata_call[1]

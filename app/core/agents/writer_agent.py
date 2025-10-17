@@ -54,9 +54,9 @@ class WriterAgent(BaseAgent):
         Task: {prompt}
         
         Source Material:
-        Title: {source_content.get('title', '')}
-        Content: {source_content.get('content', '')[:2000]}...
-        Key Points: {', '.join(source_content.get('key_points', [])[:5])}
+        Title: {source_content.get("title", "")}
+        Content: {source_content.get("content", "")[:2000]}...
+        Key Points: {", ".join(source_content.get("key_points", [])[:5])}
         
         Instructions:
         1. Write as a {self.specialty} writer
@@ -126,10 +126,10 @@ class WriterAgent(BaseAgent):
             base_prompt += f"""
             
             Style Guide:
-            - Tone: {style_guide.get('tone', 'professional')}
-            - Audience: {style_guide.get('audience', 'general')}
-            - Length: {style_guide.get('length', 'medium')}
-            - Format: {style_guide.get('format', 'article')}
+            - Tone: {style_guide.get("tone", "professional")}
+            - Audience: {style_guide.get("audience", "general")}
+            - Length: {style_guide.get("length", "medium")}
+            - Format: {style_guide.get("format", "article")}
             """
 
         return base_prompt

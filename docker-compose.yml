@@ -28,6 +28,8 @@ volumes:
     driver: local
   firecrawl_postgres_data:
     driver: local
+  jina_reranker_logs:
+    driver: local
 
 services:
   # =============================================================================
@@ -145,8 +147,13 @@ services:
     profiles:
       - firecrawl
     labels:
-      # Internal service - accessible only within Docker network
-      - "traefik.enable=false"
+      # Traefik routing for external access
+      - "traefik.enable=true"
+      - "traefik.http.routers.jina-reranker.rule=PathPrefix(`/rerank`)"
+      - "traefik.http.routers.jina-reranker.priority=300"
+      - "traefik.http.routers.jina-reranker.entrypoints=web"
+      - "traefik.http.routers.jina-reranker.middlewares=security-headers@file,rate-limit@file,compression@file"
+      - "traefik.http.services.jina-reranker.loadbalancer.server.port=8080"
 
   # Firecrawl Worker Service
   firecrawl-worker:
@@ -185,8 +192,47 @@ services:
       start_period: 60s
     profiles:
       - firecrawl
+  # =============================================================================
+  # Jina Reranker Service
+  # =============================================================================
+
+  # Jina AI Reranker Service
+  jina-reranker:
+    build:
+      context: ./docker-configs/jina-reranker
+      dockerfile: Dockerfile
+    container_name: ai-assistant-jina-reranker
+    environment:
+      - JINA_API_KEY=${JINA_API_KEY}
+      - REDIS_URL=redis://redis:6379/1
+      - CONFIG_PATH=/app/config.yml
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - jina_reranker_logs:/app/logs
+      - ./docker-configs/jina-reranker/config.yml:/app/config.yml
+    networks:
+      - ai-assistant-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    profiles:
+      - production
+      - dev
+      - jina-reranker
     labels:
-      - "traefik.enable=false"  # Internal service only
+      # Traefik routing for external access
+      - "traefik.enable=true"
+      - "traefik.http.routers.jina-reranker.rule=PathPrefix(`/rerank`)"
+      - "traefik.http.routers.jina-reranker.priority=300"
+      - "traefik.http.routers.jina-reranker.entrypoints=web"
+      - "traefik.http.routers.jina-reranker.middlewares=security-headers@file,rate-limit@file,compression@file"
+      - "traefik.http.services.jina-reranker.loadbalancer.server.port=8080"
 
   # =============================================================================
   # Core Services
@@ -212,8 +258,6 @@ services:
         condition: service_healthy
       searxng:
         condition: service_healthy
-      firecrawl-api:
-        condition: service_started
     volumes:
       - ./logs:/app/logs
       - searxng_static:/usr/local/searxng/searx/static:ro  # Mount SearxNG static files
@@ -428,8 +472,6 @@ services:
         condition: service_healthy
       searxng:
         condition: service_healthy
-      firecrawl-api:
-        condition: service_started
     networks:
       - ai-assistant-network
     restart: unless-stopped

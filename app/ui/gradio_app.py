@@ -677,7 +677,6 @@ def create_gradio_app() -> gr.Blocks:
         }
         """,
     ) as app:
-
         gr.Markdown("# AI Assistant Configuration & Testing Interface")
 
         # Show initialization status if there were issues

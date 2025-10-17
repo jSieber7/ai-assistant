@@ -307,7 +307,7 @@ async def _stream_response(messages, llm, model_name):
                 yield f"data: {json.dumps(error_chunk)}\n\n"
             except Exception:
                 # Fallback if JSON serialization fails
-                yield f"data: {{\"error\": {{\"message\": \"{str(e).replace('\"', '\\\"')}\", \"type\": \"error\"}}}}\n\n"
+                yield f'data: {{"error": {{"message": "{str(e).replace('"', '\\"')}", "type": "error"}}}}\n\n'
 
     return StreamingResponse(generate(), media_type="text/plain")
 

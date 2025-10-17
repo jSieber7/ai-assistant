@@ -511,7 +511,7 @@ def generate_cache_key(prefix: str, *args, **kwargs) -> str:
 
     # If key is too long, use a hash
     if len(key) > 200:
-        hash_obj = hashlib.md5(key.encode())
+        hash_obj = hashlib.md5(key.encode(), usedforsecurity=False)
         key = f"{prefix}:{hash_obj.hexdigest()}"
 
     # Replace problematic characters
