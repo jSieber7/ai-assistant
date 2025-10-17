@@ -17,10 +17,14 @@
 
 </div>
 
-
-# LLM Tool System Foundation
-
-A comprehensive, extensible tool system foundation for AI assistants built with FastAPI and LangChain. This project provides a robust framework for integrating tool-calling capabilities into LLM applications, featuring advanced caching, monitoring, and agent orchestration.
+# *It just works* Open-Source, Secure and Private, LLM Toolkit
+*Why use this LLM Agent System*
+* Supercharge LLMs with automated tools such as Web Searching, Deep Search and LLMs that are able to collaborate all behind the scenes. 
+  * **Using outside, free and opensource tools enhances your AI replies!**
+* Simplified install with Docker and visual interface for configuration
+* Compatible with local and cloud based LLMs
+* For developers, extensible design for agents and tools
+* Compatible with LLM Front ends via an OpenAI API interface
 
 ## Docs
 
@@ -34,11 +38,9 @@ This is a production-ready foundation for building AI assistants with tool-calli
 
 ## 🚀 Quick Start
 
-### Option 1: Docker (Recommended)
-
 #### Prerequisites
 - Docker and Docker Compose installed
-- API key for any OpenAI-compatible provider (OpenRouter, OpenAI, Together AI, etc.)
+- API key for any OpenAI-compatible provider (OpenRouter, OpenAI, Together AI, etc.) or locally based (Ollama or Llamma.ccp) service.
 
 #### Quick Setup
 ```bash
