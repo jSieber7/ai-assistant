@@ -189,7 +189,7 @@ services:
     environment:
       - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY}
     volumes:
-      - ./docker-configs/searxng:/etc/searxng
+      - ./config/searxng:/etc/searxng
     restart: unless-stopped
     deploy:
       resources:
@@ -232,7 +232,7 @@ services:
 
   jina-reranker:
     build:
-      context: ./docker-configs/jina-reranker
+      context: ./config/jina-reranker
     environment:
       - MODEL_NAME=jina-reranker-v1-base-en
     restart: unless-stopped
@@ -247,7 +247,7 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./docker-configs/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./config/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     restart: unless-stopped
 
@@ -260,7 +260,7 @@ services:
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./docker-configs/monitoring/grafana:/etc/grafana/provisioning
+      - ./config/monitoring/grafana:/etc/grafana/provisioning
     restart: unless-stopped
 
 volumes:

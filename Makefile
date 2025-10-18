@@ -429,10 +429,10 @@ shutdown-everything: ## SHUT DOWN ALL DOCKER SERVICES ACROSS ALL PROFILES
 	docker compose --profile milvus down --remove-orphans || true
 	@echo "Phase 3: Stopping any remaining services..."
 	docker compose down --remove-orphans || true
-	@echo "Phase 4: Force stopping any stubborn containers..."
-	docker stop $$(docker ps -q) 2>/dev/null || true
+	@echo "Phase 4: Force stopping any stubborn containers from this project..."
+	docker compose ps -q | xargs -r docker stop 2>/dev/null || true
 # 	@echo "Phase 5: Removing all containers..."
-# 	docker rm $$(docker ps -aq) 2>/dev/null || true
+# 	docker compose ps -q | xargs -r docker rm 2>/dev/null || true
 # 	@echo "Phase 6: Removing all networks..."
 # 	docker network prune -f || true
 # 	@echo "Phase 7: Cleaning up system resources..."

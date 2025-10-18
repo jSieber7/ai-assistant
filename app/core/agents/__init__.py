@@ -6,11 +6,11 @@ tool execution, enabling intelligent tool selection based on context and
 query analysis.
 """
 
-from .base import BaseAgent, AgentResult, AgentError
-from .tool_agent import ToolAgent
-from .firecrawl_agent import FirecrawlAgent
-from .strategies import ToolSelectionStrategy, KeywordStrategy, LLMStrategy
-from .registry import AgentRegistry
+from .base.base import BaseAgent, AgentResult, AgentError
+from .specialized.tool_agent import ToolAgent
+from .specialized.firecrawl_agent import FirecrawlAgent
+from .utilities.strategies import ToolSelectionStrategy, KeywordStrategy, LLMStrategy
+from .management.registry import AgentRegistry
 
 __all__ = [
     "BaseAgent",

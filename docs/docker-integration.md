@@ -121,7 +121,7 @@ Key environment variables for Docker deployment:
 
 ### Traefik Configuration
 
-The project includes Traefik as a reverse proxy with configuration in `docker-configs/traefik.yml`. Key features:
+The project includes Traefik as a reverse proxy with configuration in `config/docker/traefik.yml`. Key features:
 - Single entry point for all services
 - Automatic service discovery
 - Path-based routing

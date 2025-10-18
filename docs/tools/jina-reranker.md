@@ -127,7 +127,7 @@ reranked_results = await reranker.rerank_search_results(
 
 ### Docker Configuration
 
-The service can be configured using the `docker-configs/jina-reranker/config.yml` file:
+The service can be configured using the `config/jina-reranker/config.yml` file:
 
 ```yaml
 service:

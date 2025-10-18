@@ -15,9 +15,9 @@ SearXNG is a privacy-respecting metasearch engine that provides search capabilit
 - **Shared between dev and production environments**
 
 ### 2. Configuration Files
-- **`docker-configs/searxng/settings.yml`**: Main SearXNG configuration
-- **`docker-configs/searxng/limiter.toml`**: Rate limiting and bot protection
-- **`docker-configs/searxng/plugins.yml`**: Available plugins
+- **`config/searxng/settings.yml`**: Main SearXNG configuration
+- **`config/searxng/limiter.toml`**: Rate limiting and bot protection
+- **`config/searxng/plugins.yml`**: Available plugins
 
 ## Environment Variables
 

@@ -59,8 +59,8 @@ The main configuration file now includes:
 - Updated service labels for routing
 - Removed direct port exposures for internal services
 
-### docker-configs/traefik.yml
-Traefik configuration file located in the docker-configs directory with:
+### config/docker/traefik.yml
+Traefik configuration file located in the config/docker directory with:
 - Development-friendly settings
 - Dashboard enabled (insecure)
 - Docker provider configuration

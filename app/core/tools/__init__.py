@@ -5,7 +5,7 @@ This module provides the foundation for an extensible tool system that allows
 the AI assistant to interact with various external systems and perform tasks.
 """
 
-from .base import (
+from .base.base import (
     BaseTool,
     ToolResult,
     ToolError,
@@ -13,12 +13,12 @@ from .base import (
     ToolConfigurationError,
     ToolExecutionError,
 )
-from .registry import ToolRegistry
-from .examples import CalculatorTool, TimeTool, EchoTool
-from .searxng_tool import SearXNGTool
-from .firecrawl_tool import FirecrawlTool
-from .config import ToolSystemSettings, tool_settings
-from .langchain_integration import (
+from .execution.registry import ToolRegistry
+from .utilities.examples import CalculatorTool, TimeTool, EchoTool
+from .web.searxng_tool import SearXNGTool
+from .web.firecrawl_tool import FirecrawlTool
+from .base.config import ToolSystemSettings, tool_settings
+from .integration.langchain_integration import (
     LangChainToolWrapper,
     LangChainToolkit,
     ToolOutputParser,

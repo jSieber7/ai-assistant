@@ -52,7 +52,7 @@ Uncomment the Firecrawl include in your main `docker-compose.yml`:
 ```yaml
 # Firecrawl Self-Hosted Services
 include:
-  - docker-configs/firecrawl/docker-compose.yml
+  - config/docker/firecrawl/docker-compose.yml
 ```
 
 ### 3. Start Services
@@ -64,7 +64,7 @@ Start all services including Firecrawl:
 docker compose up -d
 
 # Start Firecrawl services
-docker compose -f docker-configs/firecrawl/docker-compose.yml up -d
+docker compose -f config/docker/firecrawl/docker-compose.yml up -d
 ```
 
 Or start everything at once:
@@ -386,7 +386,7 @@ If you need to rollback to the external API:
 
 2. Stop Docker services:
    ```bash
-   docker compose -f docker-configs/firecrawl/docker-compose.yml down
+   docker compose -f config/docker/firecrawl/docker-compose.yml down
    ```
 
 3. Restart main application:

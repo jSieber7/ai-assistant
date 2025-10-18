@@ -72,8 +72,8 @@ make up
 ## Configuration Files
 
 - **docker-compose.yml**: Main service definitions
-- **docker-configs/traefik.yml**: Base Traefik configuration
-- **docker-configs/traefik-prod.yml**: Production-specific security settings
+- **config/docker/traefik.yml**: Base Traefik configuration
+- **config/docker/traefik-prod.yml**: Production-specific security settings
 
 ## Security Middleware (Production Only)
 

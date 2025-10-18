@@ -203,8 +203,8 @@ async def get_system_status() -> Dict[str, Any]:
     This endpoint combines health, metrics, and configuration information
     to provide a complete overview of the system status.
     """
-    from app.core.tools.registry import tool_registry
-    from app.core.agents.registry import agent_registry
+    from app.core.tools.execution.registry import tool_registry
+    from app.core.agents.management.registry import agent_registry
     from app.core.config import settings
 
     # Get health summary

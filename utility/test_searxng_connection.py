@@ -68,7 +68,7 @@ async def test_ai_assistant_searxng_tool() -> Dict[str, Any]:
 
     try:
         # Import the tool
-        from app.core.tools.searxng_tool import SearXNGTool
+        from app.core.tools.web.searxng_tool import SearXNGTool
 
         # Create an instance
         tool = SearXNGTool()

@@ -201,7 +201,7 @@ services:
   # Jina AI Reranker Service
   jina-reranker:
     build:
-      context: ./docker-configs/jina-reranker
+      context: ./config/jina-reranker
       dockerfile: Dockerfile
     container_name: ai-assistant-jina-reranker
     environment:
@@ -213,7 +213,7 @@ services:
         condition: service_healthy
     volumes:
       - jina_reranker_logs:/app/logs
-      - ./docker-configs/jina-reranker/config.yml:/app/config.yml
+      - ./config/jina-reranker/config.yml:/app/config.yml
     networks:
       - ai-assistant-network
     restart: unless-stopped
@@ -414,9 +414,9 @@ services:
       - "8088:8080"
     volumes:
       # Keep these as read-only, which is a security best practice.
-      - ./docker-configs/searxng/settings.yml:/etc/searxng/settings.yml:ro
-      - ./docker-configs/searxng/limiter.toml:/etc/searxng/limiter.toml:ro
-      - ./docker-configs/searxng/plugins.yml:/etc/searxng/plugins.yml:ro
+      - ./config/searxng/settings.yml:/etc/searxng/settings.yml:ro
+      - ./config/searxng/limiter.toml:/etc/searxng/limiter.toml:ro
+      - ./config/searxng/plugins.yml:/etc/searxng/plugins.yml:ro
       - searxng_static:/usr/local/searxng/searx/static
     environment:
       - BASE_URL=/search
@@ -470,9 +470,9 @@ services:
       - "--global.sendAnonymousUsage=false"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./docker-configs/traefik.yml:/etc/traefik/traefik.yml:ro
-      - ./docker-configs/middlewares.yml:/etc/traefik/dynamic/middlewares.yml:ro
-      - ./docker-configs/traefik-prod.yml:/etc/traefik/traefik-prod.yml:ro
+      - ./config/docker/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./config/docker/middlewares.yml:/etc/traefik/dynamic/middlewares.yml:ro
+      - ./config/docker/traefik-prod.yml:/etc/traefik/traefik-prod.yml:ro
     env_file:
       - .env
     networks:
@@ -522,8 +522,8 @@ services:
       - "--ping.entrypoint=traefik"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./docker-configs/traefik.yml:/etc/traefik/traefik.yml:ro
-      - ./docker-configs/middlewares.yml:/etc/traefik/dynamic/middlewares.yml:ro
+      - ./config/docker/traefik.yml:/etc/traefik/traefik.yml:ro
+      - ./config/docker/middlewares.yml:/etc/traefik/dynamic/middlewares.yml:ro
     networks:
       - ai-assistant-network
     healthcheck:
@@ -649,7 +649,7 @@ services:
       - "27017:27017"
     volumes:
       - mongodb_data:/data/db
-      - ./docker-configs/mongodb/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
+      - ./config/mongodb/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
     networks:
       - ai-assistant-network
     healthcheck:
@@ -718,7 +718,7 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./docker-configs/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./config/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -747,7 +747,7 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./docker-configs/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
+      - ./config/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources
     depends_on:
       prometheus:
         condition: service_healthy

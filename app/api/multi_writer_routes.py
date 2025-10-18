@@ -8,7 +8,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import logging
 
-from app.core.agents.multi_content_orchestrator import create_multi_content_orchestrator
+from app.core.agents.content.multi_content_orchestrator import create_multi_content_orchestrator
 from app.core.storage.mongodb_client import get_mongodb_client
 from app.core.multi_writer_config import (
     is_multi_writer_enabled,
