@@ -11,9 +11,9 @@ from typing import Dict, Any, List, Optional
 from langchain.schema import HumanMessage, SystemMessage
 from langchain.chat_models.base import BaseChatModel
 
-from .base import BaseAgent, AgentResult
-from ..tools.registry import tool_registry
-from ..tools.firecrawl_tool import FirecrawlTool
+from app.core.agents.base.base import BaseAgent, AgentResult
+from app.core.tools.execution.registry import tool_registry
+from app.core.tools.web.firecrawl_tool import FirecrawlTool
 
 logger = logging.getLogger(__name__)
 

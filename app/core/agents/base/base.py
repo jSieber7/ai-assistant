@@ -13,8 +13,8 @@ import time
 import logging
 import uuid
 
-from ..tools.base import ToolResult
-from ..tools.registry import ToolRegistry
+from app.core.tools.base.base import ToolResult
+from app.core.tools.execution.registry import ToolRegistry
 
 try:
     from app.core.monitoring.metrics import metrics_collector

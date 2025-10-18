@@ -6,7 +6,7 @@ for tool registration, discovery, and management.
 """
 
 from typing import Dict, List, Optional, Set, Any
-from .base import BaseTool
+from app.core.tools.base.base import BaseTool
 import logging
 
 logger = logging.getLogger(__name__)

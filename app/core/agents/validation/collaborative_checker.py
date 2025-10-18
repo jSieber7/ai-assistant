@@ -14,7 +14,7 @@ from enum import Enum
 import json
 
 from .checker_agent import CheckerAgent
-from ..config import get_llm
+from app.core.config import get_llm
 
 logger = logging.getLogger(__name__)
 

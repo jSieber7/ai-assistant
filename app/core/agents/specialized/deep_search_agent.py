@@ -16,15 +16,15 @@ from typing import Dict, List, Any, Optional
 from langchain.embeddings.base import Embeddings
 from langchain.chat_models.base import BaseChatModel
 
-from .base import BaseAgent, AgentResult, AgentState
-from ..tools.registry import ToolRegistry
-from ..services.rag_orchestrator import RAGOrchestrator
-from ..services.query_processing import QueryProcessingService
-from ..services.search import SearchService
-from ..services.ingestion import IngestionService
-from ..services.retrieval import RetrievalService
-from ..services.synthesis import SynthesisService
-from ..storage.milvus_client import MilvusClient
+from app.core.agents.base.base import BaseAgent, AgentResult, AgentState
+from app.core.tools.execution.registry import ToolRegistry
+from app.core.services.rag_orchestrator import RAGOrchestrator
+from app.core.services.query_processing import QueryProcessingService
+from app.core.services.search import SearchService
+from app.core.services.ingestion import IngestionService
+from app.core.services.retrieval import RetrievalService
+from app.core.services.synthesis import SynthesisService
+from app.core.storage.milvus_client import MilvusClient
 
 logger = logging.getLogger(__name__)
 

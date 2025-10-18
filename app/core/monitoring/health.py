@@ -270,7 +270,7 @@ class HealthMonitor:
     def _check_tool_registry(self) -> Dict[str, Any]:
         """Check tool registry health"""
         try:
-            from ..tools.registry import tool_registry
+            from ..tools.execution.registry import tool_registry
 
             stats = tool_registry.get_registry_stats()
             total_tools = stats["total_tools"]
@@ -306,7 +306,7 @@ class HealthMonitor:
     def _check_agent_registry(self) -> Dict[str, Any]:
         """Check agent registry health"""
         try:
-            from ..agents.registry import agent_registry
+            from ..agents.management.registry import agent_registry
 
             stats = agent_registry.get_registry_stats()
             total_agents = stats["total_agents"]

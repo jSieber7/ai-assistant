@@ -11,8 +11,8 @@ from langchain.agents import AgentExecutor
 from langchain.agents.agent_toolkits.base import BaseToolkit
 from langchain_core.tools import BaseTool as LangChainCoreTool
 
-from .base import BaseTool
-from .registry import ToolRegistry
+from app.core.tools.base.base import BaseTool
+from ..execution.registry import ToolRegistry
 import logging
 
 

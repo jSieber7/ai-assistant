@@ -11,7 +11,7 @@ from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
 
-from .base import BaseTool, ToolResult
+from app.core.tools.base.base import BaseTool, ToolResult
 from .registry import ToolRegistry
 
 logger = logging.getLogger(__name__)

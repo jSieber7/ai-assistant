@@ -10,8 +10,8 @@ from typing import List, Dict, Any
 import logging
 import re
 
-from ..tools.base import BaseTool
-from ..tools.registry import ToolRegistry
+from app.core.tools.base.base import BaseTool
+from app.core.tools.execution.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 

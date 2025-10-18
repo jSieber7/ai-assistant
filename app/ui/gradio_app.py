@@ -188,7 +188,7 @@ def get_tools_info() -> str:
 def get_agents_list() -> List[str]:
     """Get list of available agents for the dropdown"""
     try:
-        from ..core.agents.registry import agent_registry
+        from ..core.agents.management.registry import agent_registry
 
         # Check if agent system is enabled
         if not settings.agent_system_enabled:
@@ -223,7 +223,7 @@ def get_agents_list() -> List[str]:
 def get_agents_info() -> str:
     """Get information about available agents"""
     try:
-        from ..core.agents.registry import agent_registry
+        from ..core.agents.management.registry import agent_registry
 
         # Check if agent system is enabled
         if not settings.agent_system_enabled:
@@ -302,7 +302,7 @@ def initialize_gradio_components() -> Tuple[bool, str]:
         # Initialize agents if enabled
         if settings.agent_system_enabled:
             try:
-                from ..core.agents.registry import agent_registry
+                from ..core.agents.management.registry import agent_registry
 
                 if not agent_registry.list_agents():
                     from ..core.config import initialize_agent_system
@@ -591,7 +591,7 @@ def update_settings(
         # Initialize agent system if newly enabled
         if agent_system_enabled:
             try:
-                from ..core.agents.registry import agent_registry
+                from ..core.agents.management.registry import agent_registry
 
                 if not agent_registry.list_agents():
                     from ..core.config import initialize_agent_system

@@ -10,7 +10,7 @@ import logging
 from typing import Dict, Any, List, Optional
 from playwright.async_api import async_playwright, Page
 
-from .base import BaseTool, ToolExecutionError
+from app.core.tools.base.base import BaseTool, ToolExecutionError
 
 logger = logging.getLogger(__name__)
 

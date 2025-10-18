@@ -11,8 +11,8 @@ import time
 from typing import Dict, Any, List, Optional
 from langchain.docstore.document import Document
 
-from ..tools.registry import ToolRegistry
-from ..tools.dynamic_executor import DynamicToolExecutor, TaskRequest, TaskType
+from ..tools.execution.registry import ToolRegistry
+from ..tools.execution.dynamic_executor import DynamicToolExecutor, TaskRequest, TaskType
 
 logger = logging.getLogger(__name__)
 

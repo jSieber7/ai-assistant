@@ -22,7 +22,7 @@ from .search import SearchService
 from .ingestion import IngestionService
 from .retrieval import RetrievalService
 from .synthesis import SynthesisService
-from ..tools.registry import ToolRegistry
+from ..tools.execution.registry import ToolRegistry
 from ..storage.milvus_client import MilvusClient
 
 logger = logging.getLogger(__name__)

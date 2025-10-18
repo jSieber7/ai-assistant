@@ -11,8 +11,8 @@ from typing import Dict, Any, List, Optional
 from langchain.docstore.document import Document
 
 from ..storage.milvus_client import MilvusClient
-from ..tools.registry import ToolRegistry
-from ..tools.dynamic_executor import DynamicToolExecutor, TaskRequest, TaskType
+from ..tools.execution.registry import ToolRegistry
+from ..tools.execution.dynamic_executor import DynamicToolExecutor, TaskRequest, TaskType
 from ..config import settings
 
 logger = logging.getLogger(__name__)

@@ -200,17 +200,20 @@ class SecureSettingsManager:
             logger.error(f"Error setting {category}.{key}: {e}")
             raise
 
-    def get_category(self, category: str) -> Dict[str, Any]:
+    def get_category(self, category: str, default: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         Get all settings in a category.
 
         Args:
             category: The category name
+            default: Default value if category not found
 
         Returns:
             Dictionary of all settings in the category
         """
-        return self.settings.get(category, {})
+        if default is None:
+            default = {}
+        return self.settings.get(category, default)
 
     def set_category(self, category: str, values: Dict[str, Any]):
         """

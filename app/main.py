@@ -10,7 +10,7 @@ from .core.config import (
     initialize_playwright_system,
 )
 from .core.tools import tool_registry
-from .core.agents.registry import agent_registry
+from .core.agents.management.registry import agent_registry
 from .core.monitoring.middleware import MonitoringMiddleware
 from .core.multi_writer_config import (
     initialize_multi_writer_system,
@@ -83,7 +83,7 @@ if settings.playwright_settings.enabled:
 # Initialize Jina Reranker system
 if settings.jina_reranker_enabled:
     try:
-        from .core.tools.jina_reranker_tool import JinaRerankerTool
+        from .core.tools.content.jina_reranker_tool import JinaRerankerTool
 
         jina_reranker_tool = JinaRerankerTool()
         tool_registry.register(jina_reranker_tool, category="reranking")

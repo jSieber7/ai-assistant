@@ -11,7 +11,8 @@ from typing import Any, Dict, Optional, Callable
 from dataclasses import dataclass
 import logging
 
-from ...agents.registry import AgentRegistry, BaseAgent, AgentResult
+from ...agents.management.registry import AgentRegistry
+from ...agents.base.base import BaseAgent, AgentResult
 from ..base import MultiLayerCache, generate_cache_key
 from ..compression.compressor import ResultCompressor
 

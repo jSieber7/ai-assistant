@@ -11,7 +11,8 @@ from typing import Any, Dict, Optional, Callable
 from dataclasses import dataclass
 import logging
 
-from ...tools.registry import ToolRegistry, BaseTool, ToolResult
+from ...tools.execution.registry import ToolRegistry
+from ...tools.base.base import BaseTool, ToolResult
 from ..base import MultiLayerCache, generate_cache_key
 from ..compression.compressor import ResultCompressor
 

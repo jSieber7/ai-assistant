@@ -10,7 +10,7 @@ import logging
 from typing import Dict, Any, List, Optional
 import httpx
 
-from .base import BaseTool, ToolExecutionError
+from app.core.tools.base.base import BaseTool, ToolExecutionError
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +105,7 @@ class FirecrawlTool(BaseTool):
 
     def _get_client(self) -> httpx.AsyncClient:
         """Get or create HTTP client for Docker Firecrawl service"""
-        from ..config import settings
+        from app.core.tools.base.config import settings
 
         # Create Docker client
         if self._client is None:
@@ -118,7 +118,7 @@ class FirecrawlTool(BaseTool):
 
     async def _check_docker_health(self) -> bool:
         """Check if Docker Firecrawl instance is healthy"""
-        from ..config import settings
+        from app.core.tools.base.config import settings
 
         try:
             client = self._get_client()
@@ -131,7 +131,7 @@ class FirecrawlTool(BaseTool):
 
     def _extract_content(self, data: Dict[str, Any], url: str) -> Dict[str, Any]:
         """Extract and structure content from Firecrawl response"""
-        from ..config import settings
+        from app.core.tools.base.config import settings
 
         # Get the main data from response
         response_data = data.get("data", {})
@@ -189,7 +189,7 @@ class FirecrawlTool(BaseTool):
         timeout: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Execute web scraping using Firecrawl Docker service"""
-        from ..config import settings
+        from app.core.tools.base.config import settings
 
         if not settings.firecrawl_settings.scraping_enabled:
             raise ToolExecutionError("Firecrawl scraping is not enabled")
@@ -271,7 +271,7 @@ class FirecrawlTool(BaseTool):
         timeout: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """Scrape multiple URLs concurrently"""
-        from ..config import settings
+        from app.core.tools.base.config import settings
 
         # Limit concurrent requests
         semaphore = asyncio.Semaphore(

@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 import json
 
-from ..config import get_llm
+from app.core.config import get_llm
 
 logger = logging.getLogger(__name__)
 

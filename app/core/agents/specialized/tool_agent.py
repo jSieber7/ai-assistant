@@ -11,10 +11,10 @@ import time
 import logging
 import json
 
-from .base import ToolCallingAgent, AgentResult, AgentState
-from .strategies import ToolSelectionStrategy, KeywordStrategy
-from ..tools.base import ToolResult
-from ..tools.registry import ToolRegistry
+from app.core.agents.base.base import BaseAgent, AgentResult, AgentState, ToolCallingAgent
+from app.core.agents.utilities.strategies import ToolSelectionStrategy, KeywordStrategy
+from app.core.tools.base.base import ToolResult
+from app.core.tools.execution.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
 

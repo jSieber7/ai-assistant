@@ -8,7 +8,7 @@ import uuid
 
 # Import directly from the config module to avoid circular imports
 from app.core.config import get_llm, settings
-from ..core.agents.registry import agent_registry
+from ..core.agents.management.registry import agent_registry
 
 router = APIRouter()
 

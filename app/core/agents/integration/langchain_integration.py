@@ -12,10 +12,10 @@ from langchain.agents import AgentType, initialize_agent, AgentExecutor
 from langchain.tools.render import render_text_description
 import logging
 
-from .base import BaseAgent
-from .registry import agent_registry
-from ..tools.base import BaseTool
-from ..tools.registry import tool_registry
+from app.core.agents.base.base import BaseAgent
+from app.core.agents.management.registry import agent_registry
+from app.core.tools.base.base import BaseTool
+from app.core.tools.execution.registry import tool_registry
 
 logger = logging.getLogger(__name__)
 

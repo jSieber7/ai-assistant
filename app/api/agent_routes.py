@@ -12,8 +12,8 @@ import uuid
 import logging
 
 from ..core.config import settings
-from ..core.agents.registry import agent_registry
-from ..core.tools.registry import tool_registry
+from ..core.agents.management.registry import agent_registry
+from ..core.tools.execution.registry import tool_registry
 
 logger = logging.getLogger(__name__)
 

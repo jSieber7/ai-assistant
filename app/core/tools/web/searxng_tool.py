@@ -6,7 +6,7 @@ This module provides a tool for performing web searches using SearXNG.
 
 import aiohttp
 from typing import Dict, Any, List
-from .base import BaseTool, ToolExecutionError
+from app.core.tools.base.base import BaseTool, ToolExecutionError
 
 
 class SearXNGTool(BaseTool):
@@ -83,7 +83,7 @@ class SearXNGTool(BaseTool):
         results_count: int = 10,
     ) -> Dict[str, Any]:
         """Execute web search using SearXNG"""
-        from ..config import settings
+        from app.core.tools.base.config import settings
 
         searxng_url = settings.searxng_url
 

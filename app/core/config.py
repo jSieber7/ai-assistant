@@ -696,10 +696,10 @@ def get_available_models():
 
 def initialize_agent_system():
     """Initialize the agent system with default agents"""
-    from .agents.registry import agent_registry
-    from .agents.tool_agent import ToolAgent
-    from .agents.strategies import KeywordStrategy
-    from .tools.registry import tool_registry
+    from .agents.management.registry import agent_registry
+    from .agents.specialized.tool_agent import ToolAgent
+    from .agents.utilities.strategies import KeywordStrategy
+    from .tools.execution.registry import tool_registry
 
     if not settings.agent_system_enabled:
         return
@@ -749,10 +749,10 @@ def initialize_agent_system():
 
 def initialize_firecrawl_system():
     """Initialize the Firecrawl Docker scraping system with tools and agents"""
-    from .tools.registry import tool_registry
-    from .tools.firecrawl_tool import FirecrawlTool
-    from .agents.registry import agent_registry
-    from .agents.firecrawl_agent import FirecrawlAgent
+    from .tools.execution.registry import tool_registry
+    from .tools.web.firecrawl_tool import FirecrawlTool
+    from .agents.management.registry import agent_registry
+    from .agents.specialized.firecrawl_agent import FirecrawlAgent
 
     if not settings.firecrawl_settings.enabled:
         logger.info("Firecrawl system disabled in settings")
@@ -795,8 +795,8 @@ def initialize_firecrawl_system():
 
 def initialize_playwright_system():
     """Initialize the Playwright browser automation system with tools"""
-    from .tools.registry import tool_registry
-    from .tools.playwright_tool import PlaywrightTool
+    from .tools.execution.registry import tool_registry
+    from .tools.web.playwright_tool import PlaywrightTool
 
     if not settings.playwright_settings.enabled:
         logger.info("Playwright system disabled in settings")

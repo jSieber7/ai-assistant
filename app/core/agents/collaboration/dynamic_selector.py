@@ -12,9 +12,9 @@ from dataclasses import dataclass, field
 from enum import Enum
 import json
 
-from .writer_agent import WriterAgent
-from .checker_agent import CheckerAgent
-from ..config import get_llm
+from app.core.agents.content.writer_agent import WriterAgent
+from app.core.agents.validation.checker_agent import CheckerAgent
+from app.core.config import get_llm
 
 logger = logging.getLogger(__name__)
 

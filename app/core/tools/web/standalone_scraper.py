@@ -8,8 +8,8 @@ independently from any agent or workflow.
 import logging
 from typing import Dict, Any, List, Optional
 from .firecrawl_tool import FirecrawlTool
-from .base import ToolResult
-from ..config import settings
+from app.core.tools.base.base import ToolResult
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 

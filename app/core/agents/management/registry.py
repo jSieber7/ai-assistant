@@ -6,7 +6,7 @@ for agent registration, discovery, and management.
 """
 
 from typing import Dict, List, Optional, Set, Any
-from .base import BaseAgent, AgentResult
+from app.core.agents.base.base import BaseAgent, AgentResult
 import logging
 
 logger = logging.getLogger(__name__)
