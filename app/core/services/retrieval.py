@@ -5,10 +5,9 @@ This service handles the retrieval phase:
 - Retrieve Top 50 Chunks from DB → Re-rank with Jina Reranker → Top 5 Relevant Chunks
 """
 
-import asyncio
 import logging
 import time
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
 from langchain.docstore.document import Document
 
 from ..storage.milvus_client import MilvusClient

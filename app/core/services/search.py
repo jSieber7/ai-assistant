@@ -8,12 +8,11 @@ This service handles the search and scraping phase:
 import asyncio
 import logging
 import time
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional
 from langchain.docstore.document import Document
 
 from ..tools.registry import ToolRegistry
 from ..tools.dynamic_executor import DynamicToolExecutor, TaskRequest, TaskType
-from ..config import settings
 
 logger = logging.getLogger(__name__)
 

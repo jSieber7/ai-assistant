@@ -3,7 +3,6 @@ Unit tests for collaborative checker system
 """
 
 import pytest
-import asyncio
 from unittest.mock import patch, AsyncMock
 from app.core.agents.collaborative_checker import (
     CollaborativeChecker,

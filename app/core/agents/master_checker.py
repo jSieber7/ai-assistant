@@ -13,7 +13,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 import json
 
-from .collaborative_checker import CheckerAssessment
 from ..config import get_llm
 
 logger = logging.getLogger(__name__)

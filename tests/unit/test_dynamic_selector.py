@@ -3,7 +3,6 @@ Unit tests for dynamic agent selector
 """
 
 import pytest
-import asyncio
 from unittest.mock import patch, AsyncMock
 from app.core.agents.dynamic_selector import (
     DynamicAgentSelector,

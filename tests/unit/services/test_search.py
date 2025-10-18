@@ -3,7 +3,7 @@ Unit tests for Search Service.
 """
 
 import pytest
-from unittest.mock import Mock, AsyncMock, patch
+from unittest.mock import Mock, patch
 from langchain.docstore.document import Document
 
 from app.core.services.search import SearchService

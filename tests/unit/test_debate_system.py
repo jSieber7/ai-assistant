@@ -3,7 +3,6 @@ Unit tests for debate system
 """
 
 import pytest
-import asyncio
 from unittest.mock import patch, AsyncMock
 from app.core.agents.debate_system import (
     DebateOrchestrator,

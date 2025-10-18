@@ -3,9 +3,8 @@ Unit tests for the Dynamic Tool Execution Manager.
 """
 
 import pytest
-import asyncio
 from typing import Dict, Any
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock
 from app.core.tools.dynamic_executor import (
     DynamicToolExecutor,
     TaskRequest,

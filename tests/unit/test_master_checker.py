@@ -3,7 +3,6 @@ Unit tests for master checker agent
 """
 
 import pytest
-import asyncio
 from unittest.mock import patch, AsyncMock
 from app.core.agents.master_checker import (
     MasterCheckerAgent,
@@ -12,7 +11,6 @@ from app.core.agents.master_checker import (
     ConflictResolutionStrategy,
     ValidationLevel,
 )
-from app.core.agents.checker_agent import CheckerAgent
 
 
 @pytest.mark.unit

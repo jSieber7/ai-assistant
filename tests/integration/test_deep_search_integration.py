@@ -6,13 +6,10 @@ with real services (or Docker containers) to ensure end-to-end functionality.
 """
 
 import pytest
-import asyncio
-from typing import Dict, Any
 
 from app.core.agents.deep_search_agent import DeepSearchAgent
 from app.core.tools.registry import ToolRegistry
 from app.core.config import settings
-from app.core.llm_providers import LLMProvider
 
 
 @pytest.mark.integration

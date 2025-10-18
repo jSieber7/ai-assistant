@@ -7,13 +7,12 @@ tools based on context, requirements, and available tools in the registry.
 
 import logging
 import time
-from typing import Dict, List, Any, Optional, Tuple, Union
+from typing import Dict, List, Any, Optional
 from dataclasses import dataclass
 from enum import Enum
 
 from .base import BaseTool, ToolResult
 from .registry import ToolRegistry
-from ..agents.base import AgentResult
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,7 @@ independently from any agent or workflow.
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional
 from .firecrawl_tool import FirecrawlTool
 from .base import ToolResult
 from ..config import settings

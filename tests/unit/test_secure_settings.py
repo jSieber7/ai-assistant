@@ -5,13 +5,11 @@ Tests the encryption, storage, and retrieval of sensitive configuration data.
 """
 
 import json
-import os
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-import pytest
 
 from app.core.secure_settings import SecureSettingsManager
 

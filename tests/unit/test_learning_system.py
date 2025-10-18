@@ -3,11 +3,9 @@ Unit tests for learning system
 """
 
 import pytest
-import asyncio
 from unittest.mock import patch, AsyncMock
 from app.core.agents.learning_system import (
     LearningSystem,
-    LearningMode,
     AdaptationType,
     PerformanceMetrics,
     InteractionPattern,

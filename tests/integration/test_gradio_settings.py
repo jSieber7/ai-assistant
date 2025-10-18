@@ -10,7 +10,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-import pytest
 
 from app.core.secure_settings import secure_settings
 from app.ui.settings_page import (

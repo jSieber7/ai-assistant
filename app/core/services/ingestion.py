@@ -5,17 +5,15 @@ This service handles the ingestion phase:
 - Chunk Documents → Embed Chunks → Vector DB (Postgres/pgvector or Milvus)
 """
 
-import asyncio
 import logging
 import time
 import uuid
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional
 from langchain.embeddings.base import Embeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.docstore.document import Document
 
 from ..storage.milvus_client import MilvusClient
-from ..config import settings
 
 logger = logging.getLogger(__name__)
 

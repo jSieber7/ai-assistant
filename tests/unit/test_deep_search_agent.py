@@ -6,12 +6,10 @@ including mock testing of the search, scraping, and RAG pipeline.
 """
 
 import pytest
-import asyncio
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 from typing import List, Dict, Any
 
 from langchain.embeddings.base import Embeddings
-from langchain.llms.base import BaseLLM
 from langchain.docstore.document import Document
 
 from app.core.agents.deep_search_agent import DeepSearchAgent

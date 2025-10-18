@@ -9,11 +9,10 @@ This service coordinates all services for the complete RAG pipeline:
 - Final Synthesized Answer
 """
 
-import asyncio
 import logging
 import time
 import uuid
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional
 from langchain.docstore.document import Document
 from langchain.embeddings.base import Embeddings
 from langchain.chat_models.base import BaseChatModel
@@ -25,7 +24,6 @@ from .retrieval import RetrievalService
 from .synthesis import SynthesisService
 from ..tools.registry import ToolRegistry
 from ..storage.milvus_client import MilvusClient
-from ..config import settings
 
 logger = logging.getLogger(__name__)
 

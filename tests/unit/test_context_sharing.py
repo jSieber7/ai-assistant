@@ -3,7 +3,6 @@ Unit tests for context sharing system
 """
 
 import pytest
-import asyncio
 from unittest.mock import patch, AsyncMock
 from app.core.agents.context_sharing import (
     ContextSharingSystem,
@@ -13,7 +12,6 @@ from app.core.agents.context_sharing import (
     ContextSubscription,
     ContextType,
     ContextPriority,
-    RelevanceScore,
 )
 
 

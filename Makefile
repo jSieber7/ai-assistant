@@ -375,15 +375,15 @@ health-check: ## Run comprehensive health check
 
 docs: ## Generate documentation
 	@echo "Generating documentation..."
-	mkdocs serve
+	uv run mkdocs serve
 
 docs-build: ## Build documentation
 	@echo "Building documentation..."
-	mkdocs build
+	uv run mkdocs build
 
 docs-deploy: ## Deploy documentation
 	@echo "Deploying documentation..."
-	mkdocs gh-deploy
+	uv run mkdocs gh-deploy
 
 # =============================================================================
 # Cleanup

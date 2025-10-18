@@ -7,9 +7,8 @@ including API keys, provider settings, and system configuration.
 
 import gradio as gr
 import logging
-import json
-from typing import Dict, Any, Tuple, Optional
-from ..core.config import settings, initialize_llm_providers
+from typing import Dict, Any, Optional
+from ..core.config import initialize_llm_providers
 from ..core.secure_settings import secure_settings
 
 logger = logging.getLogger(__name__)

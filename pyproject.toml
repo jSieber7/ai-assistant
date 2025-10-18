@@ -8,7 +8,7 @@ requires-python = "==3.12.3"
 dependencies = [
     "aiohttp>=3.12.15",
     "beautifulsoup4>=4.12.0",
-    "cryptography>=41.0.0",  # For secure settings encryption
+    "cryptography>=41.0.0", # For secure settings encryption
     "fastapi>=0.117.1",
     "gradio>=4.44.0",
     "httpx>=0.28.1",
@@ -27,6 +27,10 @@ dependencies = [
     "redis>=5.0.0",
     "selenium>=4.15.0",
     "uvicorn>=0.37.0",
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.6.21",
+    "mkdocstrings-python>=1.18.2",
+    "mkdocs-minify-plugin>=0.8.0",
 ]
 
 [build-system]

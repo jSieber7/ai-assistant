@@ -4,7 +4,7 @@ Unit tests for the Standalone Scraper interface.
 
 import pytest
 import asyncio
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 from app.core.tools.standalone_scraper import StandaloneScraper, quick_scrape
 from app.core.tools.base import ToolResult
 

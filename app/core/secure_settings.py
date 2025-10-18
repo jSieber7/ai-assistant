@@ -8,7 +8,7 @@ like API keys without exposing them in .env files.
 import json
 import os
 import logging
-from typing import Dict, Any, Optional, Union
+from typing import Dict, Any, Optional
 from pathlib import Path
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import hashes

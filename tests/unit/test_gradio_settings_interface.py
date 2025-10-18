@@ -7,7 +7,6 @@ Tests the integration of the settings page with the main Gradio app.
 import unittest
 from unittest.mock import patch, MagicMock
 
-import pytest
 
 from app.ui.gradio_app import create_gradio_app
 
@@ -46,7 +45,7 @@ class TestGradioSettingsIntegration(unittest.TestCase):
                 patch("app.ui.gradio_app.gr.Checkbox"),
                 patch("app.ui.gradio_app.gr.Code"),
             ):
-                app = create_gradio_app()
+                create_gradio_app()
 
                 # Verify the settings page was created
                 mock_create_settings.assert_called_once()
@@ -95,7 +94,7 @@ class TestGradioSettingsIntegration(unittest.TestCase):
                         patch("app.ui.gradio_app.gr.Checkbox"),
                         patch("app.ui.gradio_app.gr.Code"),
                     ):
-                        app = create_gradio_app()
+                        create_gradio_app()
 
                         # Verify settings tab is first
                         self.assertTrue(len(tab_order) > 0)
@@ -133,7 +132,7 @@ class TestGradioSettingsIntegration(unittest.TestCase):
             ):
                 # This should not raise an exception
                 try:
-                    app = create_gradio_app()
+                    create_gradio_app()
                     # If we get here, error handling worked
                     self.assertTrue(True)
                 except Exception as e:
@@ -182,7 +181,7 @@ class TestSettingsPageComponents(unittest.TestCase):
             ):
                 from app.ui.settings_page import create_settings_page
 
-                app = create_settings_page()
+                create_settings_page()
 
                 # Verify current settings were retrieved
                 mock_secure_settings.get_all_settings.assert_called_once()
@@ -223,7 +222,7 @@ class TestSettingsPageComponents(unittest.TestCase):
 
                 from app.ui.settings_page import create_settings_page
 
-                app = create_settings_page()
+                create_settings_page()
 
                 # Verify validation function is connected to button
                 self.assertTrue(mock_button.return_value.click.called)
@@ -264,7 +263,7 @@ class TestSettingsPageComponents(unittest.TestCase):
 
                 from app.ui.settings_page import create_settings_page
 
-                app = create_settings_page()
+                create_settings_page()
 
                 # Verify update function is connected to button
                 self.assertTrue(mock_button.return_value.click.called)

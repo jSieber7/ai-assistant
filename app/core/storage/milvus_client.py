@@ -8,7 +8,6 @@ and similarity search operations.
 
 import asyncio
 import logging
-import time
 import uuid
 from typing import List, Dict, Any, Optional, Tuple
 from contextlib import asynccontextmanager
@@ -20,7 +19,6 @@ from pymilvus import (
     FieldSchema,
     DataType,
     utility,
-    MilvusException,
 )
 from langchain.embeddings.base import Embeddings
 from langchain.docstore.document import Document
@@ -246,7 +244,6 @@ class MilvusClient:
                 ids = []
                 texts = []
                 sources = []
-                embeddings = []
                 metadata_list = []
 
                 for doc in batch:
