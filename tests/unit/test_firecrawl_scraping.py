@@ -78,8 +78,12 @@ class TestFirecrawlTool:
                         settings.firecrawl_settings, "extract_images", True
                     ):
                         # Mock Docker health check
-                        with patch.object(scraper_tool, "_check_docker_health", return_value=True):
-                            result = await scraper_tool.execute(url="https://example.com")
+                        with patch.object(
+                            scraper_tool, "_check_docker_health", return_value=True
+                        ):
+                            result = await scraper_tool.execute(
+                                url="https://example.com"
+                            )
 
                             assert result["url"] == "https://example.com"
                             assert result["title"] == "Test Page"
@@ -93,7 +97,9 @@ class TestFirecrawlTool:
         with patch.object(settings.firecrawl_settings, "enabled", True):
             with patch.object(settings.firecrawl_settings, "scraping_enabled", True):
                 # Mock Docker health check
-                with patch.object(scraper_tool, "_check_docker_health", return_value=True):
+                with patch.object(
+                    scraper_tool, "_check_docker_health", return_value=True
+                ):
                     result = await scraper_tool.execute(
                         url="https://example.com",
                         formats=["markdown", "html"],
@@ -115,7 +121,9 @@ class TestFirecrawlTool:
                     settings.firecrawl_settings, "max_concurrent_scrapes", 2
                 ):
                     # Mock Docker health check
-                    with patch.object(scraper_tool, "_check_docker_health", return_value=True):
+                    with patch.object(
+                        scraper_tool, "_check_docker_health", return_value=True
+                    ):
                         results = await scraper_tool.batch_scrape(urls=urls)
 
                         assert len(results) == 2

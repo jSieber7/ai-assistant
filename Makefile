@@ -66,6 +66,32 @@ test-integration: ## Run integration tests
 	@mkdir -p test-results
 	uv run pytest tests/integration/ --junitxml=test-results/junit-integration.xml
 
+# Multi-Speaker System Tests
+test-multi-speaker: ## Run multi-speaker system tests
+	@echo "Running multi-speaker system tests..."
+	@mkdir -p test-results
+	uv run pytest tests/unit/test_debate_system.py tests/unit/test_dynamic_selector.py tests/unit/test_personality_system.py tests/unit/test_collaborative_checker.py tests/unit/test_learning_system.py tests/unit/test_master_checker.py tests/unit/test_context_sharing.py -v --junitxml=test-results/junit-multi-speaker.xml
+
+test-multi-speaker-unit: ## Run multi-speaker system unit tests
+	@echo "Running multi-speaker system unit tests..."
+	@mkdir -p test-results
+	uv run pytest tests/unit/test_debate_system.py tests/unit/test_dynamic_selector.py tests/unit/test_personality_system.py tests/unit/test_collaborative_checker.py tests/unit/test_learning_system.py tests/unit/test_master_checker.py tests/unit/test_context_sharing.py -v --junitxml=test-results/junit-multi-speaker-unit.xml
+
+test-multi-speaker-integration: ## Run multi-speaker system integration tests
+	@echo "Running multi-speaker system integration tests..."
+	@mkdir -p test-results
+	uv run pytest tests/integration/test_multi_speaker_system.py -v --junitxml=test-results/junit-multi-speaker-integration.xml
+
+test-multi-speaker-live: ## Run live multi-speaker system tests (requires services)
+	@echo "Running live multi-speaker system tests..."
+	@echo "Make sure all required services are running"
+	uv run pytest tests/integration/test_multi_speaker_system.py::TestMultiSpeakerSystemLive -v -s --junitxml=test-results/junit-multi-speaker-live.xml
+
+test-all-multi-speaker: ## Run all multi-speaker system tests
+	@echo "Running all multi-speaker system tests..."
+	uv run pytest tests/unit/test_debate_system.py tests/unit/test_dynamic_selector.py tests/unit/test_personality_system.py tests/unit/test_collaborative_checker.py tests/unit/test_learning_system.py tests/unit/test_master_checker.py tests/unit/test_context_sharing.py tests/integration/test_multi_speaker_system.py -v --junitxml=test-results/junit-all-multi-speaker.xml
+
+# Firecrawl Tests
 test-firecrawl: ## Run Firecrawl Docker tests
 	@echo "Running Firecrawl Docker tests..."
 	uv run pytest tests/unit/test_firecrawl_docker_mode.py tests/integration/test_firecrawl_docker.py -v --junitxml=test-results/junit-firecrawl.xml
@@ -83,6 +109,7 @@ test-firecrawl-live: ## Run live Firecrawl tests (requires Docker services)
 	@echo "Make sure Firecrawl Docker services are running: make firecrawl"
 	uv run pytest tests/integration/test_firecrawl_docker.py::TestFirecrawlDockerLive -v -s --junitxml=test-results/junit-firecrawl-live.xml
 
+# Deep Search Tests
 test-deep-search: ## Run Deep Search agent tests
 	@echo "Running Deep Search agent tests..."
 	uv run pytest tests/unit/test_deep_search_agent.py -v --junitxml=test-results/junit-deep-search.xml
@@ -101,10 +128,16 @@ test-all-deep-search: ## Run all Deep Search tests
 	@echo "Running all Deep Search tests..."
 	uv run pytest tests/unit/test_deep_search_agent.py tests/integration/test_deep_search_integration.py -v --junitxml=test-results/junit-all-deep-search.xml
 
+# Coverage Tests
 test-coverage: ## Run tests with coverage report
 	@echo "Running tests with coverage..."
 	@mkdir -p test-results
 	uv run pytest --cov=app --cov-report=html:test-results/htmlcov --cov-report=xml:test-results/coverage.xml --cov-report=term --junitxml=test-results/junit-coverage.xml
+
+test-multi-speaker-coverage: ## Run multi-speaker system tests with coverage report
+	@echo "Running multi-speaker system tests with coverage..."
+	@mkdir -p test-results
+	uv run pytest tests/unit/test_debate_system.py tests/unit/test_dynamic_selector.py tests/unit/test_personality_system.py tests/unit/test_collaborative_checker.py tests/unit/test_learning_system.py tests/unit/test_master_checker.py tests/unit/test_context_sharing.py --cov=app.core.agents --cov-report=html:test-results/htmlcov-multi-speaker --cov-report=xml:test-results/multi-speaker-coverage.xml --cov-report=term --junitxml=test-results/junit-multi-speaker-coverage.xml
 
 # =============================================================================
 # Code Quality
@@ -127,6 +160,20 @@ quality-check: ## Run all code quality checks (lint, type-check, security-check,
 	@echo "Coverage report: test-results/coverage.xml"
 	@echo "HTML coverage report: test-results/htmlcov/index.html"
 
+quality-check-multi-speaker: ## Run quality checks for multi-speaker system
+	@echo "Running multi-speaker system quality checks..."
+	$(MAKE) lint
+	$(MAKE) type-check
+	$(MAKE) security-check
+	$(MAKE) test-multi-speaker-coverage
+	@echo ""
+	@echo "=== Multi-Speaker System Quality Check Summary ==="
+	@echo "Linting report: test-results/ruff-report.xml"
+	@echo "Type checking report: test-results/mypy-report.xml"
+	@echo "Security report: test-results/bandit-report.json"
+	@echo "Multi-speaker coverage report: test-results/multi-speaker-coverage.xml"
+	@echo "HTML multi-speaker coverage report: test-results/htmlcov-multi-speaker/index.html"
+
 ci-test: ## Run CI pipeline (test, lint, type-check, security-check)
 	@echo "Running CI pipeline..."
 	$(MAKE) test
@@ -140,6 +187,18 @@ ci-test: ## Run CI pipeline (test, lint, type-check, security-check)
 	@echo "Type checking report: test-results/mypy-report.xml"
 	@echo "Security report: test-results/bandit-report.json"
 
+ci-test-multi-speaker: ## Run CI pipeline for multi-speaker system
+	@echo "Running multi-speaker system CI pipeline..."
+	$(MAKE) test-multi-speaker
+	$(MAKE) lint
+	$(MAKE) type-check
+	$(MAKE) security-check
+	@echo ""
+	@echo "=== Multi-Speaker System CI Test Summary ==="
+	@echo "Test report: test-results/junit-multi-speaker.xml"
+	@echo "Linting report: test-results/ruff-report.xml"
+	@echo "Type checking report: test-results/mypy-report.xml"
+	@echo "Security report: test-results/bandit-report.json"
 
 lint: ## Run linting
 	@echo "Running linting..."
@@ -437,7 +496,7 @@ backup-firecrawl: ## Backup Firecrawl data
 
 version: ## Show version information
 	@echo "AI Assistant Version:"
-	@python -c "import app; print(getattr(app, '__version__', 'unknown'))"
+	@python3 -c "import app; print(getattr(app, '__version__', 'unknown'))"
 	@echo ""
 	@echo "Docker Images:"
 	@docker compose images || echo "Docker services not running"

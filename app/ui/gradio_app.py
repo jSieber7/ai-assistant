@@ -690,7 +690,7 @@ def create_gradio_app() -> gr.Blocks:
             # Settings Tab (new)
             with gr.TabItem("🔐 Settings"):
                 settings_app = create_settings_page()
-            
+
             # System Information Tab
             with gr.TabItem("System Information"):
                 gr.Markdown("## Current Configuration Status")

@@ -63,6 +63,7 @@ class CalculatorTool(BaseTool):
         try:
             # Use ast.literal_eval as a safer alternative to eval for simple expressions
             import ast
+
             try:
                 # Try literal_eval first for safety
                 result = ast.literal_eval(expression)

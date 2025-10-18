@@ -40,17 +40,19 @@ class TestJinaRerankerTool:
         # Mock HTTP client
         mock_response = AsyncMock()
         mock_response.status_code = 200
-        mock_response.json = AsyncMock(return_value={
-            "results": [
-                {"index": 1, "document": "Document 2", "relevance_score": 0.9},
-                {"index": 0, "document": "Document 1", "relevance_score": 0.7},
-                {"index": 2, "document": "Document 3", "relevance_score": 0.3},
-            ],
-            "model": "jina-reranker-v2-base-multilingual",
-            "query": "test query",
-            "total_documents": 3,
-            "cached": False,
-        })
+        mock_response.json = AsyncMock(
+            return_value={
+                "results": [
+                    {"index": 1, "document": "Document 2", "relevance_score": 0.9},
+                    {"index": 0, "document": "Document 1", "relevance_score": 0.7},
+                    {"index": 2, "document": "Document 3", "relevance_score": 0.3},
+                ],
+                "model": "jina-reranker-v2-base-multilingual",
+                "query": "test query",
+                "total_documents": 3,
+                "cached": False,
+            }
+        )
 
         with patch("httpx.AsyncClient.post", return_value=mock_response):
             result = await reranker_tool.execute(
@@ -70,16 +72,18 @@ class TestJinaRerankerTool:
         # Mock HTTP client
         mock_response = AsyncMock()
         mock_response.status_code = 200
-        mock_response.json = AsyncMock(return_value={
-            "results": [
-                {"index": 1, "document": "Document 2", "relevance_score": 0.9},
-                {"index": 0, "document": "Document 1", "relevance_score": 0.7},
-            ],
-            "model": "jina-reranker-v2-base-multilingual",
-            "query": "test query",
-            "total_documents": 3,
-            "cached": False,
-        })
+        mock_response.json = AsyncMock(
+            return_value={
+                "results": [
+                    {"index": 1, "document": "Document 2", "relevance_score": 0.9},
+                    {"index": 0, "document": "Document 1", "relevance_score": 0.7},
+                ],
+                "model": "jina-reranker-v2-base-multilingual",
+                "query": "test query",
+                "total_documents": 3,
+                "cached": False,
+            }
+        )
 
         with patch("httpx.AsyncClient.post", return_value=mock_response):
             result = await reranker_tool.execute(
@@ -157,16 +161,18 @@ class TestJinaRerankerTool:
         # Mock HTTP client
         mock_response = AsyncMock()
         mock_response.status_code = 200
-        mock_response.json = AsyncMock(return_value={
-            "results": [
-                {"index": 1, "document": "Content 2", "relevance_score": 0.9},
-                {"index": 0, "document": "Content 1", "relevance_score": 0.7},
-            ],
-            "model": "jina-reranker-v2-base-multilingual",
-            "query": "test query",
-            "total_documents": 2,
-            "cached": False,
-        })
+        mock_response.json = AsyncMock(
+            return_value={
+                "results": [
+                    {"index": 1, "document": "Content 2", "relevance_score": 0.9},
+                    {"index": 0, "document": "Content 1", "relevance_score": 0.7},
+                ],
+                "model": "jina-reranker-v2-base-multilingual",
+                "query": "test query",
+                "total_documents": 2,
+                "cached": False,
+            }
+        )
 
         search_results = [
             {"content": "Content 1", "url": "http://example.com/1"},

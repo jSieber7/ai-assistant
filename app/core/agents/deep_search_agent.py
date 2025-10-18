@@ -9,11 +9,9 @@ This agent now uses the modular RAG services architecture for better
 maintainability and reusability.
 """
 
-import asyncio
 import logging
 import time
-import uuid
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, List, Any, Optional
 
 from langchain.embeddings.base import Embeddings
 from langchain.chat_models.base import BaseChatModel
@@ -34,7 +32,7 @@ logger = logging.getLogger(__name__)
 class DeepSearchAgent(BaseAgent):
     """
     Advanced agent for deep web search and RAG-based answer generation.
-    
+
     This agent implements the following workflow using modular services:
     1. Generate optimized search query from user input (QueryProcessingService)
     2. Search using SearXNG tool and scrape with Firecrawl (SearchService)
@@ -56,10 +54,10 @@ class DeepSearchAgent(BaseAgent):
         super().__init__(tool_registry, max_iterations)
         self.llm = llm
         self.embeddings = embeddings
-        
+
         # Initialize modular services
         self._initialize_modular_services()
-        
+
         # Configuration
         self.max_search_results = 5
         self.retrieval_k = 50
@@ -70,14 +68,18 @@ class DeepSearchAgent(BaseAgent):
         try:
             # Initialize Milvus client
             self.milvus_client = MilvusClient(self.embeddings)
-            
+
             # Create services
             self.query_service = QueryProcessingService(self.llm)
             self.search_service = SearchService(self.tool_registry)
-            self.ingestion_service = IngestionService(self.embeddings, self.milvus_client)
-            self.retrieval_service = RetrievalService(self.milvus_client, self.tool_registry)
+            self.ingestion_service = IngestionService(
+                self.embeddings, self.milvus_client
+            )
+            self.retrieval_service = RetrievalService(
+                self.milvus_client, self.tool_registry
+            )
             self.synthesis_service = SynthesisService(self.llm)
-            
+
             # Create orchestrator
             self.rag_orchestrator = RAGOrchestrator(
                 query_service=self.query_service,
@@ -85,11 +87,11 @@ class DeepSearchAgent(BaseAgent):
                 ingestion_service=self.ingestion_service,
                 retrieval_service=self.retrieval_service,
                 synthesis_service=self.synthesis_service,
-                auto_cleanup=True
+                auto_cleanup=True,
             )
-            
+
             logger.info("Modular RAG services initialized successfully")
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize modular services: {str(e)}")
             raise
@@ -131,15 +133,17 @@ class DeepSearchAgent(BaseAgent):
             options = {
                 "search_params": {
                     "results_count": self.max_search_results,
-                    "category": "general"
+                    "category": "general",
                 },
                 "retrieval_k": self.retrieval_k,
-                "rerank_top_n": self.rerank_top_n
+                "rerank_top_n": self.rerank_top_n,
             }
 
             # Process using the RAG orchestrator
             self.state = AgentState.EXECUTING_TOOL
-            result = await self.rag_orchestrator.process_query(message, context, options)
+            result = await self.rag_orchestrator.process_query(
+                message, context, options
+            )
 
             # Convert orchestrator result to AgentResult
             if result["success"]:
@@ -151,9 +155,15 @@ class DeepSearchAgent(BaseAgent):
                     result["answer"],
                     {
                         "execution_time": execution_time,
-                        "search_query": result.get("metadata", {}).get("optimized_query", message),
-                        "documents_processed": result.get("metadata", {}).get("documents_used", 0),
-                        "collection_name": result.get("metadata", {}).get("collection_name", ""),
+                        "search_query": result.get("metadata", {}).get(
+                            "optimized_query", message
+                        ),
+                        "documents_processed": result.get("metadata", {}).get(
+                            "documents_used", 0
+                        ),
+                        "collection_name": result.get("metadata", {}).get(
+                            "collection_name", ""
+                        ),
                         "pipeline_steps": result.get("pipeline_steps", {}),
                     },
                 )
@@ -170,10 +180,18 @@ class DeepSearchAgent(BaseAgent):
                     execution_time=execution_time,
                     conversation_id=self._current_conversation_id,
                     metadata={
-                        "optimized_query": result.get("metadata", {}).get("optimized_query", message),
-                        "documents_count": result.get("metadata", {}).get("documents_used", 0),
-                        "chunks_count": result.get("metadata", {}).get("chunks_created", 0),
-                        "collection_name": result.get("metadata", {}).get("collection_name", ""),
+                        "optimized_query": result.get("metadata", {}).get(
+                            "optimized_query", message
+                        ),
+                        "documents_count": result.get("metadata", {}).get(
+                            "documents_used", 0
+                        ),
+                        "chunks_count": result.get("metadata", {}).get(
+                            "chunks_created", 0
+                        ),
+                        "collection_name": result.get("metadata", {}).get(
+                            "collection_name", ""
+                        ),
                         "pipeline_steps": result.get("pipeline_steps", {}),
                         "sources": result.get("sources", []),
                     },
@@ -181,7 +199,9 @@ class DeepSearchAgent(BaseAgent):
             else:
                 return AgentResult(
                     success=False,
-                    response=result.get("answer", "I couldn't process your request. Please try again."),
+                    response=result.get(
+                        "answer", "I couldn't process your request. Please try again."
+                    ),
                     tool_results=[],
                     error=result.get("error", "Unknown error"),
                     agent_name=self.name,
@@ -211,7 +231,7 @@ class DeepSearchAgent(BaseAgent):
         """Initialize Milvus connection."""
         try:
             return await self.milvus_client.connect()
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize Milvus: {str(e)}")
             return False
@@ -224,40 +244,50 @@ class DeepSearchAgent(BaseAgent):
             "retrieval_k": self.retrieval_k,
             "rerank_top_n": self.rerank_top_n,
         }
-        
+
         # Add service stats
-        if hasattr(self, 'rag_orchestrator'):
+        if hasattr(self, "rag_orchestrator"):
             base_stats["service_stats"] = self.rag_orchestrator.get_orchestrator_stats()
-        
+
         return base_stats
 
     async def cleanup_resources(self):
         """Clean up agent resources."""
         try:
             # Cleanup orchestrator resources
-            if hasattr(self, 'rag_orchestrator'):
+            if hasattr(self, "rag_orchestrator"):
                 await self.rag_orchestrator.cleanup_all_collections()
-            
+
             # Cleanup Milvus connection
-            if hasattr(self, 'milvus_client'):
+            if hasattr(self, "milvus_client"):
                 await self.milvus_client.disconnect()
-                
+
             logger.info("DeepSearchAgent resources cleaned up")
-            
+
         except Exception as e:
             logger.error(f"Error during resource cleanup: {str(e)}")
 
     # Delegate methods to services for direct access if needed
-    
-    async def search_and_scrape(self, query: str, context: Optional[Dict[str, Any]] = None) -> List:
+
+    async def search_and_scrape(
+        self, query: str, context: Optional[Dict[str, Any]] = None
+    ) -> List:
         """Delegate to search service."""
         return await self.search_service.search_and_scrape(query, context)
-    
-    async def retrieve_and_rerank(self, query: str, collection_name: str, k: int = 50, top_n: int = 5) -> List:
+
+    async def retrieve_and_rerank(
+        self, query: str, collection_name: str, k: int = 50, top_n: int = 5
+    ) -> List:
         """Delegate to retrieval service."""
-        return await self.retrieval_service.retrieve_and_rerank(query, collection_name, k, top_n)
-    
-    async def synthesize_answer(self, query: str, documents: List, context: Optional[Dict[str, Any]] = None) -> str:
+        return await self.retrieval_service.retrieve_and_rerank(
+            query, collection_name, k, top_n
+        )
+
+    async def synthesize_answer(
+        self, query: str, documents: List, context: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Delegate to synthesis service."""
-        result = await self.synthesis_service.synthesize_answer(query, documents, context)
+        result = await self.synthesis_service.synthesize_answer(
+            query, documents, context
+        )
         return result.get("answer", "")

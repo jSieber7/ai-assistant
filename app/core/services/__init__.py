@@ -22,7 +22,7 @@ from .rag_orchestrator import RAGOrchestrator
 
 __all__ = [
     "QueryProcessingService",
-    "SearchService", 
+    "SearchService",
     "IngestionService",
     "RetrievalService",
     "SynthesisService",

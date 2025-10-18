@@ -52,7 +52,11 @@ class TestFirecrawlDockerMode:
         mock_response.status_code = 200
         mock_response.json.return_value = {"status": "healthy"}
 
-        with patch.object(tool, "_get_client", return_value=AsyncMock(get=AsyncMock(return_value=mock_response))):
+        with patch.object(
+            tool,
+            "_get_client",
+            return_value=AsyncMock(get=AsyncMock(return_value=mock_response)),
+        ):
             is_healthy = await tool._check_docker_health()
             assert is_healthy is True
 
@@ -62,7 +66,11 @@ class TestFirecrawlDockerMode:
         tool = FirecrawlTool()
 
         with patch.object(
-            tool, "_get_client", return_value=AsyncMock(get=AsyncMock(side_effect=Exception("Connection failed")))
+            tool,
+            "_get_client",
+            return_value=AsyncMock(
+                get=AsyncMock(side_effect=Exception("Connection failed"))
+            ),
         ):
             is_healthy = await tool._check_docker_health()
             assert is_healthy is False
@@ -78,14 +86,16 @@ class TestFirecrawlDockerMode:
 
         mock_scrape_response = AsyncMock()
         mock_scrape_response.status_code = 200
-        mock_scrape_response.json = AsyncMock(return_value={
-            "data": {
-                "markdown": "# Test Page\n\nTest content from Docker.",
-                "metadata": {"title": "Test Page"},
-                "links": [],
-                "images": [],
+        mock_scrape_response.json = AsyncMock(
+            return_value={
+                "data": {
+                    "markdown": "# Test Page\n\nTest content from Docker.",
+                    "metadata": {"title": "Test Page"},
+                    "links": [],
+                    "images": [],
+                }
             }
-        })
+        )
 
         mock_client = AsyncMock()
         mock_client.get.return_value = mock_health_response
@@ -149,14 +159,16 @@ class TestFirecrawlDockerMode:
         # Mock successful health check and scraping
         mock_response = AsyncMock()
         mock_response.status_code = 200
-        mock_response.json = AsyncMock(return_value={
-            "data": {
-                "markdown": "# Test Page\n\nTest content.",
-                "metadata": {"title": "Test Page"},
-                "links": [],
-                "images": [],
+        mock_response.json = AsyncMock(
+            return_value={
+                "data": {
+                    "markdown": "# Test Page\n\nTest content.",
+                    "metadata": {"title": "Test Page"},
+                    "links": [],
+                    "images": [],
+                }
             }
-        })
+        )
 
         mock_client = AsyncMock()
         mock_client.get.return_value = AsyncMock(status_code=200)
@@ -241,14 +253,16 @@ class TestFirecrawlDockerModeEdgeCases:
             # Mock scraping response
             mock_response = AsyncMock()
             mock_response.status_code = 200
-            mock_response.json = AsyncMock(return_value={
-                "data": {
-                    "markdown": "# Test Page\n\nTest content.",
-                    "metadata": {"title": "Test Page"},
-                    "links": [],
-                    "images": [],
+            mock_response.json = AsyncMock(
+                return_value={
+                    "data": {
+                        "markdown": "# Test Page\n\nTest content.",
+                        "metadata": {"title": "Test Page"},
+                        "links": [],
+                        "images": [],
+                    }
                 }
-            })
+            )
 
             mock_client = AsyncMock()
             mock_client.post.return_value = mock_response

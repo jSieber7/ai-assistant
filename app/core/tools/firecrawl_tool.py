@@ -247,9 +247,7 @@ class FirecrawlTool(BaseTool):
                 logger.info(f"Successfully scraped {url} with Firecrawl (Docker)")
                 return scraped_data
             else:
-                error_msg = (
-                    f"Firecrawl Docker API error: {response.status_code} - {response.text}"
-                )
+                error_msg = f"Firecrawl Docker API error: {response.status_code} - {response.text}"
                 logger.error(error_msg)
                 raise ToolExecutionError(error_msg)
 

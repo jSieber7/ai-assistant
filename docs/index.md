@@ -160,7 +160,7 @@ Integrated SearXNG for privacy-focused web search capabilities without tracking.
 
 ## Development Status
 
-**Current Version**: 0.3.2
+**Current Version**: 0.4.0
 
 ### ✅ Implemented Features
 - 🔧 **Extensible Tool System**: Dynamic tool registration and discovery

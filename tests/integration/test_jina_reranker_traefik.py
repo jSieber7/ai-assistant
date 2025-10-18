@@ -38,18 +38,24 @@ class TestJinaRerankerTraefikIntegration:
         # Mock HTTP client for Traefik URL
         mock_response = AsyncMock()
         mock_response.status_code = 200
-        mock_response.json = AsyncMock(return_value={
-            "results": [
-                {"index": 1, "document": "Document 2", "relevance_score": 0.9},
-                {"index": 0, "document": "Document 1", "relevance_score": 0.7},
-            ],
-            "model": "jina-reranker-v2-base-multilingual",
-            "query": "test query",
-            "total_documents": 2,
-            "cached": False,
-        })
+        mock_response.json = AsyncMock(
+            return_value={
+                "results": [
+                    {"index": 1, "document": "Document 2", "relevance_score": 0.9},
+                    {"index": 0, "document": "Document 1", "relevance_score": 0.7},
+                ],
+                "model": "jina-reranker-v2-base-multilingual",
+                "query": "test query",
+                "total_documents": 2,
+                "cached": False,
+            }
+        )
 
-        with patch.object(reranker_tool.http_client, "post", return_value=mock_response) if reranker_tool.http_client else patch("httpx.AsyncClient.post", return_value=mock_response):
+        with (
+            patch.object(reranker_tool.http_client, "post", return_value=mock_response)
+            if reranker_tool.http_client
+            else patch("httpx.AsyncClient.post", return_value=mock_response)
+        ):
             result = await reranker_tool.execute(
                 query="test query", documents=["Document 1", "Document 2"], top_n=2
             )
@@ -101,7 +107,11 @@ class TestJinaRerankerTraefikIntegration:
         mock_response.status_code = 429  # Too Many Requests
         mock_response.text = "Rate limit exceeded"
 
-        with patch.object(reranker_tool.http_client, "post", return_value=mock_response) if reranker_tool.http_client else patch("httpx.AsyncClient.post", return_value=mock_response):
+        with (
+            patch.object(reranker_tool.http_client, "post", return_value=mock_response)
+            if reranker_tool.http_client
+            else patch("httpx.AsyncClient.post", return_value=mock_response)
+        ):
             result = await reranker_tool.execute(
                 query="test query", documents=["Document 1", "Document 2"]
             )

@@ -36,21 +36,25 @@ class TestFirecrawlDockerIntegration:
         """Mock successful Docker response"""
         mock_response = AsyncMock()
         mock_response.status_code = 200
-        mock_response.json = AsyncMock(return_value={
-            "data": {
-                "markdown": "# Test Page\n\nThis is test content from Docker Firecrawl.",
-                "raw": "<html><head><title>Test Page</title></head><body><h1>Test Page</h1><p>This is test content from Docker Firecrawl.</p></body></html>",
-                "metadata": {
-                    "title": "Test Page",
-                    "description": "Test page from Docker Firecrawl",
-                    "language": "en",
-                },
-                "links": [{"url": "https://example.com/page2", "text": "Next Page"}],
-                "images": [
-                    {"src": "https://example.com/image.jpg", "alt": "Test Image"}
-                ],
+        mock_response.json = AsyncMock(
+            return_value={
+                "data": {
+                    "markdown": "# Test Page\n\nThis is test content from Docker Firecrawl.",
+                    "raw": "<html><head><title>Test Page</title></head><body><h1>Test Page</h1><p>This is test content from Docker Firecrawl.</p></body></html>",
+                    "metadata": {
+                        "title": "Test Page",
+                        "description": "Test page from Docker Firecrawl",
+                        "language": "en",
+                    },
+                    "links": [
+                        {"url": "https://example.com/page2", "text": "Next Page"}
+                    ],
+                    "images": [
+                        {"src": "https://example.com/image.jpg", "alt": "Test Image"}
+                    ],
+                }
             }
-        })
+        )
         return mock_response
 
     @pytest.fixture
@@ -83,7 +87,11 @@ class TestFirecrawlDockerIntegration:
         """Test successful Docker health check"""
         tool = FirecrawlTool()
 
-        with patch.object(tool, "_get_client", return_value=AsyncMock(get=AsyncMock(return_value=mock_health_response))):
+        with patch.object(
+            tool,
+            "_get_client",
+            return_value=AsyncMock(get=AsyncMock(return_value=mock_health_response)),
+        ):
             is_healthy = await tool._check_docker_health()
             assert is_healthy is True
 
@@ -93,7 +101,11 @@ class TestFirecrawlDockerIntegration:
         tool = FirecrawlTool()
 
         with patch.object(
-            tool, "_get_client", return_value=AsyncMock(get=AsyncMock(side_effect=httpx.ConnectError("Connection failed")))
+            tool,
+            "_get_client",
+            return_value=AsyncMock(
+                get=AsyncMock(side_effect=httpx.ConnectError("Connection failed"))
+            ),
         ):
             is_healthy = await tool._check_docker_health()
             assert is_healthy is False
@@ -107,7 +119,13 @@ class TestFirecrawlDockerIntegration:
 
         with (
             patch.object(tool, "_check_docker_health", return_value=True),
-            patch.object(tool, "_get_client", return_value=AsyncMock(post=AsyncMock(return_value=mock_docker_response))),
+            patch.object(
+                tool,
+                "_get_client",
+                return_value=AsyncMock(
+                    post=AsyncMock(return_value=mock_docker_response)
+                ),
+            ),
         ):
             result = await tool.execute(url="https://example.com")
 
@@ -174,7 +192,13 @@ class TestFirecrawlDockerIntegration:
 
         with (
             patch.object(tool, "_check_docker_health", return_value=True),
-            patch.object(tool, "_get_client", return_value=AsyncMock(post=AsyncMock(return_value=mock_docker_response))),
+            patch.object(
+                tool,
+                "_get_client",
+                return_value=AsyncMock(
+                    post=AsyncMock(return_value=mock_docker_response)
+                ),
+            ),
         ):
             results = await tool.batch_scrape(urls=urls)
 

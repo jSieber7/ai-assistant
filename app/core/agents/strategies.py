@@ -181,8 +181,10 @@ class LLMStrategy(ToolSelectionStrategy):
         # Use string formatting to avoid potential SQL injection
         # The query is treated as a string literal, not as executable code
         # Sanitize the query to prevent injection attacks
-        sanitized_query = query.replace('"', '\\"').replace('\n', '\\n').replace('\r', '\\r')
-        
+        sanitized_query = (
+            query.replace('"', '\\"').replace("\n", "\\n").replace("\r", "\\r")
+        )
+
         # Use string formatting to avoid potential SQL injection
         # The query is treated as a string literal, not as executable code
         # Using f-string here is safe as we're not executing the query as code
