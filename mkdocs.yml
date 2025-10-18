@@ -34,19 +34,22 @@ nav:
   - Getting Started:
     - Quick Start: quick-start.md
     - Docker Setup: docker-integration.md
+    - Docker Simplified: docker-simplified.md
     - Local Development: development/setup.md
     - Configuration Guide: configuration.md
+    - Secure Settings: secure-settings-guide.md
   - Architecture:
     - Overview: architecture/overview.md
     - Core Components: architecture/core-components.md
     - Agent Workflow: architecture/workflow.md
     - Tool System: architecture/tools.md
     - Caching Architecture: architecture/caching.md
+    - Modular RAG Services: architecture/modular-rag-services.md
   - API Reference:
     - Endpoints: api/endpoints.md
     - OpenAI Compatibility: api/openai-compatibility.md
     - Tool Management: api/tool-management.md
-    - Streaming and Batching: api/streaming.md
+    - Streaming: api/streaming.md
   - Development:
     - Setup Guide: development/setup.md
     - Development Guide: development/development-guide.md
@@ -55,30 +58,48 @@ nav:
     - Security Practices: development/security-and-api-key-handling.md
     - Branch Protection: development/branch-protection.md
   - Tools & Integrations:
+    - Tool Overview: tools/overview.md
     - Tool Development: tools/tool-development.md
-    - SearXNG Search: tools/searx.md
-    - RAG System: tools/rag.md
     - Custom Tools: tools/custom-tools.md
+    - SearXNG Search: tools/searx.md
+    - SearXNG Setup: searxng-setup.md
+    - Firecrawl Web Scraping:
+      - Quick Start: tools/firecrawl-quick-start.md
+      - Docker Only: tools/firecrawl-docker-only.md
+      - Docker Migration: tools/firecrawl-docker-migration.md
+      - Advanced Scraping: tools/firecrawl-scraping.md
+    - Jina Reranker: tools/jina-reranker.md
+    - RAG System: tools/rag.md
+    - Dynamic Tool System: dynamic-tool-system.md
+    - Playwright Setup: playwright-setup.md
   - Deployment:
+    - Production Guide: deployment/production.md
     - Docker Integration: docker-integration.md
     - Docker Testing: docker-testing.md
-    - Production Deployment: deployment/production.md
     - Monitoring Setup: deployment/monitoring.md
+    - Traefik Integration: deployment/traefik-integration.md
   - Provider Configuration:
-    - OpenAI-Compatible Providers: openai-compatible-provider-refactoring.md
-    - Ollama Integration: ollama-integration.md
     - Multi-Provider Setup: providers/multi-provider.md
     - Provider Comparison: providers/comparison.md
-  - AI & Optimization:
-    - Model Integration: ai/model-integration.md
-    - Prompt Engineering: ai/prompt-engineering.md
-    - Performance Optimization: ai/optimization.md
-    - Cost Management: ai/cost-management.md
+    - OpenAI-Compatible Providers: openai-compatible-provider-refactoring.md
+    - Ollama Integration: ollama-integration.md
+  - Advanced Features:
+    - Multi-Writer System:
+      - Quick Start: multi-writer-quick-start.md
+      - System Overview: multi-writer-system.md
+    - AI & Optimization:
+      - Model Integration: ai/model-integration.md
+      - Prompt Engineering: ai/prompt-engineering.md
+      - Performance Optimization: ai/optimization.md
+      - Cost Management: ai/cost-management.md
+  - User Interface:
+    - Gradio Interface: ui/gradio-interface.md
   - Troubleshooting:
     - Common Issues: troubleshooting/common-issues.md
     - Debugging Guide: troubleshooting/debugging.md
     - FAQ: troubleshooting/faq.md
     - Performance Issues: troubleshooting/performance.md
+    - GitHub Actions Test Fixes: troubleshooting/github-actions-test-fixes.md
 
 markdown_extensions:
   - admonition

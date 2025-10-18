@@ -4,63 +4,115 @@ This guide explains how to configure and use multiple LLM providers with the AI 
 
 ## Overview
 
-The AI Assistant System supports multiple LLM providers, allowing you to:
+The AI Assistant System supports multiple LLM providers through a unified OpenAI-compatible interface, allowing you to:
 - Use different models for different tasks
 - Implement failover between providers
 - Load balance requests across providers
 - Optimize for cost and performance
+- Mix cloud and local models
 
 ## Supported Providers
 
-- OpenAI
-- Anthropic Claude
-- Ollama (local models)
-- Azure OpenAI
-- Custom OpenAI-compatible endpoints
+- **OpenAI** - GPT models (GPT-4, GPT-3.5 Turbo, etc.)
+- **OpenRouter** - Multiple models from various providers
+- **Anthropic Claude** - Claude models (Claude-3.5 Sonnet, Claude-3 Opus, etc.)
+- **Together AI** - Open-source models
+- **Azure OpenAI** - Enterprise OpenAI models
+- **Ollama** - Local models (Llama, Mistral, etc.)
+- **Custom OpenAI-compatible endpoints** - Any provider implementing the OpenAI API
 
 ## Configuration
 
 ### Environment Variables
 
-Configure multiple providers using environment variables:
+Configure multiple providers using the OpenAI-compatible provider interface:
 
 ```env
-# Primary provider
-PRIMARY_PROVIDER=openai
-OPENAI_API_KEY=your_openai_key
-OPENAI_BASE_URL=https://api.openai.com/v1
+# Primary OpenAI-Compatible Provider (Recommended)
+OPENAI_COMPATIBLE_ENABLED=true
+OPENAI_COMPATIBLE_API_KEY=your_primary_key
+OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_COMPATIBLE_DEFAULT_MODEL=anthropic/claude-3.5-sonnet
+PREFERRED_PROVIDER=openai_compatible
 
-# Secondary provider
-SECONDARY_PROVIDER=anthropic
-ANTHROPIC_API_KEY=your_anthropic_key
+# Enable automatic fallback
+ENABLE_PROVIDER_FALLBACK=true
 
-# Local provider
-LOCAL_PROVIDER=ollama
-OLLAMA_BASE_URL=http://localhost:11434
+# Optional: Custom headers for specific providers
+OPENAI_COMPATIBLE_CUSTOM_HEADERS={"X-Custom-Header": "value"}
+```
 
-# Azure OpenAI
-AZURE_OPENAI_API_KEY=your_azure_key
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_OPENAI_API_VERSION=2023-12-01-preview
+### Provider-Specific Configurations
 
-# Custom provider
-CUSTOM_PROVIDER_NAME=myprovider
-CUSTOM_PROVIDER_API_KEY=your_custom_key
-CUSTOM_PROVIDER_BASE_URL=https://api.custom-provider.com/v1
+#### OpenRouter (Recommended for variety)
+```env
+OPENAI_COMPATIBLE_API_KEY=your_openrouter_key
+OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_COMPATIBLE_DEFAULT_MODEL=anthropic/claude-3.5-sonnet
+```
+
+#### OpenAI
+```env
+OPENAI_COMPATIBLE_API_KEY=sk-your-openai-key
+OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1
+OPENAI_COMPATIBLE_DEFAULT_MODEL=gpt-4-turbo
+```
+
+#### Anthropic Claude
+```env
+OPENAI_COMPATIBLE_API_KEY=your_anthropic_key
+OPENAI_COMPATIBLE_BASE_URL=https://api.anthropic.com
+OPENAI_COMPATIBLE_DEFAULT_MODEL=claude-3-5-sonnet-20241022
+```
+
+#### Together AI
+```env
+OPENAI_COMPATIBLE_API_KEY=your_together_key
+OPENAI_COMPATIBLE_BASE_URL=https://api.together.xyz/v1
+OPENAI_COMPATIBLE_DEFAULT_MODEL=mistralai/Mixtral-8x7B-Instruct-v0.1
+```
+
+#### Azure OpenAI
+```env
+OPENAI_COMPATIBLE_API_KEY=your_azure_key
+OPENAI_COMPATIBLE_BASE_URL=https://your-resource.openai.azure.com/
+OPENAI_COMPATIBLE_CUSTOM_HEADERS={"api-key": "your_azure_key"}
+OPENAI_COMPATIBLE_DEFAULT_MODEL=gpt-4
+```
+
+#### Ollama (Local Models)
+```env
+OLLAMA_SETTINGS_ENABLED=true
+OLLAMA_SETTINGS_BASE_URL=http://localhost:11434
+OLLAMA_SETTINGS_DEFAULT_MODEL=llama3.1:8b
+```
+
+#### Custom Provider
+```env
+OPENAI_COMPATIBLE_API_KEY=your_custom_key
+OPENAI_COMPATIBLE_BASE_URL=https://api.custom-provider.com/v1
+OPENAI_COMPATIBLE_PROVIDER_NAME=Custom Provider
+OPENAI_COMPATIBLE_DEFAULT_MODEL=custom-model-name
 ```
 
 ### Provider Configuration File
 
-Create a `providers.yaml` configuration file:
+Create a `providers.yaml` configuration file for advanced setups:
 
 ```yaml
 providers:
-  openai:
-    type: openai
-    api_key: ${OPENAI_API_KEY}
-    base_url: ${OPENAI_BASE_URL}
+  openai_compatible:
+    type: openai_compatible
+    api_key: ${OPENAI_COMPATIBLE_API_KEY}
+    base_url: ${OPENAI_COMPATIBLE_BASE_URL}
+    default_model: ${OPENAI_COMPATIBLE_DEFAULT_MODEL}
+    provider_name: ${OPENAI_COMPATIBLE_PROVIDER_NAME}
+    custom_headers: ${OPENAI_COMPATIBLE_CUSTOM_HEADERS}
+    timeout: 30
+    max_retries: 3
     models:
-      - gpt-4
+      - anthropic/claude-3.5-sonnet
+      - gpt-4-turbo
       - gpt-3.5-turbo
     rate_limit:
       requests_per_minute: 60
@@ -69,24 +121,13 @@ providers:
       max_attempts: 3
       backoff_factor: 2
 
-  anthropic:
-    type: anthropic
-    api_key: ${ANTHROPIC_API_KEY}
-    models:
-      - claude-3-opus-20240229
-      - claude-3-sonnet-20240229
-    rate_limit:
-      requests_per_minute: 50
-      tokens_per_minute: 100000
-    retry:
-      max_attempts: 3
-      backoff_factor: 2
-
   ollama:
     type: ollama
-    base_url: ${OLLAMA_BASE_URL}
+    enabled: ${OLLAMA_SETTINGS_ENABLED}
+    base_url: ${OLLAMA_SETTINGS_BASE_URL}
+    default_model: ${OLLAMA_SETTINGS_DEFAULT_MODEL}
     models:
-      - llama2
+      - llama3.1:8b
       - codellama
       - mistral
     rate_limit:
@@ -95,49 +136,85 @@ providers:
       max_attempts: 2
       backoff_factor: 1.5
 
-  azure_openai:
-    type: azure_openai
-    api_key: ${AZURE_OPENAI_API_KEY}
-    endpoint: ${AZURE_OPENAI_ENDPOINT}
-    api_version: ${AZURE_OPENAI_API_VERSION}
-    models:
-      - gpt-4
-      - gpt-35-turbo
-    rate_limit:
-      requests_per_minute: 120
-      tokens_per_minute: 120000
-    retry:
-      max_attempts: 3
-      backoff_factor: 2
-
 strategies:
   default:
-    provider: openai
-    model: gpt-4
+    provider: openai_compatible
+    model: anthropic/claude-3.5-sonnet
     fallback_providers:
-      - anthropic
       - ollama
 
   code_generation:
-    provider: anthropic
+    provider: openai_compatible
     model: claude-3-opus-20240229
     fallback_providers:
-      - openai
+      - ollama
 
   local_development:
     provider: ollama
-    model: llama2
+    model: llama3.1:8b
     fallback_providers:
-      - openai
+      - openai_compatible
 
   cost_optimized:
-    provider: openai
+    provider: openai_compatible
     model: gpt-3.5-turbo
     fallback_providers:
       - ollama
+
+  creative_writing:
+    provider: openai_compatible
+    model: claude-3.5-sonnet
+    fallback_providers:
+      - gpt-4-turbo
 ```
 
 ## Provider Selection Strategies
+
+### Automatic Fallback
+
+The system automatically falls back to alternative providers when the primary provider fails:
+
+```bash
+# Enable automatic fallback
+ENABLE_PROVIDER_FALLBACK=true
+
+# Set preferred provider
+PREFERRED_PROVIDER=openai_compatible
+
+# Configure multiple providers in order of preference
+OPENAI_COMPATIBLE_API_KEY=primary_key
+OPENAI_COMPATIBLE_BASE_URL=https://primary-provider.com/v1
+
+# Fallback provider
+OLLAMA_SETTINGS_ENABLED=true
+OLLAMA_SETTINGS_BASE_URL=http://localhost:11434
+```
+
+### Manual Provider Selection
+
+Specify the provider in your API requests:
+
+```python
+import httpx
+
+# Use specific provider
+response = httpx.post(
+    "http://localhost:8000/v1/chat/completions",
+    json={
+        "model": "openai_compatible:anthropic/claude-3.5-sonnet",
+        "messages": [{"role": "user", "content": "Hello!"}]
+    }
+)
+
+# Use local model
+response = httpx.post(
+    "http://localhost:8000/v1/chat/completions",
+    json={
+        "model": "ollama:llama3.1:8b",
+        "messages": [{"role": "user", "content": "Hello!"}]
+    }
+)
+```
 
 ### Round Robin
 
@@ -147,7 +224,7 @@ Distribute requests evenly across providers:
 from app.core.llm_providers import ProviderManager, RoundRobinStrategy
 
 provider_manager = ProviderManager()
-strategy = RoundRobinStrategy(providers=["openai", "anthropic", "ollama"])
+strategy = RoundRobinStrategy(providers=["openai_compatible", "ollama"])
 provider_manager.set_strategy(strategy)
 ```
 
@@ -160,9 +237,8 @@ from app.core.llm_providers import WeightedRoundRobinStrategy
 
 strategy = WeightedRoundRobinStrategy(
     providers={
-        "openai": 0.5,
-        "anthropic": 0.3,
-        "ollama": 0.2
+        "openai_compatible": 0.7,
+        "ollama": 0.3
     }
 )
 provider_manager.set_strategy(strategy)
@@ -200,8 +276,8 @@ Configure automatic failover when a provider fails:
 from app.core.llm_providers import FailoverConfig
 
 failover_config = FailoverConfig(
-    primary_provider="openai",
-    fallback_providers=["anthropic", "ollama"],
+    primary_provider="openai_compatible",
+    fallback_providers=["ollama"],
     health_check_interval=60,  # seconds
     max_failures=3,
     recovery_timeout=300  # seconds
@@ -212,15 +288,15 @@ provider_manager.configure_failover(failover_config)
 
 ### Health Checks
 
-Implement health checks for providers:
+The system automatically performs health checks on all configured providers:
 
 ```python
 from app.core.llm_providers import HealthChecker
 
 health_checker = HealthChecker()
 
-@health_checker.register("openai")
-async def check_openai_health():
+@health_checker.register("openai_compatible")
+async def check_openai_compatible_health():
     try:
         # Simple health check
         response = await openai_client.completions.create(
@@ -236,6 +312,18 @@ async def check_openai_health():
 health_checker.schedule_checks(interval=60)
 ```
 
+### Manual Health Check
+
+Check provider health manually:
+
+```bash
+# Check all providers
+curl http://localhost:8000/v1/providers
+
+# Check specific provider
+curl http://localhost:8000/v1/providers/openai_compatible/health
+```
+
 ## Load Balancing
 
 ### Request Load Balancing
@@ -246,7 +334,7 @@ Balance requests across multiple provider instances:
 from app.core.llm_providers import LoadBalancer
 
 load_balancer = LoadBalancer(
-    providers=["openai", "anthropic"],
+    providers=["openai_compatible", "ollama"],
     algorithm="least_connections",
     health_checker=health_checker
 )
@@ -267,8 +355,7 @@ from app.core.llm_providers import TokenLoadBalancer
 
 token_balancer = TokenLoadBalancer(
     providers={
-        "openai": {"max_tokens": 100000, "current_usage": 0},
-        "anthropic": {"max_tokens": 80000, "current_usage": 0},
+        "openai_compatible": {"max_tokens": 100000, "current_usage": 0},
         "ollama": {"max_tokens": 50000, "current_usage": 0}
     }
 )
@@ -317,6 +404,24 @@ async def check_costs():
         await send_alert(f"Daily budget threshold reached: ${current_cost}")
 ```
 
+### Cost Optimization
+
+Configure cost optimization strategies:
+
+```bash
+# Prefer local models for cost savings
+PREFERRED_PROVIDER=ollama
+ENABLE_PROVIDER_FALLBACK=true
+
+# Set usage limits
+RATE_LIMIT_REQUESTS=100
+RATE_LIMIT_WINDOW=60
+
+# Enable caching to reduce API calls
+REDIS_CACHE_ENABLED=true
+CACHE_TTL=3600
+```
+
 ## Monitoring Multi-Provider Setup
 
 ### Provider Metrics
@@ -354,6 +459,19 @@ Create a Grafana dashboard to monitor:
 - Cost tracking by provider
 - Provider health status
 
+### API Endpoints for Monitoring
+
+```bash
+# Get provider status
+curl http://localhost:8000/v1/providers
+
+# Get detailed statistics
+curl http://localhost:8000/api/v1/monitoring/stats
+
+# Get Prometheus metrics
+curl http://localhost:8000/metrics
+```
+
 ## Best Practices
 
 1. **Test Failover**: Regularly test failover mechanisms
@@ -363,6 +481,9 @@ Create a Grafana dashboard to monitor:
 5. **Document Setup**: Document your multi-provider configuration
 6. **Start Small**: Begin with a simple setup and expand as needed
 7. **Review Performance**: Regularly review provider performance
+8. **Use Caching**: Enable caching to reduce API calls and costs
+9. **Security**: Never commit API keys to version control
+10. **Provider Selection**: Choose providers based on your specific needs
 
 ## Troubleshooting
 
@@ -372,11 +493,43 @@ Create a Grafana dashboard to monitor:
 2. **High Latency**: Consider using faster providers or load balancing
 3. **Cost Overruns**: Monitor costs and set budget alerts
 4. **Rate Limits**: Configure appropriate rate limits and retry strategies
+5. **Authentication Issues**: Verify API keys and endpoints
+6. **Model Not Available**: Check provider model availability
 
 ### Debug Mode
 
 Enable debug mode for detailed logging:
 
-```python
-import logging
-logging.getLogger("app.core.llm_providers").setLevel(logging.DEBUG)
+```bash
+# Enable debug logging
+LOG_LEVEL=DEBUG
+
+# Check provider status
+curl http://localhost:8000/v1/providers
+
+# Test specific provider
+curl -X POST "http://localhost:8000/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "openai_compatible:gpt-3.5-turbo",
+    "messages": [{"role": "user", "content": "Test"}]
+  }'
+```
+
+### Migration from OpenRouter-Specific
+
+If you're migrating from the old OpenRouter-specific configuration:
+
+```bash
+# Old configuration (still works)
+OPENROUTER_API_KEY=your_key
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+PREFERRED_PROVIDER=openrouter
+
+# New configuration (recommended)
+OPENAI_COMPATIBLE_API_KEY=your_key
+OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
+PREFERRED_PROVIDER=openai_compatible
+```
+
+Both configurations work simultaneously for backward compatibility.

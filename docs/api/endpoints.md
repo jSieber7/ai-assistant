@@ -18,7 +18,9 @@ Currently, the API does not require authentication for local development. For pr
 
 ## Available Endpoints
 
-### GET /health
+### Health and Status
+
+#### GET /health
 **Health check endpoint**
 
 Returns the current status of the service.
@@ -27,7 +29,9 @@ Returns the current status of the service.
 ```json
 {
   "status": "healthy",
-  "service": "langchain-agent-hub"
+  "service": "ai-assistant",
+  "version": "0.3.2",
+  "timestamp": "2025-01-15T10:30:00Z"
 }
 ```
 
@@ -36,10 +40,29 @@ Returns the current status of the service.
 curl http://localhost:8000/health
 ```
 
-### GET /v1/models
+#### GET /ready
+**Readiness check endpoint**
+
+Returns whether the service is ready to accept requests.
+
+**Response:**
+```json
+{
+  "ready": true,
+  "checks": {
+    "database": "ok",
+    "cache": "ok",
+    "providers": "ok"
+  }
+}
+```
+
+### Model Management
+
+#### GET /v1/models
 **List available models**
 
-Returns a list of available models. Currently supports the LangChain agent hub model.
+Returns a list of available models from all configured providers.
 
 **Response:**
 ```json
@@ -47,13 +70,24 @@ Returns a list of available models. Currently supports the LangChain agent hub m
   "object": "list",
   "data": [
     {
-      "id": "langchain-agent-hub",
+      "id": "anthropic/claude-3.5-sonnet",
       "object": "model",
       "created": 1677610602,
-      "owned_by": "langchain-agent-hub",
+      "owned_by": "anthropic",
       "permission": [],
-      "root": "langchain-agent-hub",
-      "parent": null
+      "root": "anthropic/claude-3.5-sonnet",
+      "parent": null,
+      "provider": "openai_compatible"
+    },
+    {
+      "id": "gpt-4-turbo",
+      "object": "model",
+      "created": 1677610602,
+      "owned_by": "openai",
+      "permission": [],
+      "root": "gpt-4-turbo",
+      "parent": null,
+      "provider": "openai_compatible"
     }
   ]
 }
@@ -65,6 +99,13 @@ curl http://localhost:8000/v1/models
 ```
 
 ### Chat Completions (OpenAI-Compatible)
+
+#### POST /v1/chat/completions
+**Create chat completion**
+
+Creates a chat completion response using the specified model and messages.
+
+**Request:**
 ```http
 POST /v1/chat/completions
 Content-Type: application/json
@@ -87,36 +128,82 @@ Content-Type: application/json
 ```
 
 **Parameters:**
-- `messages` (array): Array of message objects with role and content
-- `model` (string, optional): Model to use (default: "anthropic/claude-3.5-sonnet")
+- `messages` (array, required): Array of message objects with role and content
+- `model` (string, optional): Model to use (default: configured default model)
 - `stream` (boolean): Whether to stream the response (default: false)
 - `temperature` (number): Sampling temperature (default: 0.7)
 - `max_tokens` (number, optional): Maximum tokens to generate
 - `tools` (array, optional): Array of tool definitions for tool calling
+- `tool_choice` (string/object): Tool choice strategy (auto, none, or specific tool)
+- `stop` (string/array): Stop sequences
+- `top_p` (number): Nucleus sampling parameter
+- `frequency_penalty` (number): Frequency penalty (-2.0 to 2.0)
+- `presence_penalty` (number): Presence penalty (-2.0 to 2.0)
 
 **Response (non-streaming):**
 ```json
 {
   "id": "chatcmpl-123456789",
   "object": "chat.completion",
+  "created": 1677652288,
   "model": "anthropic/claude-3.5-sonnet",
   "choices": [
     {
       "index": 0,
       "message": {
         "role": "assistant",
-        "content": "I'm doing well, thank you! How can I help you today?"
+        "content": "15 * 25 = 375",
+        "tool_calls": null
       },
       "finish_reason": "stop"
     }
-  ]
+  ],
+  "usage": {
+    "prompt_tokens": 20,
+    "completion_tokens": 10,
+    "total_tokens": 30
+  }
+}
+```
+
+**Response (with tool calls):**
+```json
+{
+  "id": "chatcmpl-123456789",
+  "object": "chat.completion",
+  "created": 1677652288,
+  "model": "anthropic/claude-3.5-sonnet",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": null,
+        "tool_calls": [
+          {
+            "id": "call_123456789",
+            "type": "function",
+            "function": {
+              "name": "calculator",
+              "arguments": "{\"expression\": \"15 * 25\"}"
+            }
+          }
+        ]
+      },
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 20,
+    "completion_tokens": 15,
+    "total_tokens": 35
+  }
 }
 ```
 
 **Streaming Response:**
-The streaming response uses Server-Sent Events (SSE) format with `text/plain` content type.
+The streaming response uses Server-Sent Events (SSE) format:
 
-**Example (non-streaming):**
 ```bash
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
@@ -127,33 +214,401 @@ curl -X POST http://localhost:8000/v1/chat/completions \
         "content": "What is the capital of France?"
       }
     ],
-    "model": "anthropic/claude-3.5-sonnet"
+    "model": "anthropic/claude-3.5-sonnet",
+    "stream": true
   }'
 ```
 
 ### Tool Management
-```http
-GET /api/v1/tools
-# List all registered tools
 
-POST /api/v1/tools/execute
-# Execute a specific tool
+#### GET /v1/tools
+**List all registered tools**
 
-GET /api/v1/tools/{tool_name}/stats
-# Get tool usage statistics
+Returns a list of all available tools with their descriptions.
+
+**Response:**
+```json
+{
+  "tools": [
+    {
+      "name": "calculator",
+      "description": "Perform mathematical calculations",
+      "enabled": true,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "expression": {
+            "type": "string",
+            "description": "Mathematical expression to evaluate"
+          }
+        },
+        "required": ["expression"]
+      }
+    },
+    {
+      "name": "get_current_time",
+      "description": "Get the current time and date",
+      "enabled": true,
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      }
+    }
+  ]
+}
 ```
 
-### Monitoring Endpoints
-```http
-GET /health
-# System health check
+#### POST /v1/tools/execute
+**Execute a specific tool**
 
-GET /metrics
-# Performance metrics
+Directly execute a tool without going through the chat interface.
 
-GET /api/v1/monitoring/stats
-# Detailed system statistics
+**Request:**
+```json
+{
+  "tool_name": "calculator",
+  "parameters": {
+    "expression": "15 * 25"
+  }
+}
 ```
+
+**Response:**
+```json
+{
+  "success": true,
+  "result": 375,
+  "execution_time": 0.05,
+  "tool_name": "calculator"
+}
+```
+
+#### GET /v1/tools/{tool_name}/stats
+**Get tool usage statistics**
+
+Returns usage statistics for a specific tool.
+
+**Response:**
+```json
+{
+  "tool_name": "calculator",
+  "total_calls": 150,
+  "successful_calls": 148,
+  "failed_calls": 2,
+  "average_execution_time": 0.05,
+  "last_used": "2025-01-15T10:30:00Z"
+}
+```
+
+### Provider Management
+
+#### GET /v1/providers
+**List configured providers**
+
+Returns a list of all configured LLM providers and their status.
+
+**Response:**
+```json
+{
+  "providers": [
+    {
+      "name": "openai_compatible",
+      "display_name": "OpenRouter",
+      "enabled": true,
+      "healthy": true,
+      "models": [
+        "anthropic/claude-3.5-sonnet",
+        "gpt-4-turbo"
+      ],
+      "base_url": "https://openrouter.ai/api/v1"
+    },
+    {
+      "name": "ollama",
+      "display_name": "Ollama",
+      "enabled": true,
+      "healthy": false,
+      "models": [],
+      "base_url": "http://localhost:11434"
+    }
+  ]
+}
+```
+
+### Multi-Writer System
+
+#### POST /v1/multi-writer/create
+**Create content using multi-writer system**
+
+Generates content using multiple AI writers and checkers.
+
+**Request:**
+```json
+{
+  "prompt": "Write about renewable energy benefits",
+  "sources": [
+    {"url": "https://example.com/renewable-energy"}
+  ],
+  "template_name": "article.html.jinja",
+  "quality_threshold": 75.0,
+  "async_execution": false
+}
+```
+
+**Response:**
+```json
+{
+  "workflow_id": "workflow_20250115_103000",
+  "status": "completed",
+  "stages": {
+    "source_processing": {"status": "completed"},
+    "content_generation": {"status": "completed"},
+    "quality_checking": {"status": "completed", "best_score": 85.5},
+    "template_rendering": {"status": "completed"}
+  },
+  "result": {
+    "content": "<html>...</html>",
+    "quality_score": 85.5,
+    "writer_id": "technical_1"
+  }
+}
+```
+
+#### GET /v1/multi-writer/status/{workflow_id}
+**Check workflow status**
+
+Returns the current status of a multi-writer workflow.
+
+#### GET /v1/multi-writer/workflows
+**List workflows**
+
+Returns a list of all multi-writer workflows with optional filtering.
+
+**Parameters:**
+- `status` (query): Filter by status (pending, running, completed, failed)
+- `limit` (query): Maximum number of workflows to return
+- `offset` (query): Number of workflows to skip
+
+### Monitoring and Metrics
+
+#### GET /metrics
+**Prometheus metrics**
+
+Returns metrics in Prometheus format for monitoring.
+
+**Example:**
+```bash
+curl http://localhost:8000/metrics
+```
+
+#### GET /api/v1/monitoring/stats
+**Detailed system statistics**
+
+Returns comprehensive system statistics.
+
+**Response:**
+```json
+{
+  "system": {
+    "uptime": 86400,
+    "version": "0.3.2",
+    "memory_usage": "256MB",
+    "cpu_usage": "15%"
+  },
+  "api": {
+    "total_requests": 1500,
+    "successful_requests": 1485,
+    "failed_requests": 15,
+    "average_response_time": 0.5
+  },
+  "tools": {
+    "total_calls": 500,
+    "successful_calls": 495,
+    "failed_calls": 5
+  },
+  "providers": {
+    "openai_compatible": {
+      "calls": 1000,
+      "success_rate": 0.99,
+      "average_response_time": 0.8
+    }
+  }
+}
+```
+
+### Configuration
+
+#### GET /api/v1/config
+**Get current configuration**
+
+Returns the current system configuration (excluding sensitive values).
+
+**Response:**
+```json
+{
+  "tool_calling_enabled": true,
+  "max_tools_per_query": 3,
+  "preferred_provider": "openai_compatible",
+  "cache_enabled": true,
+  "monitoring_enabled": true
+}
+```
+
+#### GET /v1/multi-writer/config
+**Get multi-writer configuration**
+
+Returns the multi-writer system configuration and status.
+
+## Error Handling
+
+The API returns standard HTTP status codes:
+
+- `200`: Success
+- `400`: Bad Request (malformed request)
+- `401`: Unauthorized (authentication required)
+- `422`: Unprocessable Entity (validation error)
+- `429`: Too Many Requests (rate limited)
+- `500`: Internal Server Error
+- `503`: Service Unavailable
+
+**Error Response Example:**
+```json
+{
+  "detail": "OPENAI_COMPATIBLE_API_KEY is not set in the environment",
+  "error_code": "MISSING_API_KEY",
+  "timestamp": "2025-01-15T10:30:00Z"
+}
+```
+
+## Rate Limiting
+
+Currently, no rate limiting is implemented by default. For production use, configure:
+
+```bash
+RATE_LIMIT_ENABLED=true
+RATE_LIMIT_REQUESTS=100
+RATE_LIMIT_WINDOW=60
+```
+
+## CORS Support
+
+The API supports CORS (Cross-Origin Resource Sharing) for web applications. Configure allowed origins:
+
+```bash
+CORS_ORIGINS=["http://localhost:3000", "http://localhost:8080", "http://localhost:7860"]
+```
+
+## Testing the API
+
+You can test the API using the provided test suite:
+
+```bash
+# Run unit tests
+python run_tests.py --unit
+
+# Run integration tests (starts a test server)
+python run_tests.py --integration
+
+# Run API-specific tests
+python run_tests.py --integration --filter="test_api"
+```
+
+## OpenAPI Documentation
+
+The API includes auto-generated OpenAPI documentation available at:
+
+```
+http://localhost:8000/docs
+```
+
+This interactive documentation allows you to test endpoints directly from the browser.
+
+## SDK Examples
+
+### Python
+
+```python
+import httpx
+
+# Non-streaming
+response = httpx.post(
+    "http://localhost:8000/v1/chat/completions",
+    json={
+        "model": "anthropic/claude-3.5-sonnet",
+        "messages": [{"role": "user", "content": "Hello!"}]
+    }
+)
+print(response.json())
+
+# Streaming
+with httpx.stream(
+    "POST",
+    "http://localhost:8000/v1/chat/completions",
+    json={
+        "model": "anthropic/claude-3.5-sonnet",
+        "messages": [{"role": "user", "content": "Hello!"}],
+        "stream": True
+    }
+) as response:
+    for line in response.iter_lines():
+        if line:
+            print(line.decode('utf-8'))
+```
+
+### JavaScript
+
+```javascript
+// Non-streaming
+const response = await fetch('http://localhost:8000/v1/chat/completions', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    model: 'anthropic/claude-3.5-sonnet',
+    messages: [
+      { role: 'user', content: 'Hello!' }
+    ]
+  })
+});
+
+const data = await response.json();
+console.log(data.choices[0].message.content);
+
+// Streaming
+const response = await fetch('http://localhost:8000/v1/chat/completions', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    model: 'anthropic/claude-3.5-sonnet',
+    messages: [
+      { role: 'user', content: 'Hello!' }
+    ],
+    stream: true
+  })
+});
+
+const reader = response.body.getReader();
+const decoder = new TextDecoder();
+
+while (true) {
+  const { done, value } = await reader.read();
+  if (done) break;
+  
+  const text = decoder.decode(value);
+  console.log(text);
+}
+```
+
+## Related Documentation
+
+- [Core Components](../architecture/core-components.md)
+- [Development Guide](../development/development-guide.md)
+- [Architecture Overview](../architecture/overview.md)
+- [Tool Management](tool-management.md)
+- [OpenAI Compatibility](openai-compatibility.md)
 
 ## Error Handling
 

@@ -1,6 +1,6 @@
 # Tools System Overview
 
-The AI Assistant System features a powerful and extensible tool system that allows AI agents to interact with external APIs, perform calculations, access web search, and extend their capabilities beyond pure text generation.
+The AI Assistant System features a powerful and extensible tool system that allows AI agents to interact with external APIs, perform calculations, access web search, scrape web content, and extend their capabilities beyond pure text generation.
 
 ## Architecture
 
@@ -8,9 +8,10 @@ The tool system is built around a modular architecture that includes:
 
 - **Tool Registry**: Central registry for discovering and managing tools
 - **Tool Execution Engine**: Secure execution environment with timeout and error handling
-- **Tool Categories**: Organized by functionality (utility, search, testing, etc.)
+- **Tool Categories**: Organized by functionality (utility, search, scraping, etc.)
 - **Integration Layer**: Seamless integration with LangChain agents
 - **Caching Layer**: Optimized performance through intelligent caching
+- **Dynamic Execution**: Runtime tool discovery and execution
 
 ## Built-in Tools
 
@@ -37,6 +38,11 @@ AI: [Uses calculator tool] √256 = 16
 - Mathematical functions: sin, cos, tan, log
 - Parentheses for complex expressions
 
+**Configuration**:
+```bash
+CALCULATOR_TOOL_ENABLED=true
+```
+
 ### Time Tool
 
 **Purpose**: Provide current time, date, and time-related information.
@@ -60,6 +66,11 @@ AI: [Uses time tool] Christmas 2025 falls on a Thursday.
 - Date calculations
 - Day of week determination
 - Unix timestamp conversion
+
+**Configuration**:
+```bash
+TIME_TOOL_ENABLED=true
+```
 
 ### Echo Tool
 
@@ -102,6 +113,71 @@ AI: [Uses web search tool] Based on recent search results, the latest developmen
 - Safe search options
 - News and web search
 
+**Configuration**:
+```bash
+SEARXNG_TOOL_ENABLED=true
+SEARXNG_URL=http://localhost:8080
+SEARXNG_TIMEOUT=10
+```
+
+### Firecrawl Web Scraping Tool
+
+**Purpose**: Advanced web scraping and content extraction.
+
+**Function Name**: `firecrawl_scrape`
+
+**Description**: Extract clean, structured content from web pages using Firecrawl.
+
+**Usage Examples**:
+```
+User: "Extract the main content from https://example.com/article"
+AI: [Uses firecrawl tool] I've extracted the main content from the article. Here's a summary...
+```
+
+**Features**:
+- JavaScript-rendered page support
+- Multiple output formats (Markdown, HTML, raw text)
+- Link and image extraction
+- Screenshot capture
+- Batch scraping support
+
+**Configuration**:
+```bash
+FIRECRAWL_TOOL_ENABLED=false  # Requires Docker setup
+FIRECRAWL_DEPLOYMENT_MODE=docker
+FIRECRAWL_DOCKER_URL=http://firecrawl-api:3002
+FIRECRAWL_BULL_AUTH_KEY=change_me_firecrawl
+FIRECRAWL_SCRAPING_ENABLED=true
+FIRECRAWL_SCRAPE_TIMEOUT=60
+```
+
+### Jina Reranker Tool
+
+**Purpose**: Improve search results by reranking them based on relevance.
+
+**Function Name**: `jina_rerank`
+
+**Description**: Rerank search results or documents using Jina's reranking models.
+
+**Usage Examples**:
+```
+User: "Find the most relevant documents about machine learning"
+AI: [Uses web search, then jina reranker] I've searched and reranked the results to find the most relevant documents...
+```
+
+**Features**:
+- Document relevance scoring
+- Search result optimization
+- Multiple reranking models
+- Batch processing support
+
+**Configuration**:
+```bash
+JINA_RERANKER_TOOL_ENABLED=false  # Requires Docker setup
+JINA_RERANKER_URL=http://jina-reranker:8000
+JINA_RERANKER_MODEL=jina-reranker-v1-base-en
+```
+
 ## Tool Categories
 
 ### Utility Tools
@@ -110,9 +186,15 @@ AI: [Uses web search tool] Based on recent search results, the latest developmen
 - **Echo**: Testing and debugging
 
 ### Search Tools
-- **SearXNG Search**: Web search capabilities
+- **SearXNG Search**: Privacy-focused web search
+- **Jina Reranker**: Search result reranking
 - **Future**: RAG knowledge base search
 - **Future**: Document search
+
+### Web Scraping Tools
+- **Firecrawl**: Advanced web scraping and content extraction
+- **Future**: API integrations
+- **Future**: File operations
 
 ### Communication Tools
 - **Future**: Email sending
@@ -121,7 +203,7 @@ AI: [Uses web search tool] Based on recent search results, the latest developmen
 
 ### Data Tools
 - **Future**: Database queries
-- **Future**: API integrations
+- **Future**: Data processing
 - **Future**: File operations
 
 ## Tool Development Framework
@@ -132,18 +214,56 @@ The system provides a framework for creating custom tools:
 
 ```python
 from app.core.tools.base import BaseTool
+from typing import Dict, Any, Optional
+import asyncio
 
 class CustomTool(BaseTool):
-    name = "custom_tool"
-    description = "Description of what this tool does"
-
-    def execute(self, input_data: str) -> str:
+    @property
+    def name(self) -> str:
+        return "custom_tool"
+    
+    @property
+    def description(self) -> str:
+        return "Description of what this tool does"
+    
+    @property
+    def parameters(self) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "input_data": {
+                    "type": "string",
+                    "description": "Input data for the tool"
+                }
+            },
+            "required": ["input_data"]
+        }
+    
+    async def execute(self, **kwargs) -> Dict[str, Any]:
+        """Execute the tool with the given parameters."""
+        input_data = kwargs.get("input_data")
+        
+        # Validate input
+        if not self.validate_input(input_data):
+            raise ValueError("Invalid input data")
+        
         # Tool implementation
-        return result
-
+        result = await self.process_data(input_data)
+        
+        return {
+            "success": True,
+            "result": result,
+            "tool_name": self.name
+        }
+    
     def validate_input(self, input_data: str) -> bool:
-        # Input validation logic
-        return True
+        """Validate input parameters."""
+        return input_data is not None and len(input_data.strip()) > 0
+    
+    async def process_data(self, input_data: str) -> str:
+        """Process the input data and return result."""
+        # Your custom logic here
+        return f"Processed: {input_data}"
 ```
 
 ### Tool Registration
@@ -165,13 +285,16 @@ Tools can be configured via environment variables:
 
 ```bash
 # Enable/disable specific tools
-ENABLE_CALCULATOR_TOOL=true
-ENABLE_TIME_TOOL=true
-ENABLE_WEB_SEARCH=true
+CALCULATOR_TOOL_ENABLED=true
+TIME_TOOL_ENABLED=true
+SEARXNG_TOOL_ENABLED=true
+FIRECRAWL_TOOL_ENABLED=false
+JINA_RERANKER_TOOL_ENABLED=false
 
 # Tool-specific configuration
-WEB_SEARCH_TIMEOUT=10
-CALCULATOR_PRECISION=4
+SEARXNG_TIMEOUT=10
+FIRECRAWL_SCRAPE_TIMEOUT=60
+JINA_RERANKER_MODEL=jina-reranker-v1-base-en
 ```
 
 ## Tool Integration with Agents
@@ -184,15 +307,18 @@ The AI agents automatically select appropriate tools based on the user's query:
 - **Intent Recognition**: Understand when tools are needed
 - **Context Awareness**: Use tools when relevant to conversation
 - **Multi-Tool Usage**: Combine multiple tools for complex queries
+- **Tool Dependencies**: Handle tools that depend on other tools
 
 ### Tool Execution Flow
 
 1. **Query Analysis**: Agent analyzes user query for tool requirements
 2. **Tool Selection**: Choose appropriate tool(s) based on analysis
 3. **Parameter Extraction**: Extract necessary parameters from query
-4. **Tool Execution**: Execute tool with validation and timeout
-5. **Result Integration**: Incorporate tool results into response
-6. **Response Generation**: Generate final response with tool insights
+4. **Tool Validation**: Validate tool parameters and permissions
+5. **Tool Execution**: Execute tool with timeout and error handling
+6. **Result Processing**: Process and format tool results
+7. **Result Integration**: Incorporate tool results into response
+8. **Response Generation**: Generate final response with tool insights
 
 ### Error Handling
 
@@ -200,6 +326,7 @@ The AI agents automatically select appropriate tools based on the user's query:
 - **Retry Logic**: Automatic retry for transient failures
 - **Graceful Degradation**: Continue operation if tool fails
 - **Error Logging**: Comprehensive error logging and monitoring
+- **Fallback Mechanisms**: Alternative approaches when tools fail
 
 ## Performance Optimization
 
@@ -208,18 +335,21 @@ The AI agents automatically select appropriate tools based on the user's query:
 - **Result Caching**: Cache tool results for repeated queries
 - **Configuration Caching**: Cache tool configurations
 - **Connection Pooling**: Reuse connections for external APIs
+- **Multi-layer Caching**: Memory and Redis caching for different use cases
 
 ### Batching
 
 - **Batch Requests**: Combine multiple tool calls
 - **Async Execution**: Run tools concurrently when possible
 - **Queue Management**: Queue tool requests for optimal throughput
+- **Parallel Processing**: Execute independent tools in parallel
 
 ### Monitoring
 
 - **Execution Metrics**: Track tool execution time and success rates
 - **Usage Statistics**: Monitor tool usage patterns
 - **Error Tracking**: Track and analyze tool errors
+- **Performance Analytics**: Detailed performance insights
 
 ## Security Considerations
 
@@ -228,18 +358,21 @@ The AI agents automatically select appropriate tools based on the user's query:
 - **Parameter Validation**: Validate all tool inputs
 - **Sanitization**: Sanitize user inputs
 - **Size Limits**: Limit input and output sizes
+- **Type Checking**: Ensure parameter types are correct
 
 ### Access Control
 
 - **Tool Permissions**: Control access to specific tools
 - **Rate Limiting**: Limit tool usage frequency
 - **Audit Logging**: Log all tool usage
+- **API Key Security**: Secure storage of external API keys
 
 ### Sandboxing
 
 - **Isolated Execution**: Run tools in isolated environments
 - **Resource Limits**: Limit tool resource usage
 - **Timeout Protection**: Prevent runaway tool execution
+- **Network Controls**: Control network access for tools
 
 ## Configuration
 
@@ -247,14 +380,17 @@ The AI agents automatically select appropriate tools based on the user's query:
 
 ```bash
 # Tool system settings
-ENABLE_TOOL_SYSTEM=true
+TOOL_CALLING_ENABLED=true
 TOOL_EXECUTION_TIMEOUT=30
+MAX_TOOLS_PER_QUERY=3
 MAX_TOOL_ITERATIONS=10
 
 # Individual tool settings
-ENABLE_CALCULATOR=true
-ENABLE_TIME_TOOL=true
-ENABLE_WEB_SEARCH=true
+CALCULATOR_TOOL_ENABLED=true
+TIME_TOOL_ENABLED=true
+SEARXNG_TOOL_ENABLED=true
+FIRECRAWL_TOOL_ENABLED=false
+JINA_RERANKER_TOOL_ENABLED=false
 
 # Performance settings
 TOOL_CACHE_TTL=300
@@ -271,6 +407,21 @@ Tools can be configured at runtime via the Gradio interface:
 4. Adjust tool parameters
 5. Apply changes
 
+### Docker Services
+
+Some tools require additional Docker services:
+
+```bash
+# Start Firecrawl for web scraping
+docker-compose up -d firecrawl-api firecrawl-redis firecrawl-postgres
+
+# Start Jina Reranker for result reranking
+docker-compose up -d jina-reranker
+
+# Start SearXNG for privacy-focused search
+docker-compose up -d searxng
+```
+
 ## Best Practices
 
 ### Tool Design
@@ -280,6 +431,8 @@ Tools can be configured at runtime via the Gradio interface:
 3. **Error Handling**: Implement comprehensive error handling
 4. **Input Validation**: Validate all inputs thoroughly
 5. **Performance**: Optimize for speed and efficiency
+6. **Async Support**: Implement async execution when possible
+7. **Resource Management**: Properly manage resources and connections
 
 ### Tool Usage
 
@@ -287,6 +440,7 @@ Tools can be configured at runtime via the Gradio interface:
 2. **Explain Results**: Explain what the tool does and why
 3. **Handle Failures**: Gracefully handle tool failures
 4. **Combine Tools**: Use multiple tools when beneficial
+5. **Monitor Performance**: Track tool execution metrics
 
 ### Testing
 
@@ -294,32 +448,56 @@ Tools can be configured at runtime via the Gradio interface:
 2. **Integration Tests**: Test tool integration with agents
 3. **Performance Tests**: Test tool performance under load
 4. **Security Tests**: Test tool security and validation
+5. **End-to-End Tests**: Test complete workflows
 
 ## Troubleshooting
 
 ### Common Issues
 
 1. **Tool Not Working**
-   - Check if tool is enabled
-   - Verify configuration
-   - Check logs for errors
+   - Check if tool is enabled in configuration
+   - Verify required services are running (Docker services)
+   - Check logs for errors: `docker-compose logs ai-assistant`
 
 2. **Tool Timeout**
-   - Increase timeout setting
-   - Check tool performance
+   - Increase timeout setting: `TOOL_EXECUTION_TIMEOUT=60`
+   - Check tool performance and network connectivity
    - Optimize tool implementation
 
-3. **Invalid Input**
-   - Check input validation
-   - Verify input format
-   - Update documentation
+3. **Firecrawl Not Working**
+   - Ensure Docker services are running: `make firecrawl`
+   - Check Firecrawl configuration
+   - Verify API key and URL settings
+
+4. **Jina Reranker Not Working**
+   - Ensure Jina Reranker service is running
+   - Check URL configuration: `JINA_RERANKER_URL`
+   - Verify model availability
+
+5. **SearXNG Search Not Working**
+   - Check SearXNG service status
+   - Verify URL configuration: `SEARXNG_URL`
+   - Check network connectivity
 
 ### Debugging
 
-1. **Enable Debug Mode**: Set `DEBUG=true` in environment
+1. **Enable Debug Mode**: Set `LOG_LEVEL=DEBUG` in environment
 2. **Check Logs**: Review application logs for tool errors
 3. **Test Independently**: Test tools outside of agent system
 4. **Monitor Metrics**: Check tool performance metrics
+5. **API Testing**: Test tools directly via API endpoints
+
+### Performance Issues
+
+1. **Slow Tool Execution**
+   - Enable caching: `REDIS_CACHE_ENABLED=true`
+   - Check network connectivity
+   - Optimize tool implementation
+
+2. **High Memory Usage**
+   - Monitor tool memory consumption
+   - Implement result streaming for large outputs
+   - Adjust cache settings
 
 ## Future Enhancements
 
@@ -330,6 +508,8 @@ Tools can be configured at runtime via the Gradio interface:
 - **API Integration**: REST API and webhook support
 - **File Operations**: File upload, processing, and storage
 - **Communication**: Email, SMS, and messaging integrations
+- **Image Processing**: Image analysis and manipulation
+- **Code Execution**: Secure code execution environments
 
 ### Advanced Features
 
@@ -337,11 +517,16 @@ Tools can be configured at runtime via the Gradio interface:
 - **Conditional Tools**: Tools that depend on conditions
 - **Parallel Execution**: Concurrent tool execution
 - **Tool Composition**: Combine multiple tools into composite tools
+- **Tool Templates**: Pre-configured tool combinations
+- **Dynamic Tool Loading**: Runtime tool discovery and loading
 
 ## Related Documentation
 
 - [Custom Tool Development](tool-development.md) - Creating custom tools
 - [RAG Integration](rag.md) - Knowledge base and search
 - [SearXNG Integration](searx.md) - Web search setup
+- [Firecrawl Web Scraping](firecrawl-quick-start.md) - Advanced scraping
+- [Jina Reranker](jina-reranker.md) - Search result reranking
 - [Configuration Guide](../configuration.md) - System configuration
-- [API Reference](../api/tool-management.md) - Tool API endpoints
+- [API Reference](../api/endpoints.md) - Tool API endpoints
+- [Dynamic Tool System](../dynamic-tool-system.md) - Advanced tool features

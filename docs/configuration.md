@@ -14,27 +14,53 @@ The system supports multiple LLM providers with automatic fallback capabilities.
 
 #### OpenAI-Compatible Provider (Recommended)
 ```bash
+# Core OpenAI-Compatible Provider Settings
+OPENAI_COMPATIBLE_ENABLED=true
 OPENAI_COMPATIBLE_API_KEY=your_api_key_here
 OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
 OPENAI_COMPATIBLE_DEFAULT_MODEL=anthropic/claude-3.5-sonnet
+OPENAI_COMPATIBLE_PROVIDER_NAME=OpenRouter  # Auto-detected if not set
+
+# Optional Settings
+OPENAI_COMPATIBLE_CUSTOM_HEADERS={"X-Custom-Header": "value"}
+OPENAI_COMPATIBLE_TIMEOUT=30
+OPENAI_COMPATIBLE_MAX_RETRIES=3
 ```
 
 #### OpenAI
 ```bash
-OPENAI_API_KEY=your_openai_api_key
-OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_COMPATIBLE_API_KEY=sk-your-openai-key
+OPENAI_COMPATIBLE_BASE_URL=https://api.openai.com/v1
+OPENAI_COMPATIBLE_DEFAULT_MODEL=gpt-4-turbo
 ```
 
-#### OpenRouter
+#### OpenRouter (Backward Compatible)
 ```bash
 OPENROUTER_API_KEY=your_openrouter_api_key
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+DEFAULT_MODEL=anthropic/claude-3.5-sonnet
+PREFERRED_PROVIDER=openrouter
+```
+
+#### Together AI
+```bash
+OPENAI_COMPATIBLE_API_KEY=your_together_key
+OPENAI_COMPATIBLE_BASE_URL=https://api.together.xyz/v1
+OPENAI_COMPATIBLE_DEFAULT_MODEL=mistralai/Mixtral-8x7B-Instruct-v0.1
+```
+
+#### Azure OpenAI
+```bash
+OPENAI_COMPATIBLE_API_KEY=your_azure_key
+OPENAI_COMPATIBLE_BASE_URL=https://your-resource.openai.azure.com/
+OPENAI_COMPATIBLE_CUSTOM_HEADERS={"api-key": "your_azure_key"}
 ```
 
 #### Ollama (Local Models)
 ```bash
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_DEFAULT_MODEL=llama2
+OLLAMA_SETTINGS_ENABLED=true
+OLLAMA_SETTINGS_BASE_URL=http://localhost:11434
+OLLAMA_SETTINGS_DEFAULT_MODEL=llama3.1:8b
 ```
 
 #### Provider Selection
@@ -53,7 +79,7 @@ ENABLE_PROVIDER_FALLBACK=true
 HOST=0.0.0.0
 PORT=8000
 
-# Environment mode (development, production)
+# Environment mode (development, production, testing)
 ENVIRONMENT=production
 
 # Security
@@ -61,21 +87,29 @@ SECRET_KEY=your_long_random_secret_key_here
 BEHIND_PROXY=true
 
 # CORS settings
-CORS_ORIGINS=["http://localhost:3000", "http://localhost:8080"]
+CORS_ORIGINS=["http://localhost:3000", "http://localhost:8080", "http://localhost:7860"]
+
+# Logging
+LOG_LEVEL=INFO
+LOG_FORMAT=json
+STRUCTURED_LOGGING=true
 ```
 
 ### Caching Configuration
 
 #### Redis Cache
 ```bash
+REDIS_CACHE_ENABLED=true
 REDIS_URL=redis://localhost:6379/0
 CACHE_TTL=3600
 CACHE_COMPRESSION=true
 CACHE_BATCH_SIZE=10
+REDIS_CACHE_MAX_CONNECTIONS=10
 ```
 
 #### Memory Cache
 ```bash
+MEMORY_CACHE_ENABLED=true
 MEMORY_CACHE_SIZE=1000
 MEMORY_CACHE_TTL=300
 ```
@@ -84,13 +118,19 @@ MEMORY_CACHE_TTL=300
 
 ```bash
 # Enable/disable tool system
-ENABLE_TOOL_SYSTEM=true
+TOOL_CALLING_ENABLED=true
 
-# Tool execution timeout (seconds)
+# Tool execution settings
 TOOL_EXECUTION_TIMEOUT=30
-
-# Maximum number of tool iterations
+MAX_TOOLS_PER_QUERY=3
 MAX_TOOL_ITERATIONS=10
+
+# Individual tool settings
+CALCULATOR_TOOL_ENABLED=true
+TIME_TOOL_ENABLED=true
+SEARXNG_TOOL_ENABLED=true
+FIRECRAWL_TOOL_ENABLED=false  # Requires Docker setup
+JINA_RERANKER_TOOL_ENABLED=false  # Requires Docker setup
 ```
 
 ### Agent System Configuration
@@ -112,9 +152,19 @@ AGENT_EXECUTION_TIMEOUT=60
 # SearXNG integration
 SEARXNG_URL=http://localhost:8080
 SEARXNG_TIMEOUT=10
-
-# Web search enabled
 ENABLE_WEB_SEARCH=true
+
+# Firecrawl integration
+FIRECRAWL_DEPLOYMENT_MODE=docker  # docker only
+FIRECRAWL_DOCKER_URL=http://firecrawl-api:3002
+FIRECRAWL_BULL_AUTH_KEY=change_me_firecrawl
+FIRECRAWL_SCRAPING_ENABLED=true
+FIRECRAWL_SCRAPE_TIMEOUT=60
+
+# Jina Reranker
+JINA_RERANKER_ENABLED=false
+JINA_RERANKER_URL=http://jina-reranker:8000
+JINA_RERANKER_MODEL=jina-reranker-v1-base-en
 ```
 
 ### Monitoring Configuration
@@ -124,6 +174,7 @@ ENABLE_WEB_SEARCH=true
 PROMETHEUS_ENABLED=true
 PROMETHEUS_PORT=9090
 PROMETHEUS_ENDPOINT=/metrics
+METRICS_COLLECTION_ENABLED=true
 ```
 
 #### Health Checks
@@ -142,6 +193,25 @@ GRADIO_ENABLED=true
 GRADIO_HOST=0.0.0.0
 GRADIO_PORT=7860
 GRADIO_SHARE=false
+GRADIO_PATH=/gradio
+```
+
+### Multi-Writer System (Advanced)
+
+```bash
+# Enable multi-writer system (disabled by default)
+MULTI_WRITER_ENABLED=false
+
+# Required for multi-writer
+MULTI_WRITER_FIRECRAWL_API_KEY=your-firecrawl-api-key
+MULTI_WRITER_MONGODB_CONNECTION_STRING=mongodb://localhost:27017
+MULTI_WRITER_MONGODB_DATABASE_NAME=multi_writer_system
+
+# Optional settings
+MULTI_WRITER_QUALITY_THRESHOLD=70.0
+MULTI_WRITER_MAX_ITERATIONS=2
+MULTI_WRITER_MAX_CONCURRENT_WORKFLOWS=5
+MULTI_WRITER_WORKFLOW_TIMEOUT=600
 ```
 
 ## Configuration Files
@@ -164,23 +234,15 @@ cp .env.template .env
 # Edit .env with your specific configuration
 ```
 
+### Environment File Templates
+
+The project includes several environment templates:
+
+- `.env.docker` - Docker deployment configuration
+- `.env.template` - Local development template
+- `.env.example` - Example configuration with all options
+
 ## Advanced Configuration
-
-### Multi-Writer System
-
-For distributed deployments, configure the multi-writer system:
-
-```bash
-# Enable multi-writer mode
-MULTI_WRITER_ENABLED=true
-
-# Writer configuration
-WRITER_ID=writer-1
-WRITER_CLUSTER_SIZE=3
-
-# Load balancer configuration
-LOAD_BALANCER_STRATEGY=round_robin
-```
 
 ### Logging Configuration
 
@@ -216,31 +278,48 @@ BATCH_SIZE=50
 BATCH_TIMEOUT=5
 ```
 
-## Security Configuration
-
-### API Security
+### Security Configuration
 
 ```bash
-# API key validation
+# API security
 API_KEY_VALIDATION=true
-
-# Request validation
 REQUEST_VALIDATION=true
-
-# Input sanitization
 INPUT_SANITIZATION=true
 
 # CORS security
 CORS_CREDENTIALS=true
 CORS_ALLOW_METHODS=["GET", "POST", "PUT", "DELETE"]
+
+# Encryption
+ENCRYPTION_ENABLED=false
+ENCRYPTION_KEY=your_encryption_key_here
 ```
 
-### Encryption
+## Docker-Specific Configuration
+
+### Docker Environment
+
+When using Docker, some services have specific configuration:
 
 ```bash
-# Enable encryption for sensitive data
-ENCRYPTION_ENABLED=true
-ENCRYPTION_KEY=your_encryption_key_here
+# Service URLs (Docker networking)
+REDIS_URL=redis://redis:6379/0
+SEARXNG_URL=http://searxng:8080
+FIRECRAWL_DOCKER_URL=http://firecrawl-api:3002
+JINA_RERANKER_URL=http://jina-reranker:8000
+
+# Traefik configuration
+TRAEFIK_ENABLED=true
+TRAEFIK_DASHBOARD_PORT=8080
+```
+
+### Docker Compose Profiles
+
+```bash
+# Enable specific profiles
+docker-compose --profile monitoring up -d
+docker-compose --profile debug up -d
+docker-compose --profile postgres up -d
 ```
 
 ## Environment-Specific Configuration
@@ -296,7 +375,7 @@ CACHE_ENABLED=false
    - Check tool execution logs
    - Ensure tools are properly registered
 
-### Configuration Validation
+## Configuration Validation
 
 Use these commands to validate your configuration:
 
@@ -310,8 +389,32 @@ curl http://localhost:8000/v1/tools
 # Check provider status
 curl http://localhost:8000/v1/providers
 
+# Check available models
+curl http://localhost:8000/v1/models
+
 # Test configuration
 python -c "from app.core.config import settings; print(settings.dict())"
+
+# Check Docker services
+docker-compose ps
+```
+
+### Configuration Testing
+
+```bash
+# Run configuration tests
+python -c "
+from app.core.config import settings
+from app.core.llm_providers import get_provider_manager
+
+print('Configuration loaded successfully')
+print(f'Preferred provider: {settings.PREFERRED_PROVIDER}')
+print(f'Tool calling enabled: {settings.TOOL_CALLING_ENABLED}')
+
+# Test provider
+provider_manager = get_provider_manager()
+print(f'Available providers: {list(provider_manager.providers.keys())}')
+"
 ```
 
 ## Best Practices
@@ -327,5 +430,8 @@ python -c "from app.core.config import settings; print(settings.dict())"
 
 - [Architecture Overview](architecture/overview.md) - System design and components
 - [Development Setup](development/setup.md) - Development environment configuration
-- [Deployment Guide](deployment/production.md) - Production deployment
+- [Production Deployment](deployment/production.md) - Production deployment
 - [API Reference](api/endpoints.md) - API endpoint documentation
+- [Multi-Provider Setup](providers/multi-provider.md) - Configure multiple LLM providers
+- [Tool Configuration](tools/overview.md) - Configure individual tools
+- [Secure Settings Guide](secure-settings-guide.md) - Security best practices

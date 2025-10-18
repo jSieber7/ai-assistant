@@ -1,6 +1,6 @@
 # AI Assistant System Documentation
 
-Welcome to the comprehensive documentation for the LLM Tool System Foundation! This project provides a production-ready, OpenAI-compatible API interface for LLM agents with advanced tool-calling capabilities, multi-provider support, and extensible architecture.
+Welcome to the comprehensive documentation for the AI Assistant System! This project provides a production-ready, OpenAI-compatible API interface for LLM agents with advanced tool-calling capabilities, multi-provider support, and extensible architecture.
 
 ## 🚀 Quick Start
 
@@ -47,6 +47,7 @@ uv run uvicorn app.main:app --reload
    - [OpenRouter](https://openrouter.ai) (recommended for variety)
    - [OpenAI](https://platform.openai.com)
    - [Together AI](https://together.ai)
+   - [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service)
 2. **Configure your environment** with the API key
 3. **Visit the interactive API docs** at `http://localhost:8000/docs`
 4. **Try a simple chat completion** to verify setup
@@ -60,6 +61,7 @@ uv run uvicorn app.main:app --reload
 - [Core Components](architecture/core-components.md)
 - [Tool System Design](architecture/tools.md)
 - [Agent Workflow](architecture/workflow.md)
+- [Caching Architecture](architecture/caching.md)
 
 ### 🔌 [API Reference](api/endpoints.md)
 - OpenAI-compatible endpoints
@@ -67,6 +69,8 @@ uv run uvicorn app.main:app --reload
 - Authentication and error handling
 - Tool management endpoints
 - Streaming and batch processing
+- [OpenAI Compatibility](api/openai-compatibility.md)
+- [Tool Management](api/tool-management.md)
 
 ### 🛠️ [Development](development/setup.md)
 - [Setup Guide](development/setup.md)
@@ -76,23 +80,28 @@ uv run uvicorn app.main:app --reload
 - [Security Practices](development/security-and-api-key-handling.md)
 - [Branch Protection](development/branch-protection.md)
 
-### 🔧 [Tools & Integrations](tools/searx.md)
+### 🔧 [Tools & Integrations](tools/overview.md)
+- [Tool System Overview](tools/overview.md)
 - [SearXNG Search Integration](tools/searx.md)
+- [Firecrawl Web Scraping](tools/firecrawl-quick-start.md)
+- [Jina Reranker](tools/jina-reranker.md)
 - [RAG Knowledge Base](tools/rag.md)
-- Tool development framework
-- Custom tool examples
+- [Custom Tool Development](tools/tool-development.md)
 
-### 🐳 [Deployment](docker-integration.md)
+### 🐳 [Deployment](deployment/production.md)
+- [Production Deployment](deployment/production.md)
 - [Docker Integration Guide](docker-integration.md)
 - [Docker Testing](docker-testing.md)
-- [Ollama Integration](ollama-integration.md)
-- Production deployment patterns
+- [Docker Simplified](docker-simplified.md)
+- [Monitoring Setup](deployment/monitoring.md)
+- [Traefik Integration](deployment/traefik-integration.md)
 
-### 🔄 [Provider Configuration](openai-compatible-provider-refactoring.md)
+### 🔄 [Provider Configuration](providers/multi-provider.md)
+- [Multi-Provider Setup](providers/multi-provider.md)
+- [Provider Comparison](providers/comparison.md)
 - [OpenAI-Compatible Provider Refactoring](openai-compatible-provider-refactoring.md)
-- Multi-provider setup
-- Migration guides
-- Backward compatibility
+- [Ollama Integration](ollama-integration.md)
+- Migration guides and backward compatibility
 
 ## ✨ Key Features
 
@@ -100,39 +109,50 @@ uv run uvicorn app.main:app --reload
 Full compatibility with the OpenAI API specification, allowing seamless integration with various LLM frontends and tools.
 
 ### 🤖 Intelligent Tool-Calling Agents
-Extensible architecture for adding new tools and capabilities to the AI assistant with context-aware selection.
+Extensible architecture for adding new tools and capabilities to the AI assistant with context-aware selection and execution.
 
 ### ⚡ Real-time Streaming
 Support for streaming responses for interactive chat experiences with minimal latency.
 
 ### 🔍 Multi-Provider Support
-Unified interface for OpenAI, OpenRouter, Together AI, Azure OpenAI, and custom providers with automatic fallback.
+Unified interface for OpenAI, OpenRouter, Together AI, Azure OpenAI, Ollama, and custom providers with automatic fallback.
 
 ### 🗄️ Advanced Caching System
-Multi-layer caching with compression, batching, and intelligent cache invalidation strategies.
+Multi-layer caching with Redis, compression, batching, and intelligent cache invalidation strategies.
 
 ### 📊 Comprehensive Monitoring
 Built-in Prometheus metrics, health checks, and performance monitoring with Grafana dashboards.
+
+### 🔧 Extensible Tool System
+Dynamic tool registration and execution framework with built-in tools for web scraping, search, calculations, and more.
 
 ### 🐳 Container-Ready
 Complete Docker support with docker-compose configurations for development, testing, and production.
 
 ### 🔒 Security-First Design
-Input validation, API key security, dependency scanning, and secure development practices.
+Input validation, API key security with SecretStr, dependency scanning, and secure development practices.
 
 ### 🧪 Comprehensive Testing
 Robust test suite with unit tests, integration tests, system tests, and security scanning.
+
+### 📝 Multi-Writer System
+Advanced content generation pipeline with multiple AI writers and checkers for high-quality content creation.
+
+### 🌐 Privacy-Focused Search
+Integrated SearXNG for privacy-focused web search capabilities without tracking.
 
 ## 🔧 Technology Stack
 
 - **Backend**: FastAPI with Python 3.12
 - **LLM Integration**: LangChain with multi-provider support
-- **Tool System**: Custom extensible tool framework
+- **Tool System**: Custom extensible tool framework with dynamic execution
 - **Caching**: Redis with multi-layer caching and compression
 - **Web Interface**: Gradio for configuration and testing
 - **Search Integration**: SearXNG for privacy-focused web search
+- **Web Scraping**: Firecrawl for advanced content extraction
+- **Reranking**: Jina Reranker for improved search results
 - **Monitoring**: Prometheus metrics with Grafana dashboards
-- **Containerization**: Docker and Docker Compose
+- **Containerization**: Docker and Docker Compose with Traefik
 - **Dependency Management**: UV for fast package management
 - **Testing**: pytest with comprehensive coverage
 - **CI/CD**: GitHub Actions with security scanning
@@ -149,28 +169,34 @@ Robust test suite with unit tests, integration tests, system tests, and security
 - 📊 **Comprehensive Monitoring**: Real-time metrics and health checks
 - 🔒 **Security-First Design**: Input validation and access control
 - 🔄 **LangChain Integration**: Seamless compatibility with LangChain ecosystem
-- 🌐 **Multi-Provider Support**: OpenAI, OpenRouter, Together AI, and custom providers
+- 🌐 **Multi-Provider Support**: OpenAI, OpenRouter, Together AI, Azure OpenAI, Ollama, and custom providers
 - 🐳 **Docker Support**: Complete containerization with docker-compose
 - 🔍 **SearXNG Integration**: Privacy-focused web search capabilities
-- 📈 **Prometheus Metrics**: Built-in monitoring and alerting
+- 🔥 **Firecrawl Integration**: Advanced web scraping with content extraction
+- 📈 **Jina Reranker**: Improved search result reranking
+- 📊 **Prometheus Metrics**: Built-in monitoring and alerting
 - 🖥️ **Gradio Interface**: Web-based UI for configuration and testing
 - 🔄 **OpenAI Compatibility**: Full API compatibility with OpenAI specification
 - 🚀 **Real-time Streaming**: Streaming responses for interactive chat experiences
 - 🔧 **Tool Development Framework**: Easy creation and integration of custom tools
+- 📝 **Multi-Writer System**: Advanced content generation with AI collaboration
+- 🌐 **Traefik Integration**: Advanced reverse proxy and load balancing
 
 ### 🎯 Development Roadmap
 - 🔄 **Advanced Agent Capabilities**: Multi-agent systems and complex workflows
 - 🔄 **RAG Knowledge Base**: Vector-based document retrieval and knowledge management
 - 🔄 **Production Monitoring**: Enhanced observability and alerting
 - 🔄 **Performance Optimization**: Additional caching layers and batching strategies
+- 🔄 **Enhanced Security**: Advanced authentication and authorization
 
 ## Contributing
 
-Contributions will be welcomed soon! Please see our [Contributing Guide](development/contributing.md) for details on how to get involved.
+We welcome contributions! Please see our [Contributing Guide](development/contributing.md) for details on how to get involved.
 
 ### Getting Help
 - **Documentation**: This site contains comprehensive documentation
 - **Issues**: Check existing issues or create new ones on GitHub
+- **Discussions**: Join our GitHub Discussions for community support
 
 ## Project Metrics
 
@@ -178,15 +204,18 @@ Contributions will be welcomed soon! Please see our [Contributing Guide](develop
 - **Code Quality**: Enforced with ruff, black, and mypy
 - **Security**: Regular scanning with bandit and pip-audit
 - **Performance**: Optimized for low-latency responses
+- **Docker Support**: Multi-container deployment with health checks
 
 ## Security
 
-Security measures include
+Security measures include:
 
-* No hardcoded API keys or secrets
-* Comprehensive security scanning in CI/CD
+* No hardcoded API keys or secrets - all stored in environment variables
+* Comprehensive security scanning in CI/CD pipeline
 * Regular dependency vulnerability checks
-* Secure development practices
+* Secure development practices with input validation
+* SecretStr type for sensitive configuration values
+* Rate limiting and request validation capabilities
 
 ## License
 
@@ -196,5 +225,8 @@ This project is open source with an MIT license.
 
 - Built with [FastAPI](https://fastapi.tiangolo.com/) for high-performance APIs
 - Powered by [LangChain](https://www.langchain.com/) for LLM orchestration
-- Integrated with [OpenRouter](https://openrouter.ai/) for model access
+- Integrated with multiple providers for model access
+- Enhanced by [SearXNG](https://searxng.org/) for privacy-focused search
+- Powered by [Firecrawl](https://firecrawl.dev/) for web scraping
+- Improved by [Jina AI](https://jina.ai/) for reranking capabilities
 - Documented with [MkDocs](https://www.mkdocs.org/) and [Material](https://squidfunk.github.io/mkdocs-material/)

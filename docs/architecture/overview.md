@@ -8,42 +8,46 @@ This document describes the high-level architecture of the AI Assistant project,
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Client Apps   │◄──►│   FastAPI API    │◄──►│   Agent System  │
 │ (OpenWebUI,     │    │  (OpenAI-compat) │    │   (LangChain)   │
-│  Custom Apps)   │    │                  │    │                 │
+│  Custom Apps)   │    │   + Gradio UI    │    │ + Multi-Writer  │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
          │                       │                       │
          │                       │                       │
          ▼                       ▼                       ▼
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Monitoring    │    │   Tool System    │◄──►│  Provider Layer │
-│  (Prometheus,   │    │  (Extensible)    │    │ (Multi-Provider)│
-│   Grafana)      │    │                  │    │                 │
+│(Prometheus,     │    │  (Extensible)    │    │(Multi-Provider  │
+│  Grafana,       │    │ + Firecrawl +    │    │ + OpenAI-Compat)│
+│  Health Checks) │    │   Jina Reranker) │    │                 │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
          │                       │                       │
          │                       │                       │
          ▼                       ▼                       ▼
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Caching Layer │    │   Storage Layer  │    │  External APIs  │
-│  (Multi-layer)  │    │ (Redis, Session) │    │ (OpenRouter,    │
-│                 │    │                  │    │  OpenAI, etc.)  │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
+│ (Multi-layer    │    │ (Redis, MongoDB, │    │(OpenRouter,     │
+│ + Compression)  │    │  Milvus, Session)│    │ OpenAI, Ollama, │
+└─────────────────┘    └──────────────────┘    │ Firecrawl, etc.)│
+                                        └─────────────────┘
 ```
 
 ## Core Components
 
-### 1. API Layer (FastAPI)
-- **Purpose**: Provide OpenAI-compatible interface
-- **Technology**: FastAPI with Pydantic models<br><br>
+### 1. API Layer (FastAPI + Gradio)
+- **Purpose**: Provide OpenAI-compatible interface and web UI
+- **Technology**: FastAPI with Pydantic models + Gradio<br><br>
 <u>**Features**</u>
   - Full OpenAI API compatibility
   - Streaming and non-streaming responses
   - Comprehensive error handling
   - OpenAPI documentation
+  - Gradio web interface for configuration
   - CORS support
   - Request validation and sanitization
+  - Multi-writer system API endpoints
 
-### 2. Agent System (LangChain)
+### 2. Agent System (LangChain + Multi-Writer)
 - **Purpose**: Orchestrate LLM interactions and intelligent tool calling
-- **Technology**: LangChain with custom agents<br><br>
+- **Technology**: LangChain with custom agents + Multi-writer pipeline<br><br>
 <u>**Features**</u>
   - Multi-provider model support
   - Advanced tool calling capabilities
@@ -51,6 +55,8 @@ This document describes the high-level architecture of the AI Assistant project,
   - Conversation memory management
   - Response streaming
   - Fallback and error recovery
+  - Multi-writer content generation
+  - AI collaboration workflows
 
 ### 3. Tool System (Extensible)
 - **Purpose**: Extend AI capabilities with specialized tools
@@ -59,30 +65,47 @@ This document describes the high-level architecture of the AI Assistant project,
   - Calculator (mathematical operations)
   - Time Tool (current time and date functions)
   - SearXNG Search (privacy-focused web search)
+  - Firecrawl (advanced web scraping)
+  - Jina Reranker (search result reranking)
   - Echo Tool (testing and debugging)
+  - Dynamic tool execution framework
   - Custom tool development framework
 
 ### 4. Provider Layer
 - **Purpose**: Abstract multiple LLM providers behind unified interface
-- **Technology**: Provider abstraction with fallback mechanisms<br><br>
+- **Technology**: OpenAI-compatible provider abstraction with fallback<br><br>
 <u>**Supported Providers**</u>
   - OpenAI (GPT models)
   - OpenRouter (multiple models)
   - Anthropic (Claude models)
   - Together AI (open-source models)
+  - Azure OpenAI
   - Ollama (local models)
   - Any OpenAI-compatible API
+  - Automatic provider detection
 
 ### 5. Caching Layer
 - **Purpose**: Optimize performance and reduce API costs
-- **Technology**: Multi-layer caching with compression<br><br>
+- **Technology**: Multi-layer caching with compression and batching<br><br>
 <u>**Features**</u>
-  - In-memory caching (Redis)
+  - Redis caching with connection pooling
+  - Memory caching for fast access
   - Response compression
   - Intelligent cache invalidation
+  - Batch processing
   - Cache statistics and monitoring
+  - Multi-layer architecture
 
-### 6. Monitoring Layer
+### 6. Storage Layer
+- **Purpose**: Persistent storage for various system components
+- **Technology**: Multi-database approach<br><br>
+<u>**Storage Systems**</u>
+  - Redis (caching, sessions)
+  - MongoDB (multi-writer system data)
+  - Milvus (vector storage for RAG)
+  - File system (templates, logs)
+
+### 7. Monitoring Layer
 - **Purpose**: System observability and performance tracking
 - **Technology**: Prometheus metrics with Grafana dashboards<br><br>
 <u>**Features**</u>
@@ -90,24 +113,43 @@ This document describes the high-level architecture of the AI Assistant project,
   - Custom dashboards
   - Health checks and alerts
   - Performance analytics
+  - Tool usage tracking
+  - Multi-writer system metrics
 
 ## Data Flow
 
 ### Standard Chat Flow
 1. **Request Reception**: Client sends chat request to `/v1/chat/completions`
-2. **Message Processing**: Convert OpenAI format to LangChain messages
-3. **Agent Execution**: LangChain agent processes request with available tools
-4. **Tool Execution**: If needed, tools are called to gather information
-5. **Response Generation**: LLM generates response based on context
-6. **Response Formatting**: Convert LangChain response to OpenAI format
-7. **Streaming**: Send response chunks back to client
+2. **Authentication & Validation**: API key validation and request sanitization
+3. **Message Processing**: Convert OpenAI format to LangChain messages
+4. **Provider Selection**: Choose appropriate LLM provider based on configuration
+5. **Agent Execution**: LangChain agent processes request with available tools
+6. **Tool Execution**: If needed, tools are called to gather information
+7. **Cache Check**: Check for cached responses before API calls
+8. **Response Generation**: LLM generates response based on context
+9. **Response Formatting**: Convert LangChain response to OpenAI format
+10. **Cache Storage**: Store response in cache for future requests
+11. **Streaming**: Send response chunks back to client
 
 ### Tool Calling Flow
-1. **Tool Detection**: Agent determines if tools are needed
-2. **Tool Selection**: Choose appropriate tool based on query
-3. **Tool Execution**: Run tool with parameters
-4. **Result Integration**: Combine tool results with conversation context
-5. **Response Generation**: Generate final response with tool insights
+1. **Tool Detection**: Agent determines if tools are needed based on query
+2. **Tool Selection**: Choose appropriate tool(s) based on query analysis
+3. **Parameter Extraction**: Extract necessary parameters from query
+4. **Tool Validation**: Validate tool parameters and permissions
+5. **Tool Execution**: Run tool with timeout and error handling
+6. **Result Processing**: Process and format tool results
+7. **Result Integration**: Combine tool results with conversation context
+8. **Response Generation**: Generate final response with tool insights
+
+### Multi-Writer System Flow
+1. **Content Request**: Client requests content generation
+2. **Source Processing**: Extract and process source materials
+3. **Writer Execution**: Multiple writers create content versions
+4. **Quality Checking**: Multiple checkers validate and improve content
+5. **Quality Scoring**: Calculate quality scores for each version
+6. **Best Selection**: Select highest quality content
+7. **Template Rendering**: Apply Jinja templates for final formatting
+8. **Output Generation**: Generate final formatted content
 
 ## Design Principles
 
@@ -138,10 +180,14 @@ This document describes the high-level architecture of the AI Assistant project,
 ### Backend
 - **Framework**: FastAPI (Python 3.12)
 - **LLM Orchestration**: LangChain with multi-provider support
-- **Caching**: Redis with multi-layer caching and compression
+- **Caching**: Redis with multi-layer caching, compression, and batching
 - **API Client**: HTTPX for async requests
 - **Web Interface**: Gradio for configuration and testing
 - **Search Integration**: SearXNG for privacy-focused web search
+- **Web Scraping**: Firecrawl for advanced content extraction
+- **Reranking**: Jina Reranker for improved search results
+- **Storage**: MongoDB, Milvus for vector storage
+- **Templating**: Jinja2 for content formatting
 
 ### Development Tools
 - **Package Manager**: UV for fast dependency management
@@ -154,8 +200,8 @@ This document describes the high-level architecture of the AI Assistant project,
 - **CI/CD**: GitHub Actions with security scanning
 - **Containerization**: Docker with docker-compose
 - **Monitoring**: Prometheus with Grafana dashboards
-- **Reverse Proxy**: Traefik for service routing
-- **Database**: Redis for caching, PostgreSQL (optional)
+- **Reverse Proxy**: Traefik for service routing and load balancing
+- **Databases**: Redis (caching), MongoDB (content), Milvus (vectors), PostgreSQL (optional)
 
 ## Configuration Management
 
@@ -163,17 +209,33 @@ This document describes the high-level architecture of the AI Assistant project,
 ```python
 # app/core/config.py
 class Settings(BaseSettings):
-    openrouter_api_key: Optional[SecretStr] = None
-    openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    default_model: str = "anthropic/claude-3.5-sonnet"
+    # OpenAI-Compatible Provider
+    openai_compatible_enabled: bool = True
+    openai_compatible_api_key: Optional[SecretStr] = None
+    openai_compatible_base_url: str = "https://openrouter.ai/api/v1"
+    openai_compatible_default_model: str = "anthropic/claude-3.5-sonnet"
+    
+    # Tool System
+    tool_calling_enabled: bool = True
+    max_tools_per_query: int = 3
+    tool_execution_timeout: int = 30
+    
+    # Caching
+    redis_cache_enabled: bool = False
+    memory_cache_enabled: bool = True
+    cache_compression_enabled: bool = True
+    
     # ... other settings
 ```
 
 ### Security Considerations
-- API keys stored as `SecretStr`
+- API keys stored as `SecretStr` with automatic protection
 - Environment variables for sensitive data
 - Validation of all configuration values
 - Secure defaults for production
+- Input sanitization and request validation
+- Rate limiting and CORS security
+- No logging of sensitive information
 
 ## Scalability Considerations
 
@@ -220,20 +282,29 @@ class Settings(BaseSettings):
 
 ## Future Architecture Evolution
 
-### Phase 1: Core Stability
+### Phase 1: Core Stability (Completed)
 - [x] Basic OpenAI-compatible API
 - [x] LangChain integration
-- [ ] Tool system foundation
+- [x] Tool system foundation
+- [x] Multi-provider support
+- [x] Caching system
+- [x] Docker containerization
 
-### Phase 2: Advanced Features
-- [ ] SearX web search integration
-- [ ] RAG knowledge base
-- [ ] Advanced tool capabilities
+### Phase 2: Advanced Features (Completed)
+- [x] SearXNG web search integration
+- [x] Firecrawl web scraping
+- [x] Jina Reranker integration
+- [x] Advanced tool capabilities
+- [x] Multi-writer system
+- [x] Gradio interface
 
-### Phase 3: Production Ready
-- [ ] Docker containerization
-- [ ] Advanced monitoring
-- [ ] High availability setup
+### Phase 3: Production Ready (In Progress)
+- [x] Advanced monitoring
+- [x] High availability setup
+- [x] Traefik integration
+- [ ] Enhanced security features
+- [ ] Performance optimizations
+- [ ] Advanced RAG capabilities
 
 ## Related Documentation
 
@@ -247,13 +318,18 @@ class Settings(BaseSettings):
 ### Technology Choices
 - **FastAPI**: Chosen for performance, async support, and automatic OpenAPI docs
 - **LangChain**: Industry standard for LLM orchestration with extensive tooling
-- **PostgreSQL + pgvector**: Robust, scalable vector database solution
+- **Redis + MongoDB + Milvus**: Multi-database approach for different use cases
 - **UV**: Fast, modern Python package manager with excellent dependency resolution
+- **Traefik**: Modern reverse proxy with built-in load balancing
+- **Gradio**: Rapid UI development for configuration and testing
 
 ### Architecture Decisions
 - **OpenAI Compatibility**: Ensures wide compatibility with existing tools
 - **Modular Tool System**: Allows incremental feature development
 - **Async-First Design**: Optimal for I/O-heavy LLM operations
 - **Security-First Approach**: Protects sensitive API keys and user data
+- **Multi-Provider Support**: Flexibility and redundancy in LLM providers
+- **Multi-Layer Caching**: Performance optimization at multiple levels
+- **Container-First**: Consistent deployment across environments
 
 This architecture provides a solid foundation for building a powerful, extensible AI assistant while maintaining security, performance, and developer experience.

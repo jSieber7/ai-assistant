@@ -17,6 +17,7 @@ Choose a provider and get your API key:
 | [OpenRouter](https://openrouter.ai) | Sign up for free | Multiple models, good pricing |
 | [OpenAI](https://platform.openai.com) | Create account | Highest reliability |
 | [Together AI](https://together.ai) | Sign up | Open-source models |
+| [Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service) | Azure account | Enterprise features |
 
 ### Step 2: Clone and Configure
 
@@ -31,6 +32,10 @@ cp .env.docker .env
 # Configure your API key
 echo "OPENAI_COMPATIBLE_API_KEY=your_api_key_here" >> .env
 echo "SECRET_KEY=your_secret_key_here" >> .env
+
+# Optional: Configure specific provider
+echo "OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1" >> .env
+echo "OPENAI_COMPATIBLE_DEFAULT_MODEL=anthropic/claude-3.5-sonnet" >> .env
 ```
 
 ### Step 3: Start Services
@@ -41,6 +46,9 @@ docker-compose up -d
 
 # Check status
 docker-compose ps
+
+# View logs if needed
+docker-compose logs -f ai-assistant
 ```
 
 ### Step 4: Verify Installation
@@ -54,6 +62,9 @@ curl http://localhost:8000/v1/tools
 
 # Check provider status
 curl http://localhost:8000/v1/providers
+
+# Check available models
+curl http://localhost:8000/v1/models
 ```
 
 **🎉 You're running!** Access your AI Assistant at:
@@ -96,6 +107,10 @@ echo "OPENAI_COMPATIBLE_API_KEY=your_api_key_here" >> .env
 # Optional: Specify provider and model
 echo "OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1" >> .env
 echo "OPENAI_COMPATIBLE_DEFAULT_MODEL=anthropic/claude-3.5-sonnet" >> .env
+
+# Optional: Enable additional features
+echo "SEARXNG_TOOL_ENABLED=true" >> .env
+echo "FIRECRAWL_DEPLOYMENT_MODE=docker" >> .env
 ```
 
 ### Step 3: Start Development Server
@@ -105,7 +120,7 @@ echo "OPENAI_COMPATIBLE_DEFAULT_MODEL=anthropic/claude-3.5-sonnet" >> .env
 source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 
 # Start the server
-uv run uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### Step 4: Test Your Setup
@@ -172,6 +187,25 @@ const data = await response.json();
 console.log(data.choices[0].message.content);
 ```
 
+### Using Streaming
+
+```python
+import httpx
+
+with httpx.stream(
+    "POST",
+    "http://localhost:8000/v1/chat/completions",
+    json={
+        "model": "anthropic/claude-3.5-sonnet",
+        "messages": [{"role": "user", "content": "Tell me a story"}],
+        "stream": True
+    }
+) as response:
+    for line in response.iter_lines():
+        if line:
+            print(line.decode('utf-8'))
+```
+
 ## 🔧 Using Tools
 
 The AI Assistant comes with built-in tools for enhanced capabilities:
@@ -211,6 +245,48 @@ response = httpx.post(
                 "function": {
                     "name": "get_current_time",
                     "description": "Get the current time"
+                }
+            }
+        ]
+    }
+)
+```
+
+### Example: Web Search Tool
+
+```python
+response = httpx.post(
+    "http://localhost:8000/v1/chat/completions",
+    json={
+        "model": "anthropic/claude-3.5-sonnet",
+        "messages": [{"role": "user", "content": "What are the latest AI developments?"}],
+        "tools": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "web_search",
+                    "description": "Search the web for current information"
+                }
+            }
+        ]
+    }
+)
+```
+
+### Example: Firecrawl Web Scraping
+
+```python
+response = httpx.post(
+    "http://localhost:8000/v1/chat/completions",
+    json={
+        "model": "anthropic/claude-3.5-sonnet",
+        "messages": [{"role": "user", "content": "Extract the main content from https://example.com"}],
+        "tools": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "firecrawl_scrape",
+                    "description": "Extract content from web pages"
                 }
             }
         ]
@@ -267,16 +343,21 @@ Now that you're up and running:
 
 1. **Explore the API documentation** at http://localhost:8000/docs
 2. **Try different models** by changing the `model` parameter
-3. **Enable additional tools** like web search
+3. **Enable additional tools** like web search, Firecrawl scraping, and Jina reranking
 4. **Set up monitoring** with Prometheus and Grafana
-5. **Deploy to production** using the deployment guides
+5. **Configure multiple providers** for fallback and load balancing
+6. **Deploy to production** using the deployment guides
+7. **Create custom tools** for your specific use cases
 
 ## 📚 Further Reading
 
 - [Configuration Guide](configuration.md) - Detailed configuration options
 - [Development Guide](development/development-guide.md) - Creating custom tools
-- [Deployment Guide](deployment/production.md) - Production deployment
+- [Production Deployment](deployment/production.md) - Production deployment
 - [API Reference](api/endpoints.md) - Complete API documentation
+- [Tool Overview](tools/overview.md) - Available tools and capabilities
+- [Multi-Provider Setup](providers/multi-provider.md) - Configure multiple LLM providers
+- [Multi-Writer System](multi-writer-system.md) - Advanced content generation
 
 ## 🆘 Getting Help
 
@@ -284,9 +365,10 @@ If you run into issues:
 
 1. **Check the troubleshooting guide** at [Troubleshooting](troubleshooting/common-issues.md)
 2. **Look at GitHub Issues** for similar problems
-3. **Create a new issue** with detailed error information
-4. **Join our community** for support and discussions
+3. **Check the FAQ** at [FAQ](troubleshooting/faq.md)
+4. **Create a new issue** with detailed error information
+5. **Join our community** for support and discussions
 
 ---
 
-🎉 **Congratulations!** You now have a fully functional AI Assistant system with tool-calling capabilities. Start building amazing AI-powered applications!
+🎉 **Congratulations!** You now have a fully functional AI Assistant system with advanced tool-calling capabilities, multi-provider support, and extensible architecture. Start building amazing AI-powered applications!

@@ -12,6 +12,7 @@ Production deployment of the AI Assistant System requires careful consideration 
 - **Monitoring**: Comprehensive observability with Prometheus and Grafana
 - **Performance**: Optimized caching, connection pooling, and resource management
 - **Reliability**: Health checks, graceful degradation, and failover
+- **Data Privacy**: Secure handling of API keys and user data
 
 ## Production Architecture
 
@@ -21,6 +22,10 @@ A complete production deployment includes:
 - **AI Assistant Application**: Multiple instances with tool and agent systems
 - **Redis Cluster**: High-performance caching and session storage
 - **SearXNG Search**: Privacy-focused web search capabilities
+- **Firecrawl**: Advanced web scraping capabilities
+- **Jina Reranker**: Search result reranking
+- **MongoDB**: Multi-writer system data storage
+- **Milvus**: Vector storage for RAG capabilities
 - **PostgreSQL**: Optional database for persistent storage
 - **Prometheus**: Metrics collection and monitoring
 - **Grafana**: Visualization and alerting dashboards
@@ -74,7 +79,7 @@ HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Start command
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
 ```
 
 ### Docker Compose for Production
@@ -83,36 +88,66 @@ CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "800
 version: '3.8'
 
 services:
+  traefik:
+    image: traefik:v3.0
+    command:
+      - "--api.dashboard=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=admin@example.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt
+    restart: unless-stopped
+
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://user:password@db:5432/ai_assistant
+      - DATABASE_URL=postgresql://user:password@postgres:5432/ai_assistant
       - REDIS_URL=redis://redis:6379/0
+      - MONGODB_URL=mongodb://mongo:27017/ai_assistant
       - LOG_LEVEL=INFO
+      - ENVIRONMENT=production
+      - SECRET_KEY=${SECRET_KEY}
+      - OPENAI_COMPATIBLE_API_KEY=${OPENAI_COMPATIBLE_API_KEY}
+      - BEHIND_PROXY=true
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app.rule=Host(`yourdomain.com`)"
+      - "traefik.http.routers.app.entrypoints=websecure"
+      - "traefik.http.routers.app.tls.certresolver=myresolver"
+      - "traefik.http.services.app.loadbalancer.server.port=8000"
     depends_on:
-      - db
+      - postgres
       - redis
+      - mongo
+      - searxng
     restart: unless-stopped
     deploy:
       replicas: 3
       resources:
         limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
           cpus: '1'
           memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
 
-  db:
+  postgres:
     image: postgres:15
     environment:
       - POSTGRES_DB=ai_assistant
       - POSTGRES_USER=user
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -124,7 +159,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     restart: unless-stopped
@@ -134,24 +169,85 @@ services:
           cpus: '0.5'
           memory: 512M
 
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-      - "443:443"
+  mongo:
+    image: mongo:7
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+      - MONGO_INITDB_DATABASE=ai_assistant
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./ssl:/etc/nginx/ssl
-    depends_on:
-      - app
+      - mongo_data:/data/db
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  searxng:
+    image: searxng/searxng:latest
+    environment:
+      - SEARXNG_SECRET_KEY=${SEARXNG_SECRET_KEY}
+    volumes:
+      - ./docker-configs/searxng:/etc/searxng
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  firecrawl-api:
+    image: mendable/firecrawl:latest
+    environment:
+      - REDIS_URL=redis://firecrawl-redis:6379
+      - PORT=3002
+      - BULL_AUTH_KEY=${FIRECRAWL_BULL_AUTH_KEY}
+    depends_on:
+      - firecrawl-redis
+      - firecrawl-postgres
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  firecrawl-redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - firecrawl_redis_data:/data
+    restart: unless-stopped
+
+  firecrawl-postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=firecrawl
+      - POSTGRES_USER=firecrawl
+      - POSTGRES_PASSWORD=${FIRECRAWL_POSTGRES_PASSWORD}
+    volumes:
+      - firecrawl_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  jina-reranker:
+    build:
+      context: ./docker-configs/jina-reranker
+    environment:
+      - MODEL_NAME=jina-reranker-v1-base-en
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
 
   prometheus:
     image: prom/prometheus:latest
     ports:
       - "9090:9090"
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./docker-configs/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     restart: unless-stopped
 
@@ -160,15 +256,19 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./monitoring/grafana:/etc/grafana/provisioning
+      - ./docker-configs/monitoring/grafana:/etc/grafana/provisioning
     restart: unless-stopped
 
 volumes:
   postgres_data:
   redis_data:
+  mongo_data:
+  firecrawl_redis_data:
+  firecrawl_postgres_data:
   prometheus_data:
   grafana_data:
 ```
@@ -274,42 +374,81 @@ spec:
 
 ```env
 # Application
-APP_ENV=production
+ENVIRONMENT=production
 LOG_LEVEL=INFO
 DEBUG=false
+HOST=0.0.0.0
+PORT=8000
+
+# Security
+SECRET_KEY=your-super-secret-key-here
+BEHIND_PROXY=true
+CORS_ORIGINS=https://yourdomain.com
+
+# LLM Provider
+OPENAI_COMPATIBLE_API_KEY=your_api_key_here
+OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_COMPATIBLE_DEFAULT_MODEL=anthropic/claude-3.5-sonnet
+PREFERRED_PROVIDER=openai_compatible
+ENABLE_PROVIDER_FALLBACK=true
 
 # Database
-DATABASE_URL=postgresql://user:password@db:5432/ai_assistant
+DATABASE_URL=postgresql://user:password@postgres:5432/ai_assistant
 DATABASE_POOL_SIZE=20
 DATABASE_MAX_OVERFLOW=30
 
 # Cache
 REDIS_URL=redis://redis:6379/0
+REDIS_CACHE_ENABLED=true
 CACHE_TTL=3600
+CACHE_COMPRESSION=true
 
-# Security
-SECRET_KEY=your-super-secret-key
-API_KEY_HEADER=X-API-Key
-CORS_ORIGINS=https://yourdomain.com
+# MongoDB (for multi-writer)
+MONGODB_URL=mongodb://mongo:27017/ai_assistant
+MULTI_WRITER_ENABLED=false  # Enable if using multi-writer
+
+# Tool Configuration
+TOOL_CALLING_ENABLED=true
+MAX_TOOLS_PER_QUERY=3
+TOOL_EXECUTION_TIMEOUT=30
+
+# Search and Scraping
+SEARXNG_URL=http://searxng:8080
+SEARXNG_TOOL_ENABLED=true
+FIRECRAWL_DEPLOYMENT_MODE=docker
+FIRECRAWL_DOCKER_URL=http://firecrawl-api:3002
+FIRECRAWL_TOOL_ENABLED=false  # Enable if needed
+JINA_RERANKER_URL=http://jina-reranker:8000
+JINA_RERANKER_TOOL_ENABLED=false  # Enable if needed
 
 # Monitoring
 PROMETHEUS_ENABLED=true
 PROMETHEUS_PORT=9090
+METRICS_COLLECTION_ENABLED=true
 
 # Rate Limiting
 RATE_LIMIT_ENABLED=true
 RATE_LIMIT_REQUESTS=100
 RATE_LIMIT_WINDOW=60
+
+# Gradio
+GRADIO_ENABLED=true
+GRADIO_HOST=0.0.0.0
+GRADIO_PORT=7860
 ```
 
 ## Security Best Practices
 
-1. **API Keys**: Use environment variables for sensitive data
-2. **HTTPS**: Enable TLS/SSL for all communications
-3. **Network Policies**: Implement network restrictions
-4. **Container Security**: Use non-root users and minimal images
-5. **Secrets Management**: Use Kubernetes secrets or secret managers
-6. **Regular Updates**: Keep dependencies updated
+1. **API Keys**: Use environment variables for sensitive data, never commit to version control
+2. **HTTPS**: Enable TLS/SSL for all communications with automatic certificate management
+3. **Network Policies**: Implement network restrictions and firewall rules
+4. **Container Security**: Use non-root users, minimal images, and security scanning
+5. **Secrets Management**: Use Kubernetes secrets, HashiCorp Vault, or AWS Secrets Manager
+6. **Regular Updates**: Keep dependencies updated with automated security scanning
+7. **Input Validation**: Validate all inputs and sanitize user data
+8. **Rate Limiting**: Implement rate limiting to prevent abuse
+9. **Access Control**: Implement proper authentication and authorization
+10. **Audit Logging**: Log all access and modifications for security auditing
 
 ## Monitoring and Logging
 
@@ -383,13 +522,32 @@ find /backups -name "backup_*.sql" -mtime +7 -delete
 3. **Failover**: Implement automatic failover
 4. **Testing**: Regular disaster recovery tests
 
-## Performance Optimization
+## Monitoring and Observability
 
-1. **Caching**: Implement multiple cache layers
-2. **Connection Pooling**: Use connection pools for databases
-3. **Async Operations**: Use async/await for I/O operations
-4. **Load Testing**: Regular performance testing
-5. **Resource Limits**: Set appropriate resource limits
+### Key Metrics to Monitor
+
+- **Application Metrics**: Request rate, response time, error rate
+- **System Metrics**: CPU, memory, disk, network usage
+- **Database Metrics**: Connection pool, query performance
+- **Cache Metrics**: Hit/miss ratio, eviction rate
+- **Tool Metrics**: Tool execution time, success rate
+- **Provider Metrics**: API calls, response time, error rate
+
+### Alerting Strategies
+
+1. **Threshold Alerts**: Alert when metrics exceed thresholds
+2. **Rate of Change Alerts**: Alert on rapid metric changes
+3. **Anomaly Detection**: Use ML-based anomaly detection
+4. **Multi-Metric Alerts**: Combine multiple metrics for alerts
+5. **Escalation Policies**: Implement proper alert escalation
+
+### Log Management
+
+1. **Structured Logging**: Use JSON format for logs
+2. **Log Aggregation**: Centralize logs with ELK or similar
+3. **Log Retention**: Implement proper log retention policies
+4. **Log Analysis**: Use tools for log analysis and debugging
+5. **Security Logging**: Log security events and access
 
 ## Scaling
 
