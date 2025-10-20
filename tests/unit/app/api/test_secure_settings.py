@@ -328,13 +328,8 @@ class TestSecureSettingsIntegration(unittest.TestCase):
 
     def test_gradio_settings_page_creation(self):
         """Test that the Gradio settings page can be created without errors."""
-        try:
-            from app.ui.settings_page import create_settings_page
-
-            app = create_settings_page()
-            self.assertIsNotNone(app)
-        except Exception as e:
-            self.fail(f"Failed to create settings page: {e}")
+        # Gradio settings page has been removed - this test is now deprecated
+        self.skipTest("Gradio settings page has been removed from the codebase")
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ The AI Assistant uses separate Traefik configurations for development and produc
 ### Access Points
 - **Main Application**: http://localhost:8000
 - **API Documentation**: http://localhost:8000/docs
-- **Gradio Interface**: http://localhost:8000/gradio
+- **Chainlit Interface**: http://localhost:8000/chainlit
 - **Traefik Dashboard**: http://localhost:8080/dashboard
 - **Redis Commander**: http://localhost:8000/redis
 - **SearXNG Search**: http://localhost:8000/search
@@ -37,7 +37,7 @@ The AI Assistant uses separate Traefik configurations for development and produc
 ### Access Points
 - **Main Application**: http://localhost
 - **API Documentation**: http://localhost/docs
-- **Gradio Interface**: http://localhost/gradio
+- **Chainlit Interface**: http://localhost/chainlit
 - **Traefik Dashboard**: http://localhost:8080/dashboard (admin/admin)
 - **SearXNG Search**: http://localhost/search
 

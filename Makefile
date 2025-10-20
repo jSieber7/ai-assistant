@@ -3,7 +3,7 @@
 # =============================================================================
 # Provides convenient commands for development, testing, and deployment
 
-.PHONY: help install dev test lint format clean docker docker-down docker-logs firecrawl firecrawl-down firecrawl-logs health-check docs shutdown-everything nuke quality-check ci-test test-results-dir
+.PHONY: help install dev test lint format clean docker docker-down docker-logs firecrawl firecrawl-down firecrawl-logs health-check docs shutdown-everything nuke quality-check ci-test test-results-dir chainlit
 
 # Default target
 .DEFAULT_GOAL := help
@@ -43,9 +43,17 @@ dev: ## Run development server
 	@echo "Starting development server..."
 	uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
+chainlit: ## Run Chainlit interface
+	@echo "Starting Chainlit interface..."
+	uv run chainlit run chainlit_app.py --host 0.0.0.0 --port 8001
+
 dev-docker: ## Run development with Docker
 	@echo "Starting development environment with Docker..."
 	docker compose --profile dev up -d
+
+dev-docker-chainlit: ## Run development with Docker including Chainlit
+	@echo "Starting development environment with Docker and Chainlit..."
+	docker compose --profile dev up -d chainlit
 
 # =============================================================================
 # Testing
@@ -464,6 +472,10 @@ nuke: ## NUCLEAR OPTION - COMPLETE DOCKER SYSTEM RESET
 prod: ## Start production environment
 	@echo "Starting production environment..."
 	docker compose --profile production up -d
+
+prod-chainlit: ## Start production environment with Chainlit
+	@echo "Starting production environment with Chainlit..."
+	docker compose --profile production up -d chainlit-prod
 
 prod-down: ## Stop production environment
 	@echo "Stopping production environment..."

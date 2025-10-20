@@ -369,14 +369,60 @@ services:
     labels:
       # Production Traefik routing with security
       - "traefik.enable=true"
-      - "traefik.http.routers.ai-assistant.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.ai-assistant.rule=PathPrefix(`/`) && !PathPrefix(`/chat`)"
       - "traefik.http.routers.ai-assistant.priority=1"
       - "traefik.http.routers.ai-assistant.entrypoints=web"
       - "traefik.http.routers.ai-assistant.middlewares=security-headers@file,rate-limit@file,compression@file"
-      - "traefik.http.routers.gradio.rule=PathPrefix(`/gradio`)"
-      - "traefik.http.routers.gradio.priority=2"
-      - "traefik.http.routers.gradio.entrypoints=web"
-      - "traefik.http.routers.gradio.middlewares=security-headers@file,rate-limit@file,compression@file"
+      - "traefik.http.routers.chainlit.rule=PathPrefix(`/chat`)"
+      - "traefik.http.routers.chainlit.priority=2"
+      - "traefik.http.routers.chainlit.entrypoints=web"
+      - "traefik.http.routers.chainlit.middlewares=security-headers@file,rate-limit@file,compression@file"
+      - "traefik.http.services.chainlit.loadbalancer.server.port=8001"
+
+  # Production Chainlit Interface Service
+  chainlit-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ai-assistant-chainlit-prod
+    environment:
+      - ENVIRONMENT=production
+      - HOST=0.0.0.0
+      - PORT=8001
+      - REDIS_URL=redis://redis:6379/0
+      - SEARXNG_URL=http://searxng:8080
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      searxng:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - ai-assistant-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    command: ["uv", "run", "chainlit", "run", "chainlit_app.py", "--host", "0.0.0.0", "--port", "8001"]
+    profiles:
+      - production
+      - firecrawl
+    labels:
+      # Production Traefik routing with security
+      - "traefik.enable=true"
+      - "traefik.http.routers.chainlit-prod.rule=PathPrefix(`/chat`)"
+      - "traefik.http.routers.chainlit-prod.priority=3"
+      - "traefik.http.routers.chainlit-prod.entrypoints=web"
+      - "traefik.http.routers.chainlit-prod.middlewares=security-headers@file,rate-limit@file,compression@file"
+      - "traefik.http.services.chainlit-prod.loadbalancer.server.port=8001"
 
   # Redis for caching
   redis:
@@ -572,12 +618,12 @@ services:
     networks:
       - ai-assistant-network
     restart: unless-stopped
-    # healthcheck:
-    #   test: ["CMD", "uv", "run", "python", "-c", "import httpx; httpx.get('http://localhost:8000/', timeout=5)"]
-    #   interval: 30s
-    #   timeout: 10s
-    #   retries: 3
-    #   start_period: 60s
+    healthcheck:
+      test: ["CMD", "uv", "run", "python", "-c", "import requests; requests.get('http://localhost:8000/monitoring/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
     command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     profiles:
       - dev
@@ -585,16 +631,69 @@ services:
     labels:
       # Development Traefik routing
       - "traefik.enable=true"
-      - "traefik.http.routers.ai-assistant-dev.rule=PathPrefix(`/`) && !PathPrefix(`/search`)"
+      - "traefik.http.routers.ai-assistant-dev.rule=PathPrefix(`/`) && !PathPrefix(`/search`) && !PathPrefix(`/chat`)"
       - "traefik.http.routers.ai-assistant-dev.priority=100"
       - "traefik.http.routers.ai-assistant-dev.entrypoints=web"
       - "traefik.http.routers.ai-assistant-dev.service=ai-assistant-dev"
       - "traefik.http.services.ai-assistant-dev.loadbalancer.server.port=8000"
-      - "traefik.http.routers.gradio-dev.rule=PathPrefix(`/gradio`)"
-      - "traefik.http.routers.gradio-dev.priority=5"
-      - "traefik.http.routers.gradio-dev.entrypoints=web"
-      - "traefik.http.routers.gradio-dev.service=ai-assistant-dev"
-      - "traefik.http.services.gradio-dev.loadbalancer.server.port=8000"
+      - "traefik.http.routers.chainlit-dev.rule=PathPrefix(`/chat`)"
+      - "traefik.http.routers.chainlit-dev.priority=5"
+      - "traefik.http.routers.chainlit-dev.entrypoints=web"
+      - "traefik.http.routers.chainlit-dev.service=chainlit"
+      - "traefik.http.services.chainlit-dev.loadbalancer.server.port=8001"
+
+  # Chainlit Interface Service
+  chainlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: ai-assistant-chainlit
+    volumes:
+      - .:/app  # Mount source code for hot reload
+      - ./logs:/app/logs
+      # Exclude .venv to prevent Docker from using host's virtual environment
+      - /app/.venv
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - RELOAD=true
+      - REDIS_URL=redis://redis:6379/0  # Override for Docker network
+      - SEARXNG_URL=http://searxng:8080   # Override for Docker network
+      - HOST=0.0.0.0
+      - PORT=8001
+    env_file:
+      - .env
+    depends_on:
+      redis:
+        condition: service_healthy
+      searxng:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+    networks:
+      - ai-assistant-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "uv", "run", "python", "-c", "import requests; requests.get('http://localhost:8001/', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    command: ["uv", "run", "chainlit", "run", "chainlit_app.py", "--host", "0.0.0.0", "--port", "8001"]
+    profiles:
+      - dev
+      - firecrawl
+    labels:
+      # Development Traefik routing for Chainlit
+      - "traefik.enable=true"
+      - "traefik.http.routers.chainlit.rule=PathPrefix(`/chat`) || PathPrefix(`/assets`) || PathPrefix(`/auth`) || PathPrefix(`/user`) || PathPrefix(`/project`) || PathPrefix(`/favicon`) || PathPrefix(`/ws`)"
+      - "traefik.http.routers.chainlit.priority=150"
+      - "traefik.http.routers.chainlit.entrypoints=web"
+      - "traefik.http.routers.chainlit.middlewares=chainlit-websocket@file"
+      - "traefik.http.routers.chainlit.service=chainlit"
+      - "traefik.http.services.chainlit.loadbalancer.server.port=8001"
+      - "traefik.http.services.chainlit.loadbalancer.sticky.cookie=true"
+      - "traefik.http.services.chainlit.loadbalancer.sticky.cookie.name=chainlit-session"
 
   # Development tools
   debug-tools:

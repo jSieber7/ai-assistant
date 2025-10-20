@@ -93,7 +93,8 @@ nav:
       - Performance Optimization: ai/optimization.md
       - Cost Management: ai/cost-management.md
   - User Interface:
-    - Gradio Interface: ui/gradio-interface.md
+    - Chainlit Interface: ui/chainlit-interface.md
+    - Gradio Interface (Deprecated): ui/gradio-interface.md
   - Troubleshooting:
     - Common Issues: troubleshooting/common-issues.md
     - Debugging Guide: troubleshooting/debugging.md

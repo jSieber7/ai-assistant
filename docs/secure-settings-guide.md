@@ -1,12 +1,12 @@
 # Secure Settings Guide
 
-This guide explains how to use the new secure settings system in the AI Assistant application, which replaces the need for .env file configuration with a user-friendly Gradio interface.
+This guide explains how to use the new secure settings system in the AI Assistant application, which replaces the need for .env file configuration with programmatic configuration.
 
 ## Overview
 
 The secure settings system provides:
 - **Encrypted Storage**: All sensitive data (API keys, secrets) are encrypted and stored locally
-- **Web-based Configuration**: Configure all settings through the Gradio interface
+- **Programmatic Configuration**: Configure all settings through the secure settings API
 - **API Key Validation**: Test API keys before saving them
 - **Import/Export**: Backup and restore settings
 - **Security**: No API keys are exposed in plain text files
@@ -14,8 +14,8 @@ The secure settings system provides:
 ## Accessing Settings
 
 1. Start the AI Assistant application
-2. Open the Gradio interface (usually at `http://localhost:7860`)
-3. Click on the **🔐 Settings** tab
+2. Configure settings programmatically through the secure settings API
+3. Settings are encrypted and stored locally
 
 ## Configuration Sections
 
@@ -108,8 +108,8 @@ Backup and restore your settings:
 
 If you're migrating from .env files:
 
-1. Open the Settings tab in the Gradio interface
-2. Navigate to each configuration section
+1. Configure settings programmatically through the secure settings API
+2. Each configuration section can be accessed through the API
 3. Enter your API keys and settings
 4. Use the validation buttons to test your configurations
 5. Save each section

@@ -70,7 +70,7 @@ curl http://localhost:8000/v1/models
 **🎉 You're running!** Access your AI Assistant at:
 - **Main Application**: http://localhost (through Traefik)
 - **API Documentation**: http://localhost/docs
-- **Gradio Interface**: http://localhost/gradio
+- **Chainlit Interface**: http://localhost/chainlit
 - **Traefik Dashboard**: http://localhost:8080
 - **SearXNG Search**: http://localhost/search
 

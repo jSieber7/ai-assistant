@@ -21,7 +21,7 @@ from .api.routes import router
 from .api.tool_routes import router as tool_router
 from .api.agent_routes import router as agent_router
 from .api.monitoring_routes import router as monitoring_router
-from .ui import create_gradio_app, mount_gradio_app
+from .ui import create_chainlit_app
 from app import __version__
 
 
@@ -110,50 +110,8 @@ if is_multi_writer_enabled():
 
     app.include_router(multi_writer_router)
 
-# Initialize and mount Gradio interface with timeout
-try:
-    import signal
-
-    def timeout_handler(signum, frame):
-        raise TimeoutError("Gradio initialization timed out")
-
-    # Set a timeout for Gradio initialization
-    signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(10)  # 10 second timeout
-
-    try:
-        gradio_app = create_gradio_app()
-        app = mount_gradio_app(app, gradio_app, path="/gradio")
-        signal.alarm(0)  # Cancel the alarm
-        print("Gradio interface initialized successfully")
-    except TimeoutError:
-        print("Warning: Gradio interface initialization timed out after 10 seconds")
-        print("This might be due to slow model loading or network connectivity issues")
-        print("Continuing without Gradio interface...")
-    except ImportError as e:
-        print(f"Warning: Failed to import Gradio dependencies: {str(e)}")
-        print("Please ensure all required dependencies are installed")
-        print("Continuing without Gradio interface...")
-    except Exception as e:
-        print(f"Warning: Failed to initialize Gradio interface: {str(e)}")
-        print("Check the logs for more details about the error")
-        print("Continuing without Gradio interface...")
-    finally:
-        signal.alarm(0)  # Make sure to cancel the alarm
-except Exception as e:
-    # Log error but don't fail the app startup
-    print(f"Warning: Failed to set up Gradio timeout handler: {str(e)}")
-    print("Attempting to initialize Gradio without timeout...")
-    try:
-        gradio_app = create_gradio_app()
-        app = mount_gradio_app(app, gradio_app, path="/gradio")
-        print("Gradio interface initialized successfully")
-    except ImportError as e2:
-        print(f"Warning: Failed to import Gradio dependencies: {str(e2)}")
-        print("Please ensure all required dependencies are installed")
-    except Exception as e2:
-        print(f"Warning: Failed to initialize Gradio interface: {str(e2)}")
-        print("Check the logs for more details about the error")
+# Gradio interface has been removed from the codebase
+print("Note: Gradio interface has been removed. Using Chainlit interface instead.")
 
 
 @app.get("/")
@@ -167,7 +125,7 @@ async def root():
         "message": "AI Assistant Tool System is running!",
         "version": __version__,
         "status": "ready",
-        "gradio_interface": f"http://{settings.host}:{settings.port}/gradio",
+        "chainlit_interface": f"http://{settings.host}:{settings.port}/chat",
         "tool_system": {
             "enabled": settings.tool_system_enabled,
             "tools_registered": tool_registry_stats["total_tools"],

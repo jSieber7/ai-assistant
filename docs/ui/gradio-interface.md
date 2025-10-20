@@ -1,10 +1,14 @@
-# Gradio Interface for AI Assistant
+# Gradio Interface for AI Assistant (DEPRECATED)
 
-This document describes the Gradio web interface that provides a user-friendly way to configure settings and test queries for the AI Assistant system.
+⚠️ **DEPRECATED**: The Gradio interface has been removed from the codebase in favor of the Chainlit interface. Please see [Chainlit Interface](chainlit-interface.md) for the current user interface.
+
+This document described the Gradio web interface that previously provided a user-friendly way to configure settings and test queries for the AI Assistant system.
 
 ## Overview
 
-The Gradio interface is a web-based UI that allows you to:
+**Note**: This interface is no longer available. The following information is kept for historical reference only.
+
+The Gradio interface was a web-based UI that allowed users to:
 
 1. View system information and status
 2. Configure application settings
@@ -12,11 +16,13 @@ The Gradio interface is a web-based UI that allows you to:
 
 ## Accessing the Interface
 
-Once the AI Assistant application is running, you can access the Gradio interface at:
+The Gradio interface was previously accessible at:
 
 ```
 http://localhost:8000/gradio
 ```
+
+But this endpoint is no longer available.
 
 (Replace `localhost:8000` with your actual host and port if different)
 

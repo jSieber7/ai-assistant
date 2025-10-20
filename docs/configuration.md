@@ -183,17 +183,13 @@ HEALTH_CHECK_ENABLED=true
 HEALTH_CHECK_INTERVAL=30
 ```
 
-### Gradio Interface
+### Web Interface
+
+The application now uses Chainlit for the web interface instead of Gradio.
 
 ```bash
-# Enable Gradio interface
-GRADIO_ENABLED=true
-
-# Gradio configuration
-GRADIO_HOST=0.0.0.0
-GRADIO_PORT=7860
-GRADIO_SHARE=false
-GRADIO_PATH=/gradio
+# Chainlit interface is enabled by default
+# Access at http://localhost:8000/chainlit
 ```
 
 ### Multi-Writer System (Advanced)

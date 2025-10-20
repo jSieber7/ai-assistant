@@ -431,8 +431,8 @@ RATE_LIMIT_ENABLED=true
 RATE_LIMIT_REQUESTS=100
 RATE_LIMIT_WINDOW=60
 
-# Gradio
-GRADIO_ENABLED=true
+# Web Interface
+# Chainlit is used instead of Gradio
 GRADIO_HOST=0.0.0.0
 GRADIO_PORT=7860
 ```

@@ -121,3 +121,11 @@ settings.local.*
 # Experimental Directories for Context
 experimental/
 archive/
+
+# Project TODO file
+TODO.md
+# Additional TODO file patterns
+TODO-*.md
+*_TODO.md
+
+.chainlit/

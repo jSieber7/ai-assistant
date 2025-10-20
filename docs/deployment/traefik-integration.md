@@ -19,7 +19,7 @@ The application now uses Traefik as a reverse proxy to provide:
 │                 │    │   Dashboard:8080│    │ (Port 8000)     │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                               │
-                              ├───▶ Gradio UI (/gradio)
+                              ├───▶ Chainlit UI (/chainlit)
                               ├───▶ SearXNG (/search)
                               └───▶ API (/v1/*)
 ```
@@ -29,7 +29,7 @@ The application now uses Traefik as a reverse proxy to provide:
 With Traefik integration, all services are accessible through the following URLs:
 
 - **AI Assistant API**: `http://localhost/`
-- **Gradio Interface**: `http://localhost/gradio/` (note the trailing slash)
+- **Chainlit Interface**: `http://localhost/chainlit/` (note the trailing slash)
 - **OpenAI-Compatible API**: `http://localhost/v1/`
 - **SearXNG Search**: `http://localhost/search/`
 - **Traefik Dashboard**: `http://localhost:8080/`
@@ -43,7 +43,7 @@ With Traefik integration, all services are accessible through the following URLs
 
 2. **Access services**:
    - Main application: http://localhost
-   - Gradio UI: http://localhost/gradio
+   - Chainlit UI: http://localhost/chainlit
    - Traefik dashboard: http://localhost:8080
 
 3. **Check service status**:
@@ -77,12 +77,12 @@ Traefik configuration file located in the config/docker directory with:
 - **Priority**: 1 (highest)
 - **Port**: 8000
 
-### Gradio UI
-- **Router**: `gradio`
-- **Rule**: `PathPrefix(`/gradio`)`
+### Chainlit UI
+- **Router**: `chainlit`
+- **Rule**: `PathPrefix(`/chainlit`)`
 - **Priority**: 2
 - **Port**: 8000
-- **Middleware**: Strips `/gradio` prefix
+- **Middleware**: Strips `/chainlit` prefix
 
 ### SearXNG
 - **Router**: `searxng`

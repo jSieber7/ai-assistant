@@ -8,7 +8,7 @@ This document describes the high-level architecture of the AI Assistant project,
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Client Apps   │◄──►│   FastAPI API    │◄──►│   Agent System  │
 │ (OpenWebUI,     │    │  (OpenAI-compat) │    │   (LangChain)   │
-│  Custom Apps)   │    │   + Gradio UI    │    │ + Multi-Writer  │
+│  Custom Apps)   │    │   + Chainlit UI  │    │ + Multi-Writer  │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
          │                       │                       │
          │                       │                       │
@@ -32,15 +32,15 @@ This document describes the high-level architecture of the AI Assistant project,
 
 ## Core Components
 
-### 1. API Layer (FastAPI + Gradio)
+### 1. API Layer (FastAPI + Chainlit)
 - **Purpose**: Provide OpenAI-compatible interface and web UI
-- **Technology**: FastAPI with Pydantic models + Gradio<br><br>
+- **Technology**: FastAPI with Pydantic models + Chainlit<br><br>
 <u>**Features**</u>
   - Full OpenAI API compatibility
   - Streaming and non-streaming responses
   - Comprehensive error handling
   - OpenAPI documentation
-  - Gradio web interface for configuration
+  - Chainlit conversational interface
   - CORS support
   - Request validation and sanitization
   - Multi-writer system API endpoints
@@ -182,7 +182,7 @@ This document describes the high-level architecture of the AI Assistant project,
 - **LLM Orchestration**: LangChain with multi-provider support
 - **Caching**: Redis with multi-layer caching, compression, and batching
 - **API Client**: HTTPX for async requests
-- **Web Interface**: Gradio for configuration and testing
+- **Web Interface**: Chainlit for conversational AI interaction
 - **Search Integration**: SearXNG for privacy-focused web search
 - **Web Scraping**: Firecrawl for advanced content extraction
 - **Reranking**: Jina Reranker for improved search results
@@ -296,7 +296,7 @@ class Settings(BaseSettings):
 - [x] Jina Reranker integration
 - [x] Advanced tool capabilities
 - [x] Multi-writer system
-- [x] Gradio interface
+- [x] Chainlit interface
 
 ### Phase 3: Production Ready (In Progress)
 - [x] Advanced monitoring
@@ -321,7 +321,7 @@ class Settings(BaseSettings):
 - **Redis + MongoDB + Milvus**: Multi-database approach for different use cases
 - **UV**: Fast, modern Python package manager with excellent dependency resolution
 - **Traefik**: Modern reverse proxy with built-in load balancing
-- **Gradio**: Rapid UI development for configuration and testing
+- **Chainlit**: Conversational AI interface for interaction
 
 ### Architecture Decisions
 - **OpenAI Compatibility**: Ensures wide compatibility with existing tools

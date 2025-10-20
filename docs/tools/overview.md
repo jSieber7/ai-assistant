@@ -399,10 +399,10 @@ TOOL_BATCH_SIZE=10
 
 ### Runtime Configuration
 
-Tools can be configured at runtime via the Gradio interface:
+Tools can be configured at runtime through the API:
 
-1. Access the Gradio interface at `/gradio`
-2. Navigate to Settings Configuration
+1. Use the secure settings API to configure tools
+2. Access the tool management endpoints
 3. Enable/disable specific tools
 4. Adjust tool parameters
 5. Apply changes

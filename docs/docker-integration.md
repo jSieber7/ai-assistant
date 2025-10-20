@@ -51,7 +51,7 @@ docker-compose ps
 
 6. Access the application:
 - AI Assistant: http://localhost (through Traefik)
-- Gradio Interface: http://localhost/gradio
+- Chainlit Interface: http://localhost/chainlit
 - Traefik Dashboard: http://localhost:8080
 - SearXNG Search: http://localhost/search
 - Redis: localhost:6379 (internal only)

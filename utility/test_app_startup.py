@@ -27,7 +27,6 @@ def main():
     modules_to_test = [
         ("app.main", "app/main.py"),
         ("app.core.config", "app/core/config.py"),
-        ("app.ui.gradio_app", "app/ui/gradio_app.py"),
         ("app.api.routes", "app/api/routes.py"),
     ]
 

@@ -13,6 +13,22 @@ http:
       stripprefix:
         prefixes:
           - "/redis"
+    
+    # Chainlit WebSocket middleware for sticky sessions
+    chainlit-websocket:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+        accessControlAllowHeaders:
+          - "*"
+        accessControlAllowOrigin:
+          - "*"
+        accessControlAllowMethods:
+          - "GET"
+          - "POST"
+          - "PUT"
+          - "DELETE"
+          - "OPTIONS"
 
     # NOTE: You will also need to move any other file-based middlewares
     # here, like `security-headers`, `rate-limit`, and `compression`

@@ -26,7 +26,6 @@ def main():
     files_to_check = [
         "app/main.py",
         "app/core/config.py",
-        "app/ui/gradio_app.py",
         "app/api/routes.py",
         "Makefile",
         "docker-compose.yml",

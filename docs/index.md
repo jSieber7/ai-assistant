@@ -21,7 +21,7 @@ docker-compose up -d
 # Access the application
 open http://localhost  # Main application through Traefik
 open http://localhost:8080  # Traefik dashboard
-open http://localhost/gradio  # Gradio interface
+open http://localhost/chainlit  # Chainlit interface
 ```
 
 ### Option 2: Local Development
@@ -147,7 +147,7 @@ Integrated SearXNG for privacy-focused web search capabilities without tracking.
 - **LLM Integration**: LangChain with multi-provider support
 - **Tool System**: Custom extensible tool framework with dynamic execution
 - **Caching**: Redis with multi-layer caching and compression
-- **Web Interface**: Gradio for configuration and testing
+- **Web Interface**: Chainlit for conversational AI interaction
 - **Search Integration**: SearXNG for privacy-focused web search
 - **Web Scraping**: Firecrawl for advanced content extraction
 - **Reranking**: Jina Reranker for improved search results
@@ -175,7 +175,7 @@ Integrated SearXNG for privacy-focused web search capabilities without tracking.
 - 🔥 **Firecrawl Integration**: Advanced web scraping with content extraction
 - 📈 **Jina Reranker**: Improved search result reranking
 - 📊 **Prometheus Metrics**: Built-in monitoring and alerting
-- 🖥️ **Gradio Interface**: Web-based UI for configuration and testing
+- 🖥️ **Chainlit Interface**: Conversational AI interface for interaction
 - 🔄 **OpenAI Compatibility**: Full API compatibility with OpenAI specification
 - 🚀 **Real-time Streaming**: Streaming responses for interactive chat experiences
 - 🔧 **Tool Development Framework**: Easy creation and integration of custom tools

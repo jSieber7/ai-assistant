@@ -297,7 +297,7 @@ curl http://localhost:8000/v1/chat/completions \
   }'
 ```
 
-Or test via the web interface at `http://localhost:8000` if you have the Gradio interface enabled.
+Or test via the Chainlit interface at `http://localhost:8000/chainlit`.
 
 ## Troubleshooting
 
