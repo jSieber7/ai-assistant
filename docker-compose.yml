@@ -550,6 +550,8 @@ services:
     volumes:
       - .:/app  # Mount source code for hot reload
       - ./logs:/app/logs
+      # Exclude .venv to prevent Docker from using host's virtual environment
+      - /app/.venv
     environment:
       - ENVIRONMENT=development
       - DEBUG=true
@@ -570,12 +572,12 @@ services:
     networks:
       - ai-assistant-network
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "/app/.venv/bin/python", "-c", "import sys; sys.path.append('/app'); from app.main import app; print('App initialized successfully')"]
-      interval: 60s
-      timeout: 30s
-      retries: 5
-      start_period: 120s
+    # healthcheck:
+    #   test: ["CMD", "uv", "run", "python", "-c", "import httpx; httpx.get('http://localhost:8000/', timeout=5)"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 60s
     command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     profiles:
       - dev
