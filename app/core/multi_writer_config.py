@@ -13,8 +13,8 @@ logger = logging.getLogger(__name__)
 class MultiWriterSettings(BaseSettings):
     """Multi-writer/checker system configuration"""
 
-    # System enable/disable
-    enabled: bool = False  # Disabled by default as requested
+    # System enable/disable - now controlled by main settings
+    enabled: bool = False  # This will be overridden by main settings
 
     # Firecrawl API settings
     firecrawl_api_key: Optional[SecretStr] = None
@@ -139,7 +139,9 @@ def get_multi_writer_config() -> Dict[str, Any]:
 
 def is_multi_writer_enabled() -> bool:
     """Check if multi-writer system is enabled"""
-    return multi_writer_settings.enabled
+    # Check main settings first, then fall back to multi-writer settings
+    from .config import settings
+    return settings.multi_writer_enabled or multi_writer_settings.enabled
 
 
 def validate_multi_writer_config() -> List[str]:

@@ -182,6 +182,7 @@ def update_external_service_settings(
 def update_system_settings(
     tool_system_enabled: bool,
     agent_system_enabled: bool,
+    multi_writer_enabled: bool,
     preferred_provider: str,
     enable_fallback: bool,
     debug_mode: bool,
@@ -195,6 +196,7 @@ def update_system_settings(
         system_config = {
             "tool_system_enabled": tool_system_enabled,
             "agent_system_enabled": agent_system_enabled,
+            "multi_writer_enabled": multi_writer_enabled,
             "preferred_provider": preferred_provider,
             "enable_fallback": enable_fallback,
             "debug": debug_mode,
@@ -215,14 +217,12 @@ def update_system_settings(
 
 
 def update_multi_writer_settings(
-    multi_writer_enabled: bool,
     mongodb_connection_string: str,
     mongodb_database_name: str,
 ) -> str:
     """Update multi-writer settings."""
     try:
         multi_writer_config = {
-            "enabled": multi_writer_enabled,
             "mongodb_connection_string": mongodb_connection_string.strip()
             if mongodb_connection_string
             else "mongodb://localhost:27017",
@@ -599,6 +599,12 @@ def create_settings_page() -> gr.Blocks:
                                     "agent_system_enabled", True
                                 ),
                             )
+                            multi_writer_enabled = gr.Checkbox(
+                                label="Enable Multi-Writer System",
+                                value=current_settings.get("system_config", {}).get(
+                                    "multi_writer_enabled", False
+                                ),
+                            )
                             enable_fallback = gr.Checkbox(
                                 label="Enable Provider Fallback",
                                 value=current_settings.get("system_config", {}).get(
@@ -662,14 +668,9 @@ def create_settings_page() -> gr.Blocks:
             # Multi-Writer Tab
             with gr.TabItem("📝 Multi-Writer System"):
                 gr.Markdown("## Multi-Writer Configuration")
+                gr.Markdown("⚠️ **Note**: Enable/disable the Multi-Writer System in the **System Configuration** tab.")
 
                 with gr.Group(elem_classes=["settings-section"]):
-                    multi_writer_enabled = gr.Checkbox(
-                        label="Enable Multi-Writer System",
-                        value=current_settings.get("multi_writer", {}).get(
-                            "enabled", False
-                        ),
-                    )
                     mongodb_connection_string = gr.Textbox(
                         label="MongoDB Connection String",
                         value=current_settings.get("multi_writer", {}).get(
@@ -791,6 +792,7 @@ def create_settings_page() -> gr.Blocks:
             inputs=[
                 tool_system_enabled,
                 agent_system_enabled,
+                multi_writer_enabled,
                 preferred_provider,
                 enable_fallback,
                 debug_mode,
@@ -805,7 +807,6 @@ def create_settings_page() -> gr.Blocks:
         update_multi_writer_btn.click(
             update_multi_writer_settings,
             inputs=[
-                multi_writer_enabled,
                 mongodb_connection_string,
                 mongodb_database_name,
             ],

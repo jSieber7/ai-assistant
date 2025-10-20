@@ -487,6 +487,7 @@ test_query_function = execute_query_function  # For backward compatibility with 
 def update_settings(
     tool_system_enabled: bool,
     agent_system_enabled: bool,
+    multi_writer_enabled: bool,
     preferred_provider: str,
     enable_fallback: bool,
     debug_mode: bool,
@@ -512,6 +513,12 @@ def update_settings(
                 f"Agent system: {settings.agent_system_enabled} → {agent_system_enabled}"
             )
             settings.agent_system_enabled = agent_system_enabled
+
+        if settings.multi_writer_enabled != multi_writer_enabled:
+            changes.append(
+                f"Multi-writer system: {settings.multi_writer_enabled} → {multi_writer_enabled}"
+            )
+            settings.multi_writer_enabled = multi_writer_enabled
 
         if settings.preferred_provider != preferred_provider:
             changes.append(
@@ -542,6 +549,7 @@ def update_settings(
         settings_map = {
             "TOOL_SYSTEM_ENABLED": str(tool_system_enabled),
             "AGENT_SYSTEM_ENABLED": str(agent_system_enabled),
+            "MULTI_WRITER_ENABLED": str(multi_writer_enabled),
             "PREFERRED_PROVIDER": preferred_provider,
             "ENABLE_FALLBACK": str(enable_fallback),
             "DEBUG": str(debug_mode),
@@ -860,6 +868,10 @@ def create_gradio_app() -> gr.Blocks:
                             label="Enable Agent System",
                             value=settings.agent_system_enabled,
                         )
+                        multi_writer_enabled = gr.Checkbox(
+                            label="Enable Multi-Writer System",
+                            value=settings.multi_writer_enabled,
+                        )
                         debug_mode = gr.Checkbox(
                             label="Debug Mode", value=settings.debug
                         )
@@ -884,6 +896,7 @@ def create_gradio_app() -> gr.Blocks:
                     inputs=[
                         tool_system_enabled,
                         agent_system_enabled,
+                        multi_writer_enabled,
                         preferred_provider,
                         enable_fallback,
                         debug_mode,

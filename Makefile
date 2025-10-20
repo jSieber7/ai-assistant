@@ -45,7 +45,7 @@ dev: ## Run development server
 
 dev-docker: ## Run development with Docker
 	@echo "Starting development environment with Docker..."
-	docker compose --profile dev up
+	docker compose --profile dev up -d
 
 # =============================================================================
 # Testing

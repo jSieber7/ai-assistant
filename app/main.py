@@ -8,6 +8,7 @@ from .core.config import (
     initialize_llm_providers,
     initialize_firecrawl_system,
     initialize_playwright_system,
+    initialize_visual_system,
 )
 from .core.tools import tool_registry
 from .core.agents.management.registry import agent_registry

@@ -319,6 +319,9 @@ class Settings(BaseSettings):
     default_agent: Optional[str] = None
     max_agent_iterations: int = 3
     agent_timeout: int = 60
+    
+    # Multi-writer system settings
+    multi_writer_enabled: bool = False
 
     # Caching system settings
     cache_settings: CacheSettings = CacheSettings()
@@ -337,6 +340,13 @@ class Settings(BaseSettings):
 
     # Milvus settings
     milvus_settings: MilvusSettings = MilvusSettings()
+
+    # Visual LMM system settings
+    visual_system_enabled: bool = True
+    visual_default_model: str = "openai_vision:gpt-4-vision-preview"
+    visual_max_concurrent_analyses: int = 3
+    visual_screenshot_quality: int = 85
+    visual_browser_control_enabled: bool = True
 
     # Jina Reranker settings
     jina_reranker_enabled: bool = False
@@ -370,6 +380,9 @@ class Settings(BaseSettings):
                 )
                 self.agent_system_enabled = secure_system_config.get(
                     "agent_system_enabled", self.agent_system_enabled
+                )
+                self.multi_writer_enabled = secure_system_config.get(
+                    "multi_writer_enabled", self.multi_writer_enabled
                 )
                 self.preferred_provider = secure_system_config.get(
                     "preferred_provider", self.preferred_provider
@@ -430,6 +443,14 @@ class Settings(BaseSettings):
             MultiWriterSettings,
         )  # Ignore the class itself, not an instance
         extra = "ignore"  # Allow extra fields to avoid validation errors
+        
+        @validator("multi_writer_enabled", pre=True, always=True)
+        @classmethod
+        def parse_multi_writer_enabled(cls, v):
+            """Parse multi_writer_enabled from environment variable."""
+            if isinstance(v, str):
+                return v.lower() in ("true", "1", "yes", "on", "enabled")
+            return v
 
         @classmethod
         def customize_sources(cls, init_settings, env_settings, file_secret_settings):
@@ -811,3 +832,35 @@ def initialize_playwright_system():
     logger.info("Playwright automation tool registered")
 
     return tool_registry
+
+
+def initialize_visual_system():
+    """Initialize the Visual LMM system with providers, tools, and agents"""
+    if not settings.visual_system_enabled:
+        logger.info("Visual LMM system disabled in settings")
+        return None
+    
+    # Import the visual system initialization
+    from .visual_agent_init import initialize_visual_system as init_visual_system
+    
+    try:
+        # Initialize the complete visual system
+        result = init_visual_system()
+        
+        if result["visual_system"]["status"] == "success":
+            logger.info("Visual LMM system initialization completed successfully")
+        elif result["visual_system"]["status"] == "degraded":
+            logger.warning("Visual LMM system initialization completed with degraded functionality")
+        else:
+            logger.error("Visual LMM system initialization failed")
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize Visual LMM system: {str(e)}")
+        return {
+            "visual_system": {
+                "status": "failed",
+                "error": str(e),
+            }
+        }
