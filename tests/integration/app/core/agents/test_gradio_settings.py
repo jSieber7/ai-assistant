@@ -16,7 +16,6 @@ from app.ui.settings_page import (
     get_current_settings,
     validate_api_key,
     update_llm_provider_settings,
-    update_external_service_settings,
     update_system_settings,
     update_multi_writer_settings,
     export_settings,
@@ -150,46 +149,6 @@ class TestGradioSettingsInterface(unittest.TestCase):
                 # Check result message
                 self.assertIn("updated successfully", result)
 
-    def test_update_external_service_settings(self):
-        """Test updating external service settings."""
-        # Mock the set_category method
-        self.mock_manager.set_category.return_value = None
-
-        with patch("app.ui.settings_page.secure_settings", self.mock_manager):
-            result = update_external_service_settings(
-                firecrawl_enabled=True,
-                firecrawl_docker_url="http://firecrawl:3002",
-                firecrawl_bull_auth_key="auth_key",
-                firecrawl_scraping_enabled=True,
-                firecrawl_max_concurrent_scrapes=5,
-                firecrawl_scrape_timeout=60,
-                jina_enabled=True,
-                jina_api_key="jina_key",
-                jina_url="http://jina:8080",
-                jina_model="jina-model",
-                jina_timeout=30,
-                jina_cache_ttl=3600,
-                jina_max_retries=3,
-                searxng_secret_key="searxng_key",
-                searxng_url="http://searxng:8080",
-            )
-
-            # Verify settings were saved
-            self.mock_manager.set_category.assert_called_once()
-            call_args = self.mock_manager.set_category.call_args[0]
-
-            # Check the category and settings
-            self.assertEqual(call_args[0], "external_services")
-
-            settings = call_args[1]
-            self.assertEqual(settings["firecrawl"]["enabled"], True)
-            self.assertEqual(settings["firecrawl"]["bull_auth_key"], "auth_key")
-            self.assertEqual(settings["jina_reranker"]["enabled"], True)
-            self.assertEqual(settings["jina_reranker"]["api_key"], "jina_key")
-            self.assertEqual(settings["searxng"]["secret_key"], "searxng_key")
-
-            # Check result message
-            self.assertIn("updated successfully", result)
 
     def test_update_system_settings(self):
         """Test updating system settings."""
@@ -408,17 +367,6 @@ class TestGradioSettingsWorkflow(unittest.TestCase):
         )
 
         # 3. Configure external services
-        settings_manager.set_category(
-            "external_services",
-            {
-                "jina_reranker": {
-                    "enabled": True,
-                    "api_key": "test_jina_key",
-                    "url": "http://test.jina.com",
-                },
-                "firecrawl": {"enabled": False},
-            },
-        )
 
         # 4. Configure system settings
         settings_manager.set_category(
@@ -436,12 +384,6 @@ class TestGradioSettingsWorkflow(unittest.TestCase):
                 "api_key"
             ),
             "test_openai_key",
-        )
-        self.assertEqual(
-            settings_manager.get_setting("external_services", "jina_reranker", {}).get(
-                "api_key"
-            ),
-            "test_jina_key",
         )
         self.assertFalse(
             settings_manager.get_setting("system_config", "tool_system_enabled")
@@ -470,13 +412,6 @@ class TestGradioSettingsWorkflow(unittest.TestCase):
             "updated_key",
         )
 
-        # 9. Verify other settings were preserved (merge mode)
-        self.assertEqual(
-            settings_manager.get_setting("external_services", "jina_reranker", {}).get(
-                "api_key"
-            ),
-            "test_jina_key",
-        )
 
     @patch("app.core.secure_settings.httpx.Client")
     def test_api_key_validation_workflow(self, mock_client):

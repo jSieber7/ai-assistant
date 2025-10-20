@@ -39,12 +39,12 @@ def get_models_list() -> List[str]:
                 logger.info(f"First model: {models[0]}, type: {type(models[0])}")
         except Exception as e:
             logger.error(f"Error getting models: {str(e)}", exc_info=True)
-            # Return a more informative fallback
-            return [f"{settings.default_model} (Error: {str(e)[:50]}...)"]
+            # Return a fallback list with just the default model
+            return [settings.default_model]
 
         if not models:
             logger.warning("No models available, returning default model")
-            return [f"{settings.default_model} (No models available)"]
+            return [settings.default_model]
 
         # Format model names for display
         formatted_models = []
@@ -64,12 +64,13 @@ def get_models_list() -> List[str]:
                 logger.error(f"Error formatting model {model}: {format_error}")
                 formatted_models.append(str(model))
 
-        logger.info(f"Retrieved {len(formatted_models)} models")
+        logger.info(f"Retrieved {len(formatted_models)} accessible models")
         return formatted_models
 
     except Exception as e:
         logger.error(f"Unexpected error getting models list: {str(e)}", exc_info=True)
-        return [f"{settings.default_model} (Error: {str(e)[:50]}...)"]
+        # Return a fallback list with just the default model
+        return [settings.default_model]
 
 
 def get_providers_info() -> str:
@@ -462,13 +463,18 @@ async def execute_query_function(
             try:
                 error_detail = response.json()
                 if "detail" in error_detail:
-                    error_msg += f": {error_detail['detail']}"
+                    error_detail_text = error_detail['detail']
+                    error_msg += f": {error_detail_text}"
+                    
+                    # Add specific guidance for OpenRouter access issues
+                    if "openrouter" in error_detail_text.lower() and ("access" in error_detail_text.lower() or "unauthorized" in error_detail_text.lower() or "forbidden" in error_detail_text.lower()):
+                        error_msg += "\n\n💡 **OpenRouter Access Issue**: This model may not be available with your current OpenRouter plan. Please check your OpenRouter dashboard to verify which models you have access to."
                 else:
                     error_msg += f": {json.dumps(error_detail)}"
             except Exception:
                 error_msg += ": Server error occurred"
 
-                return f"Error: {error_msg}"
+            return f"Error: {error_msg}"
 
     except httpx.TimeoutException:
         return "Error: Request timed out. The server took too long to respond."
@@ -950,10 +956,14 @@ def create_gradio_app() -> gr.Blocks:
                             )
 
                         with gr.Row():
+                            # Get the list of agents and determine a safe default value
+                            available_agents = get_agents_list()
+                            default_agent = available_agents[0] if available_agents else "default"
+                            
                             agent_dropdown = gr.Dropdown(
                                 label="Agent",
-                                choices=get_agents_list(),
-                                value="default",
+                                choices=available_agents,
+                                value=default_agent,
                                 visible=settings.agent_system_enabled,
                             )
                             refresh_agents_btn = gr.Button(

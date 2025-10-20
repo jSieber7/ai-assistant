@@ -109,75 +109,6 @@ def update_llm_provider_settings(
         return f"❌ Failed to update settings: {str(e)}"
 
 
-def update_external_service_settings(
-    firecrawl_enabled: bool,
-    firecrawl_docker_url: str,
-    firecrawl_bull_auth_key: str,
-    firecrawl_scraping_enabled: bool,
-    firecrawl_max_concurrent_scrapes: int,
-    firecrawl_scrape_timeout: int,
-    jina_enabled: bool,
-    jina_api_key: str,
-    jina_url: str,
-    jina_model: str,
-    jina_timeout: int,
-    jina_cache_ttl: int,
-    jina_max_retries: int,
-    searxng_secret_key: str,
-    searxng_url: str,
-) -> str:
-    """Update external service settings."""
-    try:
-        # Update Firecrawl settings
-        firecrawl_config = {
-            "enabled": firecrawl_enabled,
-            "deployment_mode": "docker",
-            "docker_url": firecrawl_docker_url.strip()
-            if firecrawl_docker_url
-            else "http://firecrawl-api:3002",
-            "bull_auth_key": firecrawl_bull_auth_key.strip()
-            if firecrawl_bull_auth_key
-            else "",
-            "scraping_enabled": firecrawl_scraping_enabled,
-            "max_concurrent_scrapes": firecrawl_max_concurrent_scrapes,
-            "scrape_timeout": firecrawl_scrape_timeout,
-        }
-
-        # Update Jina Reranker settings
-        jina_config = {
-            "enabled": jina_enabled,
-            "api_key": jina_api_key.strip() if jina_api_key else "",
-            "url": jina_url.strip() if jina_url else "http://jina-reranker:8080",
-            "model": jina_model.strip()
-            if jina_model
-            else "jina-reranker-v2-base-multilingual",
-            "timeout": jina_timeout,
-            "cache_ttl": jina_cache_ttl,
-            "max_retries": jina_max_retries,
-        }
-
-        # Update SearXNG settings
-        searxng_config = {
-            "secret_key": searxng_secret_key.strip() if searxng_secret_key else "",
-            "url": searxng_url.strip() if searxng_url else "http://searxng:8080",
-        }
-
-        # Save to secure storage
-        secure_settings.set_category(
-            "external_services",
-            {
-                "firecrawl": firecrawl_config,
-                "jina_reranker": jina_config,
-                "searxng": searxng_config,
-            },
-        )
-
-        return "✅ External service settings updated successfully"
-
-    except Exception as e:
-        logger.error(f"Failed to update external service settings: {e}")
-        return f"❌ Failed to update settings: {str(e)}"
-
 
 def update_system_settings(
     tool_system_enabled: bool,
@@ -440,144 +371,6 @@ def create_settings_page() -> gr.Blocks:
                     label="Status", interactive=False, elem_classes=["success"]
                 )
 
-            # External Services Tab
-            with gr.TabItem("🔌 External Services"):
-                gr.Markdown("## Configure External Services")
-
-                with gr.Row():
-                    with gr.Column():
-                        gr.Markdown("### Firecrawl (Web Scraping)")
-                        with gr.Group(elem_classes=["settings-section"]):
-                            firecrawl_enabled = gr.Checkbox(
-                                label="Enable Firecrawl",
-                                value=current_settings.get("external_services", {})
-                                .get("firecrawl", {})
-                                .get("enabled", False),
-                            )
-                            firecrawl_docker_url = gr.Textbox(
-                                label="Docker URL",
-                                value=current_settings.get("external_services", {})
-                                .get("firecrawl", {})
-                                .get("docker_url", "http://firecrawl-api:3002"),
-                            )
-                            firecrawl_bull_auth_key = gr.Textbox(
-                                label="Bull Auth Key",
-                                type="password",
-                                placeholder="Enter auth key...",
-                                value="",
-                                elem_classes=["api-key-input"],
-                            )
-                            firecrawl_scraping_enabled = gr.Checkbox(
-                                label="Enable Web Scraping",
-                                value=current_settings.get("external_services", {})
-                                .get("firecrawl", {})
-                                .get("scraping_enabled", True),
-                            )
-                            with gr.Row():
-                                firecrawl_max_concurrent_scrapes = gr.Number(
-                                    label="Max Concurrent Scrapes",
-                                    value=current_settings.get("external_services", {})
-                                    .get("firecrawl", {})
-                                    .get("max_concurrent_scrapes", 5),
-                                    minimum=1,
-                                    maximum=20,
-                                )
-                                firecrawl_scrape_timeout = gr.Number(
-                                    label="Scrape Timeout (seconds)",
-                                    value=current_settings.get("external_services", {})
-                                    .get("firecrawl", {})
-                                    .get("scrape_timeout", 60),
-                                    minimum=10,
-                                    maximum=300,
-                                )
-
-                    with gr.Column():
-                        gr.Markdown("### Jina AI Reranker")
-                        with gr.Group(elem_classes=["settings-section"]):
-                            jina_enabled = gr.Checkbox(
-                                label="Enable Jina Reranker",
-                                value=current_settings.get("external_services", {})
-                                .get("jina_reranker", {})
-                                .get("enabled", False),
-                            )
-                            jina_api_key = gr.Textbox(
-                                label="Jina API Key",
-                                type="password",
-                                placeholder="Enter your Jina API key...",
-                                value="",
-                                elem_classes=["api-key-input"],
-                            )
-                            jina_url = gr.Textbox(
-                                label="Reranker URL",
-                                value=current_settings.get("external_services", {})
-                                .get("jina_reranker", {})
-                                .get("url", "http://jina-reranker:8080"),
-                            )
-                            jina_model = gr.Textbox(
-                                label="Model",
-                                value=current_settings.get("external_services", {})
-                                .get("jina_reranker", {})
-                                .get("model", "jina-reranker-v2-base-multilingual"),
-                            )
-                            with gr.Row():
-                                jina_timeout = gr.Number(
-                                    label="Timeout (seconds)",
-                                    value=current_settings.get("external_services", {})
-                                    .get("jina_reranker", {})
-                                    .get("timeout", 30),
-                                    minimum=1,
-                                    maximum=300,
-                                )
-                                jina_cache_ttl = gr.Number(
-                                    label="Cache TTL (seconds)",
-                                    value=current_settings.get("external_services", {})
-                                    .get("jina_reranker", {})
-                                    .get("cache_ttl", 3600),
-                                    minimum=0,
-                                    maximum=86400,
-                                )
-                            jina_max_retries = gr.Number(
-                                label="Max Retries",
-                                value=current_settings.get("external_services", {})
-                                .get("jina_reranker", {})
-                                .get("max_retries", 3),
-                                minimum=0,
-                                maximum=10,
-                            )
-
-                            with gr.Row():
-                                validate_jina_btn = gr.Button(
-                                    "🔍 Validate API Key", size="sm"
-                                )
-                                jina_validation_status = gr.Textbox(
-                                    label="Validation Status",
-                                    interactive=False,
-                                    elem_classes=["success"],
-                                )
-
-                gr.Markdown("### SearXNG (Search Engine)")
-                with gr.Group(elem_classes=["settings-section"]):
-                    with gr.Row():
-                        searxng_secret_key = gr.Textbox(
-                            label="SearXNG Secret Key",
-                            type="password",
-                            placeholder="Enter SearXNG secret key...",
-                            value="",
-                            elem_classes=["api-key-input"],
-                        )
-                        searxng_url = gr.Textbox(
-                            label="SearXNG URL",
-                            value=current_settings.get("external_services", {})
-                            .get("searxng", {})
-                            .get("url", "http://searxng:8080"),
-                        )
-
-                update_services_btn = gr.Button(
-                    "💾 Save External Service Settings", variant="primary"
-                )
-                services_status = gr.Textbox(
-                    label="Status", interactive=False, elem_classes=["success"]
-                )
 
             # System Configuration Tab
             with gr.TabItem("⚙️ System Configuration"):
@@ -737,11 +530,6 @@ def create_settings_page() -> gr.Blocks:
             outputs=[openai_validation_status],
         )
 
-        validate_jina_btn.click(
-            validate_api_key,
-            inputs=[gr.Textbox(value="jina_reranker", visible=False), jina_api_key],
-            outputs=[jina_validation_status],
-        )
 
         update_llm_btn.click(
             update_llm_provider_settings,
@@ -765,27 +553,6 @@ def create_settings_page() -> gr.Blocks:
             outputs=[llm_status],
         )
 
-        update_services_btn.click(
-            update_external_service_settings,
-            inputs=[
-                firecrawl_enabled,
-                firecrawl_docker_url,
-                firecrawl_bull_auth_key,
-                firecrawl_scraping_enabled,
-                firecrawl_max_concurrent_scrapes,
-                firecrawl_scrape_timeout,
-                jina_enabled,
-                jina_api_key,
-                jina_url,
-                jina_model,
-                jina_timeout,
-                jina_cache_ttl,
-                jina_max_retries,
-                searxng_secret_key,
-                searxng_url,
-            ],
-            outputs=[services_status],
-        )
 
         update_system_btn.click(
             update_system_settings,

@@ -576,6 +576,12 @@ async def get_llm(model_name: Optional[str] = None, **kwargs):
         model_name = settings.default_model
 
     try:
+        # Check if any providers are configured
+        configured_providers = provider_registry.list_configured_providers()
+        if not configured_providers:
+            logger.warning("No LLM providers are configured")
+            raise ValueError("No LLM providers are configured")
+
         # Resolve model to provider and actual model name
         provider, actual_model = await provider_registry.resolve_model(model_name)
 
@@ -723,7 +729,8 @@ def initialize_agent_system():
     from .tools.execution.registry import tool_registry
 
     if not settings.agent_system_enabled:
-        return
+        logger.info("Agent system disabled in settings")
+        return None
 
     # Initialize LLM providers first
     initialize_llm_providers()
@@ -747,12 +754,12 @@ def initialize_agent_system():
             llm = asyncio.run(get_llm())
     except concurrent.futures.TimeoutError:
         logger.error("Agent system initialization timed out while getting LLM")
-        raise ValueError(
-            "Agent system initialization timed out - LLM provider not responding"
-        )
+        logger.warning("Agent system will be disabled until properly configured")
+        return None
     except Exception as e:
         logger.error(f"Failed to get LLM for agent system: {str(e)}")
-        raise
+        logger.warning("Agent system will be disabled until properly configured")
+        return None
 
     tool_agent = ToolAgent(
         tool_registry=tool_registry,

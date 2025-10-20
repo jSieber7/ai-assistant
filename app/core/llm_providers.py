@@ -11,6 +11,7 @@ from enum import Enum
 import logging
 import asyncio
 from dataclasses import dataclass
+import httpx
 
 logger = logging.getLogger(__name__)
 
@@ -182,8 +183,6 @@ class OpenAICompatibleProvider(LLMProvider):
     async def list_models(self) -> List[ModelInfo]:
         """List available models from the OpenAI-compatible API"""
         try:
-            import httpx
-
             headers = {"Authorization": f"Bearer {self.api_key}"}
             headers.update(self.custom_headers)
 
@@ -201,13 +200,26 @@ class OpenAICompatibleProvider(LLMProvider):
                     if "data" in data:
                         # OpenAI format
                         for model in data["data"]:
+                            model_name = model.get("id", model.get("model", ""))
+                            
+                            # For OpenRouter, check if user has access to the model
+                            if "openrouter.ai" in self.base_url.lower():
+                                if await self._check_openrouter_model_access(model_name, headers, client):
+                                    display_name = model_name.split("/")[-1]
+                                    description = model.get("object", "model")
+                                else:
+                                    # Skip models the user doesn't have access to
+                                    logger.debug(f"Skipping inaccessible OpenRouter model: {model_name}")
+                                    continue
+                            else:
+                                display_name = model_name.split("/")[-1]
+                                description = model.get("object", "model")
+                            
                             model_info = ModelInfo(
-                                name=model.get("id", model.get("model", "")),
+                                name=model_name,
                                 provider=ProviderType.OPENAI_COMPATIBLE,
-                                display_name=model.get(
-                                    "id", model.get("model", "")
-                                ).split("/")[-1],
-                                description=model.get("object", "model"),
+                                display_name=display_name,
+                                description=description,
                                 context_length=None,  # Not typically provided in list endpoint
                                 supports_streaming=True,
                                 supports_tools=True,
@@ -218,13 +230,27 @@ class OpenAICompatibleProvider(LLMProvider):
                         for model in data:
                             if isinstance(model, dict):
                                 model_name = model.get("id", model.get("name", ""))
+                                
+                                # For OpenRouter, check if user has access to the model
+                                if "openrouter.ai" in self.base_url.lower():
+                                    if await self._check_openrouter_model_access(model_name, headers, client):
+                                        display_name = model_name.split("/")[-1]
+                                        description = model.get("description", f"Model from {self.name}")
+                                    else:
+                                        # Skip models the user doesn't have access to
+                                        logger.debug(f"Skipping inaccessible OpenRouter model: {model_name}")
+                                        continue
+                                else:
+                                    display_name = model_name.split("/")[-1]
+                                    description = model.get(
+                                        "description", f"Model from {self.name}"
+                                    )
+                                
                                 model_info = ModelInfo(
                                     name=model_name,
                                     provider=ProviderType.OPENAI_COMPATIBLE,
-                                    display_name=model_name.split("/")[-1],
-                                    description=model.get(
-                                        "description", f"Model from {self.name}"
-                                    ),
+                                    display_name=display_name,
+                                    description=description,
                                     context_length=model.get("context_length"),
                                     supports_streaming=model.get(
                                         "supports_streaming", True
@@ -246,11 +272,54 @@ class OpenAICompatibleProvider(LLMProvider):
             logger.error(f"Failed to list models from {self.name}: {str(e)}")
             return self._fallback_models
 
+    async def _check_openrouter_model_access(self, model_name: str, headers: dict, client: httpx.AsyncClient) -> bool:
+        """
+        Check if the user has access to a specific OpenRouter model.
+        
+        This method makes a lightweight request to verify model accessibility.
+        """
+        try:
+            # Make a minimal request to check model access
+            # We use the chat completions endpoint with a minimal message
+            test_payload = {
+                "model": model_name,
+                "messages": [{"role": "user", "content": "test"}],
+                "max_tokens": 1,
+                "stream": False
+            }
+            
+            test_response = await client.post(
+                f"{self.base_url}/chat/completions",
+                json=test_payload,
+                headers=headers,
+                timeout=5.0
+            )
+            
+            # If we get a 200 response, the model is accessible
+            if test_response.status_code == 200:
+                return True
+            # If we get a 403 or 401, the model is not accessible
+            elif test_response.status_code in [401, 403]:
+                logger.debug(f"Model {model_name} not accessible: HTTP {test_response.status_code}")
+                return False
+            # For other status codes, we'll assume the model might be accessible
+            # (could be temporary issues, rate limits, etc.)
+            else:
+                logger.debug(f"Model {model_name} access check returned HTTP {test_response.status_code}, assuming accessible")
+                return True
+                
+        except httpx.TimeoutException:
+            # Timeout doesn't necessarily mean lack of access
+            logger.debug(f"Model {model_name} access check timed out, assuming accessible")
+            return True
+        except Exception as e:
+            # Other errors don't necessarily mean lack of access
+            logger.debug(f"Model {model_name} access check failed: {str(e)}, assuming accessible")
+            return True
+
     async def health_check(self) -> bool:
         """Check OpenAI-compatible API health"""
         try:
-            import httpx
-
             headers = {"Authorization": f"Bearer {self.api_key}"}
             headers.update(self.custom_headers)
 
@@ -330,8 +399,6 @@ class OllamaProvider(LLMProvider):
     async def list_models(self) -> List[ModelInfo]:
         """List available Ollama models"""
         try:
-            import httpx
-
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(f"{self.base_url}/api/tags")
                 if response.status_code != 200:
@@ -362,8 +429,6 @@ class OllamaProvider(LLMProvider):
     async def health_check(self) -> bool:
         """Check Ollama server health"""
         try:
-            import httpx
-
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(f"{self.base_url}/api/tags")
                 is_healthy = response.status_code == 200

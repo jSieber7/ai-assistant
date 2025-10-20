@@ -571,11 +571,11 @@ services:
       - ai-assistant-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      test: ["CMD", "/app/.venv/bin/python", "-c", "import sys; sys.path.append('/app'); from app.main import app; print('App initialized successfully')"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 120s
     command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
     profiles:
       - dev

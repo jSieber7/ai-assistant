@@ -119,14 +119,15 @@ try:
 
     # Set a timeout for Gradio initialization
     signal.signal(signal.SIGALRM, timeout_handler)
-    signal.alarm(30)  # 30 second timeout
+    signal.alarm(10)  # 10 second timeout
 
     try:
         gradio_app = create_gradio_app()
         app = mount_gradio_app(app, gradio_app, path="/gradio")
         signal.alarm(0)  # Cancel the alarm
+        print("Gradio interface initialized successfully")
     except TimeoutError:
-        print("Warning: Gradio interface initialization timed out after 30 seconds")
+        print("Warning: Gradio interface initialization timed out after 10 seconds")
         print("This might be due to slow model loading or network connectivity issues")
         print("Continuing without Gradio interface...")
     except ImportError as e:
@@ -146,6 +147,7 @@ except Exception as e:
     try:
         gradio_app = create_gradio_app()
         app = mount_gradio_app(app, gradio_app, path="/gradio")
+        print("Gradio interface initialized successfully")
     except ImportError as e2:
         print(f"Warning: Failed to import Gradio dependencies: {str(e2)}")
         print("Please ensure all required dependencies are installed")
