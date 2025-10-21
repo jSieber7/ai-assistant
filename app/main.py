@@ -21,7 +21,7 @@ from .api.routes import router
 from .api.tool_routes import router as tool_router
 from .api.agent_routes import router as agent_router
 from .api.monitoring_routes import router as monitoring_router
-from .ui import create_chainlit_app
+from chainlit.utils import mount_chainlit
 from app import __version__
 
 
@@ -136,6 +136,15 @@ if is_multi_writer_enabled():
     from .api.multi_writer_routes import router as multi_writer_router
 
     app.include_router(multi_writer_router)
+
+# Mount Chainlit as a subapplication
+try:
+    # Mount Chainlit at /chat path
+    mount_chainlit(app=app, target="chainlit_app.py", path="/chat")
+    print("Chainlit app mounted successfully at /chat")
+except Exception as e:
+    print(f"Warning: Failed to mount Chainlit app: {str(e)}")
+    print("Chainlit interface will not be available")
 
 @app.get("/")
 async def root():

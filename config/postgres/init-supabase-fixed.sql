@@ -36,12 +36,24 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, service_role;
 -- The authenticator role is used by PostgREST
 GRANT USAGE ON SCHEMA auth TO authenticator;
 GRANT ALL ON ALL TABLES IN SCHEMA auth TO authenticator;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA auth TO authenticator;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA auth TO authenticator;
 
 GRANT USAGE ON SCHEMA storage TO authenticator;
 GRANT ALL ON ALL TABLES IN SCHEMA storage TO authenticator;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA storage TO authenticator;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA storage TO authenticator;
 
 GRANT USAGE ON SCHEMA public TO authenticator;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO authenticator;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticator;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticator;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO authenticator;
+
+-- Also grant permissions on multi_writer schema
+GRANT USAGE ON SCHEMA multi_writer TO authenticator;
+GRANT ALL ON ALL TABLES IN SCHEMA multi_writer TO authenticator;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA multi_writer TO authenticator;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA multi_writer TO authenticator;
 
 -- =============================================================================
 -- Application-specific Schemas and Roles

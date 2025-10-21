@@ -398,6 +398,13 @@ async def on_chat_start():
         author="System"
     ).send()
     
+    # Display the status bar
+    await display_status_bar(
+        selected_provider=dropdown_state.selected_provider,
+        selected_model=dropdown_state.selected_model,
+        is_api_serving=dropdown_state.selected_provider is not None and dropdown_state.selected_model is not None
+    )
+    
     # Store settings in session
     cl.user_session.set("dropdown_state", dropdown_state)
     
@@ -525,6 +532,31 @@ async def on_settings_update(settings: Dict[str, Any]):
         models = state.models.get(state.selected_provider or "", [])
         filtered_models = filter_models(models, state.search_query)
         await update_model_dropdown(filtered_models, state.selected_model)
+    
+    # Update the status bar
+    is_api_serving = state.selected_provider is not None and state.selected_model is not None
+    
+    # Determine API host for the output API (where users connect to use this app)
+    output_api_endpoint = "http://localhost:8000/v1" if settings.environment == "development" else f"http://{settings.host}:{settings.port}/v1"
+    
+    # Get the existing top bar element
+    top_bar_element = cl.user_session.get("top_bar_element")
+    if top_bar_element:
+        # Update the existing element
+        top_bar_element.props = {
+            "selectedProvider": state.selected_provider,
+            "selectedModel": state.selected_model,
+            "isApiServing": is_api_serving,
+            "outputApiEndpoint": output_api_endpoint
+        }
+        await top_bar_element.update()
+    else:
+        # Create a new element if it doesn't exist
+        await display_status_bar(
+            selected_provider=state.selected_provider,
+            selected_model=state.selected_model,
+            is_api_serving=is_api_serving
+        )
     
     # Store updated state
     cl.user_session.set("dropdown_state", state)
@@ -791,6 +823,8 @@ async def handle_command(command: str):
         await reset_settings()
     elif command == "/help":
         await show_help()
+    elif command == "/agent":
+        await handle_agent_command()
     else:
         await cl.Message(
             content=f"Unknown command: {command}\n\nType `/help` for available commands.",
@@ -824,6 +858,7 @@ async def show_help():
 - `/settings` - Show current configuration
 - `/reset` - Reset configuration and select new provider
 - `/help` - Show this help message
+- `/agent` - Open agent management panel
 
 ### How to Use
 1. Select a provider from the dropdown
@@ -845,8 +880,89 @@ Click the "Add New Provider" button and fill in the form to add a new provider.
     ).send()
 
 
+async def handle_agent_command() -> None:
+    """
+    Handle the agent command triggered by the agent button
+    """
+    # Display agent management options
+    actions = [
+        cl.Action(name="list_agents", value="list", label="📋 List Agents", payload={}),
+        cl.Action(name="create_agent", value="create", label="➕ Create Agent", payload={}),
+        cl.Action(name="configure_agent", value="configure", label="⚙️ Configure Agent", payload={}),
+    ]
+    
+    await cl.Message(
+        content="## Agent Management\n\nSelect an action:",
+        actions=actions,
+        author="System"
+    ).send()
+
+
+@cl.action_callback("list_agents")
+async def on_list_agents(action: cl.Action):
+    """Handle list agents action"""
+    await cl.Message(
+        content="## Available Agents\n\nNo agents configured yet.",
+        author="System"
+    ).send()
+
+
+@cl.action_callback("create_agent")
+async def on_create_agent(action: cl.Action):
+    """Handle create agent action"""
+    await cl.Message(
+        content="## Create New Agent\n\nAgent creation form would appear here.",
+        author="System"
+    ).send()
+
+
+@cl.action_callback("configure_agent")
+async def on_configure_agent(action: cl.Action):
+    """Handle configure agent action"""
+    await cl.Message(
+        content="## Configure Agent\n\nAgent configuration options would appear here.",
+        author="System"
+    ).send()
+
+
 def create_chainlit_app():
     """Create the Chainlit application"""
     # This function is for compatibility with the existing code structure
     # The actual app is defined by the decorators above
     pass
+
+
+async def display_status_bar(
+    selected_provider: Optional[str] = None,
+    selected_model: Optional[str] = None,
+    is_api_serving: bool = False
+) -> None:
+    """
+    Display a status bar with model info and API status using CustomElement
+    """
+    # Determine API host for the output API (where users connect to use this app)
+    if settings.environment == "development":
+        output_api_endpoint = "http://localhost:8000/v1"
+    else:
+        output_api_endpoint = f"http://{settings.host}:{settings.port}/v1"
+    
+    # Create props for the TopBar component
+    props = {
+        "selectedProvider": selected_provider,
+        "selectedModel": selected_model,
+        "isApiServing": is_api_serving,
+        "outputApiEndpoint": output_api_endpoint
+    }
+    
+    # Create the TopBar custom element
+    top_bar_element = cl.CustomElement(name="TopBar", props=props)
+    
+    # Store the element if we want to update it server side at a later stage
+    cl.user_session.set("top_bar_element", top_bar_element)
+    
+    # Send the top bar as a message
+    await cl.Message(
+        content="Status Bar",
+        elements=[top_bar_element],
+        author="System"
+    ).send()

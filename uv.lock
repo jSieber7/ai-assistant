@@ -30,6 +30,7 @@ dependencies = [
     { name = "pytz" },
     { name = "redis" },
     { name = "selenium" },
+    { name = "sqlalchemy" },
     { name = "uvicorn" },
 ]
 
@@ -78,6 +79,7 @@ requires-dist = [
     { name = "pytz", specifier = ">=2023.3" },
     { name = "redis", specifier = ">=5.0.0" },
     { name = "selenium", specifier = ">=4.15.0" },
+    { name = "sqlalchemy", specifier = ">=2.0.43" },
     { name = "uvicorn", specifier = ">=0.35.0" },
 ]
 
