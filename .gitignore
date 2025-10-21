@@ -129,8 +129,9 @@ TODO-*.md
 *_TODO.md
 
 .chainlit/
+.files/
 
 # Error documentation files
 docker_errors.md
-
-.files
+frontend/MIGRATION_GUIDE.md
+.gitignore

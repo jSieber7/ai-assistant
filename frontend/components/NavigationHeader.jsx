@@ -1,25 +1,26 @@
 import React, { useState, useEffect } from 'react';
 
 /**
- * Status Bar Component for Chainlit App
+ * Navigation Header Component for Chainlit App
  *
- * A status bar that displays below Chainlit's default top bar with:
+ * A flexible navigation header that can act as either a top bar or a status bar.
+ * It displays:
  * - Current model and provider information
  * - Agent button for agent management
  * - Current hosting address for OpenAI-compatible API
- * - Green indicator when model is being served via API
- *
- * This is designed to work alongside Chainlit's existing top bar with theme toggle and new chat button.
+ * - Indicator for API serving status
  *
  * @param {Object} props
+ * @param {string} props.variant - The style variant: 'top' for a sticky top bar, 'status' for a non-sticky status bar. Default is 'top'.
  * @param {string} props.selectedProvider - Currently selected provider
  * @param {string} props.selectedModel - Currently selected model
- * @param {string} props.apiHost - Current API host address
+ * @param {string} props.apiHost - API host address (e.g., 'localhost:8000'). For 'top' variant, '/v1' is appended.
  * @param {boolean} props.isApiServing - Whether the API is currently serving
  * @param {Function} props.onAgentClick - Callback when agent button is clicked
  * @param {Function} props.onModelClick - Callback when model info is clicked
  */
-const StatusBar = ({
+const NavigationHeader = ({
+  variant = 'top',
   selectedProvider = null,
   selectedModel = null,
   apiHost = null,
@@ -28,7 +29,7 @@ const StatusBar = ({
   onModelClick
 }) => {
   const [apiStatus, setApiStatus] = useState('unknown');
-  const [endpointAddress, setEndpointAddress] = useState('http://localhost:8000');
+  const [endpointAddress, setEndpointAddress] = useState('');
 
   // Update API status based on props
   useEffect(() => {
@@ -41,13 +42,10 @@ const StatusBar = ({
 
   // Update endpoint address based on props or default
   useEffect(() => {
-    if (apiHost) {
-      setEndpointAddress(`http://${apiHost}`);
-    } else {
-      // Default to localhost:8000 for development
-      setEndpointAddress(`http://${window.location.hostname}:8000`);
-    }
-  }, [apiHost]);
+    const host = apiHost || `${window.location.hostname}:8000`;
+    const endpoint = variant === 'top' ? `http://${host}/v1` : `http://${host}`;
+    setEndpointAddress(endpoint);
+  }, [apiHost, variant]);
 
   // Format model display text
   const getModelDisplayText = () => {
@@ -57,9 +55,34 @@ const StatusBar = ({
     return 'No Model Selected';
   };
 
+  // Base styles for both variants
+  const baseStyles = `
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    border-bottom: 1px solid #e5e7eb;
+  `;
+
+  // Variant-specific styles
+  const variantStyles = variant === 'top' ? `
+    padding: 12px 16px;
+    background-color: #ffffff;
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin: -16px -16px 16px -16px;
+  ` : `
+    padding: 8px 16px;
+    background-color: #f8f9fa;
+    font-size: 13px;
+    margin: 0 -16px 16px -16px;
+  `;
+
   return (
-    <div className="status-bar">
-      <div className="status-bar-left">
+    <div className={`navigation-header navigation-header--${variant}`}>
+      <div className="navigation-header-left">
         {/* Model Information */}
         <div 
           className="model-info"
@@ -68,8 +91,8 @@ const StatusBar = ({
         >
           <svg
             className="model-icon"
-            width="14"
-            height="14"
+            width={variant === 'top' ? '16' : '14'}
+            height={variant === 'top' ? '16' : '14'}
             viewBox="0 0 16 16"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
@@ -93,19 +116,19 @@ const StatusBar = ({
         </div>
       </div>
 
-      <div className="status-bar-center">
+      <div className="navigation-header-center">
         {/* API Status and Host Address */}
         <div className="api-status">
           <div className={`status-indicator ${apiStatus}`}></div>
           <span className="api-text">
-            API:
+            {variant === 'top' ? 'OpenAI API:' : 'API:'}
             <span className="host-address">{endpointAddress}</span>
-            <span className="status-text">({apiStatus === 'serving' ? 'Serving' : 'Idle'})</span>
+            {variant === 'status' && <span className="status-text">({apiStatus === 'serving' ? 'Serving' : 'Idle'})</span>}
           </span>
         </div>
       </div>
 
-      <div className="status-bar-right">
+      <div className="navigation-header-right">
         {/* Agent Button */}
         <button
           className="agent-button"
@@ -113,8 +136,8 @@ const StatusBar = ({
           title="Agent Management"
         >
           <svg
-            width="14"
-            height="14"
+            width={variant === 'top' ? '16' : '14'}
+            height={variant === 'top' ? '16' : '14'}
             viewBox="0 0 16 16"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
@@ -133,20 +156,14 @@ const StatusBar = ({
       </div>
 
       <style jsx>{`
-        .status-bar {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 8px 16px;
-          background-color: #f8f9fa;
-          border-bottom: 1px solid #e5e7eb;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-          font-size: 13px;
+        .navigation-header {
+          ${baseStyles}
+          ${variantStyles}
         }
 
-        .status-bar-left,
-        .status-bar-center,
-        .status-bar-right {
+        .navigation-header-left,
+        .navigation-header-center,
+        .navigation-header-right {
           display: flex;
           align-items: center;
           gap: 12px;
@@ -155,11 +172,11 @@ const StatusBar = ({
         .model-info {
           display: flex;
           align-items: center;
-          gap: 6px;
-          padding: 4px 8px;
+          gap: ${variant === 'top' ? '8px' : '6px'};
+          padding: ${variant === 'top' ? '6px 12px' : '4px 8px'};
           background-color: #ffffff;
           border: 1px solid #e5e7eb;
-          border-radius: 4px;
+          border-radius: ${variant === 'top' ? '6px' : '4px'};
           cursor: pointer;
           transition: all 0.2s ease;
         }
@@ -175,7 +192,7 @@ const StatusBar = ({
         }
 
         .model-text {
-          font-size: 12px;
+          font-size: ${variant === 'top' ? '14px' : '12px'};
           font-weight: 500;
           color: #374151;
         }
@@ -187,8 +204,8 @@ const StatusBar = ({
         }
 
         .status-indicator {
-          width: 7px;
-          height: 7px;
+          width: ${variant === 'top' ? '8px' : '7px'};
+          height: ${variant === 'top' ? '8px' : '7px'};
           border-radius: 50%;
           background-color: #9ca3af;
           transition: background-color 0.3s ease;
@@ -204,7 +221,7 @@ const StatusBar = ({
         }
 
         .api-text {
-          font-size: 12px;
+          font-size: ${variant === 'top' ? '13px' : '12px'};
           color: #6b7280;
         }
 
@@ -221,14 +238,14 @@ const StatusBar = ({
         .agent-button {
           display: flex;
           align-items: center;
-          gap: 4px;
-          padding: 6px 10px;
+          gap: ${variant === 'top' ? '6px' : '4px'};
+          padding: ${variant === 'top' ? '8px 12px' : '6px 10px'};
           background-color: #3b82f6;
           color: white;
           border: none;
-          border-radius: 4px;
+          border-radius: ${variant === 'top' ? '6px' : '4px'};
           cursor: pointer;
-          font-size: 12px;
+          font-size: ${variant === 'top' ? '14px' : '12px'};
           font-weight: 500;
           transition: all 0.2s ease;
         }
@@ -243,12 +260,20 @@ const StatusBar = ({
         }
 
         .agent-text {
-          font-size: 12px;
+          font-size: ${variant === 'top' ? '14px' : '12px'};
         }
 
         @media (max-width: 768px) {
-          .status-bar {
-            padding: 6px 12px;
+          .navigation-header {
+            padding: ${variant === 'top' ? '10px 12px' : '6px 12px'};
+          }
+
+          .api-text {
+            display: ${variant === 'top' ? 'none' : 'flex'};
+          }
+
+          .host-address {
+            display: ${variant === 'top' ? 'none' : 'flex'};
           }
           
           .status-text {
@@ -264,4 +289,4 @@ const StatusBar = ({
   );
 };
 
-export default StatusBar;
+export default NavigationHeader;

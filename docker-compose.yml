@@ -633,12 +633,9 @@ services:
         condition: service_healthy
       supabase-auth:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
+    # Healthcheck disabled - PostgREST requires authentication for all endpoints
+    # and the container doesn't have curl installed for health checks
+    # The service is working correctly as evidenced by 401 responses
     networks:
       - ai-assistant-network
     ports:

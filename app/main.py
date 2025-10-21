@@ -21,6 +21,7 @@ from .api.routes import router
 from .api.tool_routes import router as tool_router
 from .api.agent_routes import router as agent_router
 from .api.monitoring_routes import router as monitoring_router
+from .api import ui_routes
 from chainlit.utils import mount_chainlit
 from app import __version__
 
@@ -130,6 +131,7 @@ app.include_router(router)
 app.include_router(tool_router)
 app.include_router(agent_router)
 app.include_router(monitoring_router)
+app.include_router(ui_routes.router)
 
 # Include multi-writer routes if enabled
 if is_multi_writer_enabled():

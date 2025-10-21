@@ -946,16 +946,17 @@ async def display_status_bar(
     else:
         output_api_endpoint = f"http://{settings.host}:{settings.port}/v1"
     
-    # Create props for the TopBar component
+    # Create props for the NavigationHeader component
     props = {
+        "variant": "status",  # Use status variant to work alongside Chainlit's default top bar
         "selectedProvider": selected_provider,
         "selectedModel": selected_model,
-        "isApiServing": is_api_serving,
-        "outputApiEndpoint": output_api_endpoint
+        "apiHost": settings.host if settings.host != "0.0.0.0" else "localhost",
+        "isApiServing": is_api_serving
     }
     
-    # Create the TopBar custom element
-    top_bar_element = cl.CustomElement(name="TopBar", props=props)
+    # Create the NavigationHeader custom element
+    top_bar_element = cl.CustomElement(name="NavigationHeader", props=props)
     
     # Store the element if we want to update it server side at a later stage
     cl.user_session.set("top_bar_element", top_bar_element)
