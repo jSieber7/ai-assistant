@@ -405,6 +405,12 @@ async def on_chat_start():
         is_api_serving=dropdown_state.selected_provider is not None and dropdown_state.selected_model is not None
     )
     
+    # Display the chat history sidebar
+    await display_chat_history_sidebar()
+    
+    # Display the sidebar layout adjuster
+    await display_sidebar_layout_adjuster()
+    
     # Store settings in session
     cl.user_session.set("dropdown_state", dropdown_state)
     
@@ -965,5 +971,47 @@ async def display_status_bar(
     await cl.Message(
         content="Status Bar",
         elements=[top_bar_element],
+        author="System"
+    ).send()
+
+
+async def display_chat_history_sidebar() -> None:
+    """
+    Display a chat history sidebar using CustomElement
+    """
+    # Create props for the ChatHistorySidebar component
+    props = {
+        "width": 300,
+        "position": "left"
+    }
+    
+    # Create the ChatHistorySidebar custom element
+    sidebar_element = cl.CustomElement(name="ChatHistorySidebar", props=props)
+    
+    # Store the element if we want to update it server side at a later stage
+    cl.user_session.set("sidebar_element", sidebar_element)
+    
+    # Send the sidebar as a message
+    await cl.Message(
+        content="Chat History Sidebar",
+        elements=[sidebar_element],
+        author="System"
+    ).send()
+
+
+async def display_sidebar_layout_adjuster() -> None:
+    """
+    Display the sidebar layout adjuster using CustomElement
+    """
+    # Create the SidebarLayoutAdjuster custom element
+    layout_adjuster_element = cl.CustomElement(name="SidebarLayoutAdjuster", props={})
+    
+    # Store the element if we want to update it server side at a later stage
+    cl.user_session.set("layout_adjuster_element", layout_adjuster_element)
+    
+    # Send the layout adjuster as a message
+    await cl.Message(
+        content="Sidebar Layout Adjuster",
+        elements=[layout_adjuster_element],
         author="System"
     ).send()

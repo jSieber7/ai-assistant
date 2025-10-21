@@ -61,48 +61,24 @@ const ChatHistorySidebar = ({ chatHistory = [], width = 300, position = 'left' }
   };
   
   return (
-    <div 
-      className={`chat-history-sidebar ${position}`}
-      style={{
-        width: isCollapsed ? '50px' : `${width}px`,
-        transition: 'width 0.3s ease',
-        height: '100vh',
-        backgroundColor: '#f8f9fa',
-        borderRight: position === 'left' ? '1px solid #e9ecef' : 'none',
-        borderLeft: position === 'right' ? '1px solid #e9ecef' : 'none',
-        display: 'flex',
-        flexDirection: 'column',
-        position: 'relative',
-        zIndex: 1000
-      }}
+    <div
+      className={`
+        flex flex-col relative z-50 h-screen bg-gray-50 transition-all duration-300
+        ${position === 'left' ? 'border-r border-gray-200' : ''}
+        ${position === 'right' ? 'border-l border-gray-200' : ''}
+      `}
+      style={{ width: isCollapsed ? '50px' : `${width}px` }}
     >
       {/* Header with toggle button */}
-      <div 
-        style={{
-          padding: '15px',
-          borderBottom: '1px solid #e9ecef',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}
-      >
+      <div className="flex items-center justify-between p-4 border-b border-gray-200">
         {!isCollapsed && (
-          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>
+          <h3 className="m-0 text-base font-semibold">
             Chat History
           </h3>
         )}
         <button
+          className="flex items-center justify-center p-1.5 rounded cursor-pointer border-0 bg-transparent hover:bg-gray-100"
           onClick={toggleSidebar}
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            padding: '5px',
-            borderRadius: '4px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}
           title={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           {isCollapsed ? (
@@ -119,70 +95,29 @@ const ChatHistorySidebar = ({ chatHistory = [], width = 300, position = 'left' }
       
       {/* Chat history list */}
       {!isCollapsed && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 0' }}>
+        <div className="flex-1 overflow-y-auto py-2.5">
           {history.length === 0 ? (
-            <div style={{ 
-              padding: '20px', 
-              textAlign: 'center', 
-              color: '#6c757d',
-              fontSize: '14px'
-            }}>
+            <div className="p-5 text-center text-gray-500 text-sm">
               No chat history yet
             </div>
           ) : (
             history.map(chat => (
               <div
                 key={chat.id}
-                style={{
-                  padding: '12px 15px',
-                  borderBottom: '1px solid #e9ecef',
-                  cursor: 'pointer',
-                  transition: 'background-color 0.2s',
-                  position: 'relative'
-                }}
-                className="chat-history-item"
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#f1f3f4';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }}
+                className="relative px-4 py-3 border-b border-gray-200 cursor-pointer transition-colors duration-200 hover:bg-gray-100"
               >
                 {chat.unread > 0 && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: '12px',
-                      right: '15px',
-                      backgroundColor: '#007bff',
-                      color: 'white',
-                      borderRadius: '50%',
-                      width: '20px',
-                      height: '20px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '11px',
-                      fontWeight: 'bold'
-                    }}
-                  >
+                  <div className="absolute top-3 right-4 flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-blue-500 rounded-full">
                     {chat.unread}
                   </div>
                 )}
-                <div style={{ fontWeight: '500', marginBottom: '4px', fontSize: '14px' }}>
+                <div className="font-medium mb-1 text-sm">
                   {chat.title}
                 </div>
-                <div style={{ 
-                  color: '#6c757d', 
-                  fontSize: '12px', 
-                  marginBottom: '4px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}>
+                <div className="text-gray-500 text-xs mb-1 truncate">
                   {chat.lastMessage}
                 </div>
-                <div style={{ color: '#adb5bd', fontSize: '11px' }}>
+                <div className="text-gray-400 text-xs">
                   {formatDate(chat.timestamp)}
                 </div>
               </div>
@@ -193,30 +128,12 @@ const ChatHistorySidebar = ({ chatHistory = [], width = 300, position = 'left' }
       
       {/* Footer with new chat button */}
       {!isCollapsed && (
-        <div style={{ padding: '10px', borderTop: '1px solid #e9ecef' }}>
-          <button
-            style={{
-              width: '100%',
-              padding: '10px',
-              backgroundColor: '#007bff',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: '500',
-              fontSize: '14px'
-            }}
-          >
+        <div className="p-2.5 border-t border-gray-200">
+          <button className="w-full py-2.5 text-sm font-medium text-white bg-blue-500 border-0 rounded cursor-pointer hover:bg-blue-600">
             New Chat
           </button>
         </div>
       )}
-      
-      <style jsx>{`
-        .chat-history-item:hover {
-          background-color: #f1f3f4;
-        }
-      `}</style>
     </div>
   );
 };
