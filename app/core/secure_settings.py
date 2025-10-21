@@ -127,7 +127,7 @@ class SecureSettingsManager:
                 "firecrawl": {
                     "enabled": False,
                     "deployment_mode": "docker",
-                    "docker_url": "http://firecrawl-api:3002",
+                    "docker_url": "http://firecrawl:3002",
                     "bull_auth_key": "",
                     "scraping_enabled": True,
                     "max_concurrent_scrapes": 5,

@@ -24,7 +24,7 @@ class TestFirecrawlDockerIntegration:
         with (
             patch.object(settings.firecrawl_settings, "deployment_mode", "docker"),
             patch.object(
-                settings.firecrawl_settings, "docker_url", "http://firecrawl-api:3002"
+                settings.firecrawl_settings, "docker_url", "http://firecrawl:3002"
             ),
             patch.object(settings.firecrawl_settings, "enabled", True),
             patch.object(settings.firecrawl_settings, "scraping_enabled", True),
@@ -69,7 +69,7 @@ class TestFirecrawlDockerIntegration:
     async def test_docker_mode_configuration(self, docker_config):
         """Test Docker mode configuration"""
         assert settings.firecrawl_settings.deployment_mode == "docker"
-        assert settings.firecrawl_settings.effective_url == "http://firecrawl-api:3002"
+        assert settings.firecrawl_settings.effective_url == "http://firecrawl:3002"
         assert settings.firecrawl_settings.effective_api_key is None
 
     @pytest.mark.asyncio
@@ -214,11 +214,11 @@ class TestFirecrawlDockerIntegration:
         with (
             patch.object(settings.firecrawl_settings, "deployment_mode", "docker"),
             patch.object(
-                settings.firecrawl_settings, "docker_url", "http://firecrawl-api:3002"
+                settings.firecrawl_settings, "docker_url", "http://firecrawl:3002"
             ),
         ):
             assert (
-                settings.firecrawl_settings.effective_url == "http://firecrawl-api:3002"
+                settings.firecrawl_settings.effective_url == "http://firecrawl:3002"
             )
             assert settings.firecrawl_settings.effective_api_key is None
 
@@ -261,7 +261,7 @@ class TestFirecrawlDockerLive:
         with (
             patch.object(settings.firecrawl_settings, "deployment_mode", "docker"),
             patch.object(
-                settings.firecrawl_settings, "docker_url", "http://firecrawl-api:3002"
+                settings.firecrawl_settings, "docker_url", "http://firecrawl:3002"
             ),
         ):
             tool = FirecrawlTool()

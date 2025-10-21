@@ -129,3 +129,6 @@ TODO-*.md
 *_TODO.md
 
 .chainlit/
+
+# Error documentation files
+docker_errors.md

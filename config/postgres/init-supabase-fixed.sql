@@ -43,7 +43,6 @@ GRANT ALL ON ALL TABLES IN SCHEMA storage TO authenticator;
 GRANT USAGE ON SCHEMA public TO authenticator;
 GRANT SELECT ON ALL TABLES IN SCHEMA public TO authenticator;
 
-
 -- =============================================================================
 -- Application-specific Schemas and Roles
 -- =============================================================================
@@ -51,6 +50,7 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO authenticator;
 CREATE SCHEMA IF NOT EXISTS firecrawl;
 CREATE SCHEMA IF NOT EXISTS app_data;
 CREATE SCHEMA IF NOT EXISTS agent_memory;
+CREATE SCHEMA IF NOT EXISTS multi_writer;
 
 -- Create basic role for your app
 CREATE ROLE app_user NOLOGIN NOINHERIT;

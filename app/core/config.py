@@ -172,7 +172,7 @@ class FirecrawlSettings(BaseSettings):
     deployment_mode: str = "docker"  # Docker-only mode
 
     # Docker Configuration
-    docker_url: str = "http://firecrawl-api:3002"
+    docker_url: str = "http://firecrawl:3002"
     bull_auth_key: Optional[str] = None
 
     # Web scraping specific settings

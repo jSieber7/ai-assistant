@@ -31,17 +31,35 @@ http:
         prefixes:
           - "/redis"
     
+    chainlit-stripprefix:
+      stripprefix:
+        prefixes:
+          - "/chat"
+    
     chainlit-websocket:
       headers:
         customRequestHeaders:
           X-Forwarded-Proto: "https"
+        accessControlAllowOriginList:
+          - "http://localhost:8000"
+          - "http://127.0.0.1:8000"
+          - "*"
         accessControlAllowHeaders:
-          - "*"
-        accessControlAllowOrigins:
-          - "*"
+          - "Content-Type"
+          - "Authorization"
+          - "X-Requested-With"
+          - "Accept"
+          - "Origin"
+          - "Access-Control-Request-Method"
+          - "Access-Control-Request-Headers"
         accessControlAllowMethods:
           - "GET"
           - "POST"
           - "PUT"
           - "DELETE"
           - "OPTIONS"
+          - "HEAD"
+          - "PATCH"
+        accessControlMaxAge: 86400
+        addVaryHeader: true
+        accessControlAllowCredentials: true

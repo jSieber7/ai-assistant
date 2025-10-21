@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 class FirecrawlHealthChecker:
     """Health checker for Firecrawl Docker services"""
     
-    def __init__(self, docker_url: str = "http://firecrawl-api:3002"):
+    def __init__(self, docker_url: str = "http://firecrawl:3002"):
         self.docker_url = docker_url
         self.client = httpx.AsyncClient(timeout=10.0)
     
@@ -188,8 +188,8 @@ async def main():
     import argparse
     
     parser = argparse.ArgumentParser(description="Firecrawl Docker Health Check")
-    parser.add_argument("--url", default="http://firecrawl-api:3002", 
-                       help="Firecrawl API URL (default: http://firecrawl-api:3002)")
+    parser.add_argument("--url", default="http://firecrawl:3002",
+                       help="Firecrawl API URL (default: http://firecrawl:3002)")
     parser.add_argument("--test-url", default="https://httpbin.org/html",
                        help="URL to test scraping (default: https://httpbin.org/html)")
     parser.add_argument("--verbose", "-v", action="store_true",

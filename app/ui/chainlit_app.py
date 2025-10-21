@@ -423,12 +423,22 @@ async def show_settings_widget(state: DropdownState):
     if state.selected_provider:
         models = await get_models_for_provider(state.selected_provider)
     
-    model_select = Select(
-        id="model",
-        label="Select Model",
-        values=models,
-        initial=state.selected_model or (models[0] if models else None)
-    )
+    # Only create model_select if there are models available
+    if models:
+        model_select = Select(
+            id="model",
+            label="Select Model",
+            values=models,
+            initial=state.selected_model or (models[0] if models else None)
+        )
+    else:
+        # Create a placeholder widget when no models are available
+        model_select = TextInput(
+            id="model",
+            label="Model",
+            initial="No models available",
+            disabled=True
+        )
     
     # Create additional settings
     temperature_slider = Slider(
@@ -556,13 +566,14 @@ async def update_model_dropdown(models: List[str], selected_model: Optional[str]
     # Find and update the model select widget
     for widget in settings_widget.inputs:
         if widget.id == "model":
-            widget.values = models
-            if selected_model and selected_model in models:
-                widget.initial = selected_model
-            elif models:
-                widget.initial = models[0]
-            else:
-                widget.initial = None
+            if isinstance(widget, Select):
+                widget.values = models
+                if selected_model and selected_model in models:
+                    widget.initial = selected_model
+                elif models:
+                    widget.initial = models[0]
+                else:
+                    widget.initial = None
             break
     
     # Resend the settings

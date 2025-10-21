@@ -21,7 +21,7 @@ class TestFirecrawlDockerMode:
         with (
             patch.object(settings.firecrawl_settings, "deployment_mode", "docker"),
             patch.object(
-                settings.firecrawl_settings, "docker_url", "http://firecrawl-api:3002"
+                settings.firecrawl_settings, "docker_url", "http://firecrawl:3002"
             ),
             patch.object(settings.firecrawl_settings, "enabled", True),
             patch.object(settings.firecrawl_settings, "scraping_enabled", True),
@@ -33,7 +33,7 @@ class TestFirecrawlDockerMode:
     def test_docker_mode_configuration(self, docker_settings):
         """Test Docker mode configuration properties"""
         assert docker_settings.deployment_mode == "docker"
-        assert docker_settings.effective_url == "http://firecrawl-api:3002"
+        assert docker_settings.effective_url == "http://firecrawl:3002"
         assert docker_settings.effective_api_key is None
 
     def test_docker_tool_initialization(self, docker_settings):
@@ -142,11 +142,11 @@ class TestFirecrawlDockerMode:
         with (
             patch.object(settings.firecrawl_settings, "deployment_mode", "docker"),
             patch.object(
-                settings.firecrawl_settings, "docker_url", "http://firecrawl-api:3002"
+                settings.firecrawl_settings, "docker_url", "http://firecrawl:3002"
             ),
         ):
             assert (
-                settings.firecrawl_settings.effective_url == "http://firecrawl-api:3002"
+                settings.firecrawl_settings.effective_url == "http://firecrawl:3002"
             )
             assert settings.firecrawl_settings.effective_api_key is None
 

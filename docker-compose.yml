@@ -36,23 +36,27 @@ services:
     environment:
       - PORT=3002
       - HOST=0.0.0.0
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_assistant?options=--search_path%3Dfirecrawl
-      - POSTGRES_DB_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_assistant?options=--search_path%3Dfirecrawl
-      - POSTGRES_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_assistant?options=--search_path%3Dfirecrawl
-      - DATABASE_HOST=postgres
-      - DATABASE_PORT=5432
-      - DATABASE_NAME=ai_assistant
-      - DATABASE_USER=postgres
-      - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
       - REDIS_URL=redis://redis:6379/1
-      - USE_DB_AUTHENTICATION=false
-      - USE_DB=false
-      - BULL_AUTH_KEY=${FIRECRAWL_BULL_AUTH_KEY:-change_me_firecrawl}
+      - USE_DB_AUTHENTICATION=true
+      - BULL_AUTH_KEY=${FIRECRAWL_BULL_AUTH_KEY:-dev-firecrawl-key}
       - RATE_LIMIT_MAX_REQUESTS=100
       - RATE_LIMIT_WINDOW_MS=60000
+      # Database Configuration
+      - DATABASE_URL=postgresql://postgres:dev-password@supabase-db:5432/postgres
+      - DATABASE_SCHEMA=firecrawl
+      - POSTGRES_URL=postgresql://postgres:dev-password@supabase-db:5432/postgres
+      - POSTGRES_HOST=supabase-db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=dev-password
+      - POSTGRES_DB=postgres
+      # Supabase Configuration
+      - SUPABASE_URL=${SUPABASE_URL:-http://localhost:8000}
+      - SUPABASE_ANON_TOKEN=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_TOKEN=${SUPABASE_SERVICE_ROLE_KEY}
     depends_on:
-      - postgres
       - redis
+      - supabase-db
     networks:
       - ai-assistant-network
     restart: unless-stopped
@@ -215,10 +219,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - SEARXNG_URL=http://searxng:8080
       - BASE_URL=${BASE_URL:-http://localhost}
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_assistant
-      - MULTI_WRITER_POSTGRESQL_CONNECTION_STRING=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_assistant?options=--search_path%3Dmulti_writer
-    env_file:
-      - .env.dev
+      - DATABASE_URL=postgresql://postgres:dev-password@supabase-db:5432/postgres
+      - MULTI_WRITER_POSTGRESQL_CONNECTION_STRING=postgresql://postgres:dev-password@supabase-db:5432/postgres?options=--search_path%3Dmulti_writer
     depends_on:
       redis:
         condition: service_healthy
@@ -226,7 +228,7 @@ services:
         condition: service_healthy
       milvus:
         condition: service_healthy
-      postgres:
+      supabase-db:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
@@ -375,10 +377,8 @@ services:
       - SEARXNG_URL=http://searxng:8080
       - HOST=0.0.0.0
       - PORT=8000
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_assistant
-      - MULTI_WRITER_POSTGRESQL_CONNECTION_STRING=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_assistant?options=--search_path%3Dmulti_writer
-    env_file:
-      - .env.dev
+      - DATABASE_URL=postgresql://postgres:dev-password@supabase-db:5432/postgres
+      - MULTI_WRITER_POSTGRESQL_CONNECTION_STRING=postgresql://postgres:dev-password@supabase-db:5432/postgres?options=--search_path%3Dmulti_writer
     depends_on:
       redis:
         condition: service_healthy
@@ -386,8 +386,10 @@ services:
         condition: service_healthy
       milvus:
         condition: service_healthy
-      postgres:
+      supabase-db:
         condition: service_healthy
+      supabase-kong:
+        condition: service_started
     networks:
       - ai-assistant-network
     restart: unless-stopped
@@ -463,10 +465,9 @@ services:
       - SEARXNG_URL=http://searxng:8080   # Override for Docker network
       - HOST=0.0.0.0
       - PORT=8001
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_assistant
-      - MULTI_WRITER_POSTGRESQL_CONNECTION_STRING=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_assistant?options=--search_path%3Dmulti_writer
-    env_file:
-      - .env.dev
+      - DATABASE_URL=postgresql://postgres:dev-password@supabase-db:5432/postgres
+      - MULTI_WRITER_POSTGRESQL_CONNECTION_STRING=postgresql://postgres:dev-password@supabase-db:5432/postgres?options=--search_path%3Dmulti_writer
+      - CHAINLIT_BASE_PATH=/chat
     depends_on:
       redis:
         condition: service_healthy
@@ -474,7 +475,7 @@ services:
         condition: service_healthy
       milvus:
         condition: service_healthy
-      postgres:
+      supabase-db:
         condition: service_healthy
     networks:
       - ai-assistant-network
@@ -490,12 +491,12 @@ services:
       - dev
       - production
     labels:
-      # Development Traefik routing for Chainlit
+      # Traefik routing for Chainlit
       - "traefik.enable=true"
-      - "traefik.http.routers.chainlit.rule=PathPrefix(`/chat`) || PathPrefix(`/assets`) || PathPrefix(`/auth`) || PathPrefix(`/user`) || PathPrefix(`/project`) || PathPrefix(`/favicon`) || PathPrefix(`/ws`)"
+      - "traefik.http.routers.chainlit.rule=PathPrefix(`/chat`)"
       - "traefik.http.routers.chainlit.priority=150"
       - "traefik.http.routers.chainlit.entrypoints=web"
-      - "traefik.http.routers.chainlit.middlewares=chainlit-websocket@file"
+      - "traefik.http.routers.chainlit.middlewares=chainlit-websocket@file,chainlit-stripprefix@file"
       - "traefik.http.routers.chainlit.service=chainlit"
       - "traefik.http.services.chainlit.loadbalancer.server.port=8001"
       - "traefik.http.services.chainlit.loadbalancer.sticky.cookie=true"
@@ -522,38 +523,266 @@ services:
       start_period: 30s
     profiles:
       - dev
+      - production
     labels:
-      # Development Traefik routing for Redis Commander
+      # Traefik routing for Redis Commander
       - "traefik.enable=true"
       - "traefik.http.routers.redis-commander.rule=PathPrefix(`/redis`)"
       - "traefik.http.routers.redis-commander.entrypoints=web"
+      - "traefik.http.routers.redis-commander.middlewares=security-headers@file"
       - "traefik.http.services.redis-commander.loadbalancer.server.port=8081"
 
   # =============================================================================
   # Optional Services (can be enabled with any profile)
   # =============================================================================
 
-  postgres:
-    image: postgres:15-alpine
-    container_name: ai-assistant-postgres
-    environment:
-      - POSTGRES_DB=ai_assistant
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./config/postgres/init-supabase.sql:/docker-entrypoint-initdb.d/init-supabase.sql:ro
-    networks:
-      - ai-assistant-network
+  # =============================================================================
+  # Local Supabase Services (replaces postgres)
+  # =============================================================================
+  # See https://github.com/supabase/cli for reference
+  # Access Supabase UI at http://localhost:8000 (studio) or http://localhost:8001 (kong)
+
+  supabase-db:
+    image: supabase/postgres:15.1.0.117
+    container_name: ai-assistant-supabase-db
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    environment:
+      POSTGRES_PASSWORD: dev-password
+      POSTGRES_DB: postgres
+      POSTGRES_INITDB_ARGS: --data-checksums
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./config/postgres/init-supabase.sql:/docker-entrypoint-initdb.d/00-init-supabase.sql:ro
+    networks:
+      - ai-assistant-network
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+      - -c
+      - log_min_messages=fatal
+    profiles:
+      - dev
+      - production
+    # Disable Traefik for this internal service
+    labels:
+      - "traefik.enable=false"
+
+  # Inbucket for email testing
+  inbucket:
+    image: inbucket/inbucket:3.0.4
+    container_name: ai-assistant-inbucket
+    restart: unless-stopped
+    ports:
+      - "2500:2500" # SMTP
+      - "9000:9000" # Web UI
+    networks:
+      - ai-assistant-network
+    profiles:
+      - dev
+      - production
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9000/"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
+    # Disable Traefik for this internal service
+    labels:
+      - "traefik.enable=false"
+
+  supabase-auth:
+    image: supabase/gotrue:v2.79.0
+    container_name: ai-assistant-supabase-auth
+    restart: unless-stopped
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgresql://postgres:dev-password@supabase-db:5432/postgres
+      GOTRUE_SITE_URL: http://localhost:8000
+      GOTRUE_API_EXTERNAL_URL: http://localhost:9999
+      GOTRUE_URI_ALLOW_LIST: "*"
+      GOTRUE_DISABLE_SIGNUP: false
+      GOTRUE_JWT_SECRET: n4spEEnsO_2xEeg0XM402v6T1I6o5Ars22sdWgBPLnS96NPsJez4xfoamS0n_aiA
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: true
+      GOTRUE_MAILER_AUTOCONFIRM: true
+      GOTRUE_SMTP_ADMIN_EMAIL: admin@email.com
+      GOTRUE_SMTP_HOST: inbucket
+      GOTRUE_SMTP_PORT: 2500
+      GOTRUE_SMTP_USER: root
+      GOTRUE_SMTP_PASS: root
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/v1/recover
+      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: /auth/v1/email-change
+      GOTRUE_MAILER_URLPATHS_INVITE: /auth/v1/invite
+      GOTRUE_EXTERNAL_GOOGLE_ENABLED: "false"
+      GOTRUE_EXTERNAL_GITHUB_ENABLED: "false"
+      GOTRUE_EXTERNAL_GITLAB_ENABLED: "false"
+      GOTRUE_EXTERNAL_BITBUCKET_ENABLED: "false"
+      GOTRUE_EXTERNAL_AZURE_ENABLED: "false"
+      GOTRUE_EXTERNAL_FACEBOOK_ENABLED: "false"
+      GOTRUE_EXTERNAL_TWITTER_ENABLED: "false"
+      GOTRUE_EXTERNAL_APPLE_ENABLED: "false"
+      GOTRUE_EXTERNAL_DISCORD_ENABLED: "false"
+      GOTRUE_EXTERNAL_SLACK_ENABLED: "false"
+      GOTRUE_EXTERNAL_SPOTIFY_ENABLED: "false"
+      GOTRUE_EXTERNAL_LINKEDIN_ENABLED: "false"
+      GOTRUE_EXTERNAL_TWITCH_ENABLED: "false"
+      GOTRUE_EXTERNAL_WORKOS_ENABLED: "false"
+    networks:
+      - ai-assistant-network
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    ports:
+      - "9999:9999"
     profiles:
-      - dev        # Available in dev
-      - production # Available in production
+      - dev
+      - production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9999/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # Disable Traefik for this internal service
+    labels:
+      - "traefik.enable=false"
+
+  supabase-rest:
+    image: postgrest/postgrest:v11.2.0
+    container_name: ai-assistant-supabase-rest
+    restart: unless-stopped
+    environment:
+      PGRST_DB_URI: postgresql://authenticator:dev-password@supabase-db:5432/postgres
+      PGRST_DB_SCHEMAS: public, storage, graphql_public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: n4spEEnsO_2xEeg0XM402v6T1I6o5Ars22sdWgBPLnS96NPsJez4xfoamS0n_aiA
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+      supabase-auth:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    networks:
+      - ai-assistant-network
+    ports:
+      - "3001:3000"
+    profiles:
+      - dev
+      - production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # Disable Traefik for this internal service
+    labels:
+      - "traefik.enable=false"
+
+  supabase-kong:
+    image: kong:3.4
+    container_name: ai-assistant-supabase-kong
+    restart: unless-stopped
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 0.0.0.0:8001
+      KONG_ADMIN_GUI_URL: http://localhost:8002
+      JWT_SECRET: n4spEEnsO_2xEeg0XM402v6T1I6o5Ars22sdWgBPLnS96NPsJez4xfoamS0n_aiA
+      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNjAwMDAwMDAwLCJleHAiOjQ2MDAwMDAwMDB9.TpzxbO6I2sNpRNWbbFL5EA24rwC2_CghKDrkp2MWovk
+      SUPABASE_SERVICE_ROLE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE2MDAwMDAwMDAsImV4cCI6NDYwMDAwMDAwMH0.r6KJFIZ3SJ0apLjhQ-pSDvTnp2LgaPdCmJFJtj0MHhE
+    volumes:
+      - ./config/supabase/kong.yml:/kong/declarative/kong.yml:ro
+    networks:
+      - ai-assistant-network
+    ports:
+      - "8003:8000" # Kong Proxy
+      - "8101:8001" # Kong Admin API
+      - "8102:8002" # Kong Manager GUI
+    depends_on:
+      supabase-rest:
+        condition: service_started
+      supabase-auth:
+        condition: service_started
+    profiles:
+      - dev
+      - production
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    # Disable Traefik for this internal service
+    labels:
+      - "traefik.enable=false"
+
+  # =============================================================================
+  # Firecrawl Docker Service (DISABLED)
+  # =============================================================================
+  # NOTE: This service is disabled due to a configuration incompatibility
+  # that prevents it from connecting to the postgres database.
+  # The nuq-worker process is hardcoded to connect to localhost:5432.
+
+  # firecrawl:
+  #   image: ghcr.io/firecrawl/firecrawl:latest
+  #   container_name: firecrawl
+  #   env_file:
+  #     - .env.dev
+  #   environment:
+  #     - PORT=3002
+  #     - HOST=0.0.0.0
+  #     - REDIS_URL=redis://redis:6379/1
+  #     - USE_DB_AUTHENTICATION=false
+  #     - BULL_AUTH_KEY=${FIRECRAWL_BULL_AUTH_KEY:-dev-firecrawl-key}
+  #     - RATE_LIMIT_MAX_REQUESTS=100
+  #     - RATE_LIMIT_WINDOW_MS=60000
+  #     # Supabase Configuration
+  #     - SUPABASE_URL=${SUPABASE_URL}
+  #     - SUPABASE_ANON_TOKEN=${SUPABASE_ANON_KEY}
+  #     - SUPABASE_SERVICE_TOKEN=${SUPABASE_SERVICE_ROLE_KEY}
+  #   depends_on:
+  #     - supabase-db
+  #     - redis
+  #   networks:
+  #     - ai-assistant-network
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #   profiles:
+  #     - production
+  #     - dev
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.firecrawl.rule=PathPrefix(`/firecrawl`)"
+  #     - "traefik.http.routers.firecrawl.entrypoints=web"
+  #     - "traefik.http.routers.firecrawl.middlewares=security-headers@file,rate-limit@file"
+  #     - "traefik.http.services.firecrawl.loadbalancer.server.port=3002"
 
 
   # Prometheus for monitoring

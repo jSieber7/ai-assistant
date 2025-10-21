@@ -143,7 +143,7 @@ chainlit: ## Run Chainlit interface
 
 dev-docker: ## Run development with Docker
 	@echo "Starting development environment with Docker..."
-	$(DOCKER_COMPOSE) --profile $(DEV_PROFILE) up -d
+	$(DOCKER_COMPOSE) --env-file .env --profile $(DEV_PROFILE) up -d
 
 dev-quick: ## Quick development setup (install + start services)
 	@echo "Quick development setup..."
