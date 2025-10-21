@@ -43,15 +43,25 @@ FROM base AS development
 # Copy all the code first
 COPY . .
 
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies using the frozen lockfile
 RUN uv sync --frozen --group dev
 
 # Install Playwright browsers
 RUN uv run playwright install chromium firefox webkit
+RUN uv run playwright install-deps
+
+# Make the startup script executable
+RUN chmod +x utility/startup_dev.py
 
 # Expose the application port.
 EXPOSE 8000
 
-# Run the application with Uvicorn and hot-reloading for development.
+# Run the startup script first, then the application with Uvicorn and hot-reloading for development.
 # This command correctly finds app.main located at /app/app/main.py
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["sh", "-c", "uv run python utility/startup_dev.py && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]

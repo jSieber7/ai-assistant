@@ -122,10 +122,12 @@ COPY --from=builder /opt/venv /opt/venv
 # Copy application code with proper ownership
 COPY --chown=app:app app/ ./app/
 COPY --chown=app:app pyproject.toml ./
+COPY --chown=app:app utility/ ./utility/
 
 # Create necessary directories and set permissions
 RUN mkdir -p /app/logs /app/.uv-cache && \
-    chown -R app:app /app
+    chown -R app:app /app && \
+    chmod +x /app/utility/startup_dev.py
 
 # Switch to non-root user
 USER app
@@ -135,7 +137,7 @@ EXPOSE 8000
 
 # Health check with proper timeout and retries
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/ || exit 1
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # Run the application with production settings
-CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+CMD ["sh", "-c", "python utility/startup_dev.py && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"]

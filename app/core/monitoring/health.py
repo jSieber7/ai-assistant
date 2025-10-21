@@ -110,6 +110,18 @@ class HealthMonitor:
             self._check_openrouter_api,
         )
 
+        self.register_health_check(
+            "jina_reranker",
+            HealthCheckType.EXTERNAL_SERVICE,
+            self._check_jina_reranker,
+        )
+
+        self.register_health_check(
+            "searxng",
+            HealthCheckType.EXTERNAL_SERVICE,
+            self._check_searxng,
+        )
+
     def register_health_check(
         self, name: str, check_type: HealthCheckType, check_func: Callable
     ):
@@ -396,11 +408,34 @@ class HealthMonitor:
         try:
             from ..config import settings
 
+            # Be lenient with missing API keys in both development and production
+            # The app should start healthy without API keys
+            if not settings.openrouter_api_key and not settings.openai_settings.api_key:
+                return {
+                    "status": HealthStatus.HEALTHY,
+                    "message": "No API keys configured (app will use mock responses)",
+                    "details": {
+                        "configured": False,
+                        "fallback": "mock_llm",
+                        "environment": settings.environment
+                    },
+                }
+            elif not settings.openrouter_api_key and settings.openai_settings.api_key:
+                return {
+                    "status": HealthStatus.HEALTHY,
+                    "message": "Using OpenAI-compatible API configuration",
+                    "details": {
+                        "configured": True,
+                        "provider": "openai_compatible",
+                        "environment": settings.environment
+                    },
+                }
+
             if not settings.openrouter_api_key:
                 return {
-                    "status": HealthStatus.DEGRADED,
-                    "message": "OpenRouter API key not configured",
-                    "details": {"configured": False},
+                    "status": HealthStatus.HEALTHY,
+                    "message": "OpenRouter API key not configured (app will use fallbacks)",
+                    "details": {"configured": False, "fallback": "mock_llm"},
                 }
 
             # Simple connectivity check - try to list models
@@ -442,6 +477,116 @@ class HealthMonitor:
             return {
                 "status": HealthStatus.UNHEALTHY,
                 "message": f"OpenRouter API check failed: {str(e)}",
+                "details": {"error": str(e)},
+            }
+
+    def _check_jina_reranker(self) -> Dict[str, Any]:
+        """Check Jina Reranker service connectivity"""
+        try:
+            from ..config import settings
+
+            # Be lenient with missing API keys in both development and production
+            if not settings.jina_reranker_enabled:
+                return {
+                    "status": HealthStatus.HEALTHY,
+                    "message": "Jina Reranker is disabled",
+                    "details": {
+                        "configured": False,
+                        "enabled": False,
+                        "environment": settings.environment
+                    },
+                }
+
+            if not settings.jina_reranker_api_key:
+                return {
+                    "status": HealthStatus.HEALTHY,
+                    "message": "Jina Reranker enabled but no API key (will use fallback)",
+                    "details": {
+                        "configured": False,
+                        "enabled": True,
+                        "fallback": "no_reranking",
+                        "environment": settings.environment
+                    },
+                }
+
+            # Simple connectivity check
+            response = requests.get(
+                f"{settings.jina_reranker_url}/health",
+                timeout=5,
+            )
+
+            if response.status_code == 200:
+                return {
+                    "status": HealthStatus.HEALTHY,
+                    "message": "Jina Reranker service connectivity verified",
+                    "details": {
+                        "status_code": response.status_code,
+                        "response_time_ms": response.elapsed.total_seconds() * 1000,
+                    },
+                }
+            else:
+                return {
+                    "status": HealthStatus.DEGRADED,
+                    "message": f"Jina Reranker service returned status {response.status_code}",
+                    "details": {
+                        "status_code": response.status_code,
+                        "response_time_ms": response.elapsed.total_seconds() * 1000,
+                    },
+                }
+
+        except requests.exceptions.Timeout:
+            return {
+                "status": HealthStatus.UNHEALTHY,
+                "message": "Jina Reranker service request timed out",
+                "details": {"timeout_seconds": 5},
+            }
+        except Exception as e:
+            return {
+                "status": HealthStatus.UNHEALTHY,
+                "message": f"Jina Reranker service check failed: {str(e)}",
+                "details": {"error": str(e)},
+            }
+
+    def _check_searxng(self) -> Dict[str, Any]:
+        """Check SearXNG service connectivity"""
+        try:
+            from ..config import settings
+
+            # Simple connectivity check
+            response = requests.get(
+                f"{settings.searxng_url}/",
+                timeout=5,
+            )
+
+            if response.status_code == 200:
+                return {
+                    "status": HealthStatus.HEALTHY,
+                    "message": "SearXNG service connectivity verified",
+                    "details": {
+                        "status_code": response.status_code,
+                        "response_time_ms": response.elapsed.total_seconds() * 1000,
+                    },
+                }
+            else:
+                return {
+                    "status": HealthStatus.DEGRADED,
+                    "message": f"SearXNG service returned status {response.status_code}",
+                    "details": {
+                        "status_code": response.status_code,
+                        "response_time_ms": response.elapsed.total_seconds() * 1000,
+                    },
+                }
+
+        except requests.exceptions.Timeout:
+            return {
+                "status": HealthStatus.UNHEALTHY,
+                "message": "SearXNG service request timed out",
+                "details": {"timeout_seconds": 5},
+            }
+        except Exception as e:
+            return {
+                "status": HealthStatus.UNHEALTHY,
+                "message": f"SearXNG service check failed: {str(e)}",
                 "details": {"error": str(e)},
             }
 

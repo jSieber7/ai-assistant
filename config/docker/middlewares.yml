@@ -1,27 +1,43 @@
-# Dynamic Configuration for Traefik Middlewares
-
 http:
   middlewares:
-    # Strip prefix for SearXNG
+    security-headers:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-Proto: "https"
+        customResponseHeaders:
+          X-Content-Type-Options: "nosniff"
+          X-Frame-Options: "DENY"
+
+    rate-limit:
+      rateLimit:
+        average: 100
+        period: 1m
+        burst: 200
+
+    compression:
+      compress:
+        excludedContentTypes:
+          - text/event-stream
+          - application/grpc
+        minResponseBodyBytes: 1024
+
     searxng-stripprefix:
       stripprefix:
         prefixes:
           - "/search"
     
-    # Strip prefix for Redis Commander
     redis-stripprefix:
       stripprefix:
         prefixes:
           - "/redis"
     
-    # Chainlit WebSocket middleware for sticky sessions
     chainlit-websocket:
       headers:
         customRequestHeaders:
           X-Forwarded-Proto: "https"
         accessControlAllowHeaders:
           - "*"
-        accessControlAllowOrigin:
+        accessControlAllowOrigins:
           - "*"
         accessControlAllowMethods:
           - "GET"
@@ -29,12 +45,3 @@ http:
           - "PUT"
           - "DELETE"
           - "OPTIONS"
-
-    # NOTE: You will also need to move any other file-based middlewares
-    # here, like `security-headers`, `rate-limit`, and `compression`
-    # that are used by your `ai-assistant` service.
-    # For example:
-    # security-headers:
-    #   headers:
-    #     customFrameOptionsValue: "SAMEORIGIN"
-    #     # ... other security headers

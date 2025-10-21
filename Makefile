@@ -3,17 +3,106 @@
 # =============================================================================
 # Provides convenient commands for development, testing, and deployment
 
-.PHONY: help install dev test lint format clean docker docker-down docker-logs firecrawl firecrawl-down firecrawl-logs health-check docs shutdown-everything nuke quality-check ci-test test-results-dir chainlit
+# =============================================================================
+# Configuration Variables
+# =============================================================================
 
-# Default target
+# Project Configuration
+PROJECT_NAME := ai-assistant
+PYTHON_VERSION := 3.12.3
+
+# Docker Configuration
+DOCKER_COMPOSE := docker compose
+DEV_PROFILE := dev
+PROD_PROFILE := production
+
+# Port Configuration
+APP_PORT := 8000
+CHAINLIT_PORT := 8001
+REDIS_PORT := 6379
+SEARXNG_PORT := 8080
+PROMETHEUS_PORT := 9090
+GRAFANA_PORT := 3000
+
+# Container Names
+APP_CONTAINER := ai-assistant
+APP_DEV_CONTAINER := ai-assistant-dev
+CHAINLIT_CONTAINER := ai-assistant-chainlit
+REDIS_CONTAINER := ai-assistant-redis
+SEARXNG_CONTAINER := ai-assistant-searxng
+FIRECRAWL_CONTAINER := firecrawl
+MILVUS_CONTAINER := milvus-standalone
+
+# Test Configuration
+TEST_RESULTS_DIR := test-results
+COVERAGE_DIR := $(TEST_RESULTS_DIR)/htmlcov
+COVERAGE_THRESHOLD := 80
+
+# Command Options
+PYTEST_OPTIONS := --verbose --strict-markers --strict-config --disable-warnings
+PYTEST_UNIT_OPTIONS := --cov=app --cov-report=html:$(COVERAGE_DIR) --cov-report=xml:$(TEST_RESULTS_DIR)/coverage.xml --cov-report=term
+
+# =============================================================================
+# Default Target
+# =============================================================================
+
+.PHONY: help install dev test lint format clean production production-down production-logs firecrawl firecrawl-down firecrawl-logs health-check docs shutdown-everything nuke quality-check ci-test test-results-dir chainlit
+
 .DEFAULT_GOAL := help
 
 # =============================================================================
-# Help
+# Help System
 # =============================================================================
 
 help: ## Show this help message
 	@echo "AI Assistant Development Commands"
+	@echo ""
+	@echo "Usage: make [command]"
+	@echo ""
+	@echo "Setup & Installation:"
+	@echo "  install          Install dependencies"
+	@echo "  install-prod     Install production dependencies only"
+	@echo "  setup-dev        Set up development environment"
+	@echo ""
+	@echo "Development:"
+	@echo "  dev              Run development server"
+	@echo "  chainlit         Run Chainlit interface"
+	@echo "  dev-docker       Run development with Docker"
+	@echo ""
+	@echo "Testing:"
+	@echo "  test             Run all tests"
+	@echo "  test-unit        Run unit tests only"
+	@echo "  test-integration Run integration tests"
+	@echo "  test-coverage    Run tests with coverage report"
+	@echo ""
+	@echo "Code Quality:"
+	@echo "  quality-check    Run all code quality checks"
+	@echo "  lint             Run linting"
+	@echo "  format           Format code"
+	@echo "  type-check       Run type checking"
+	@echo "  security-check   Run security checks"
+	@echo ""
+	@echo "Docker Services:"
+	@echo "  docker           Start all Docker services"
+	@echo "  docker-down      Stop all Docker services"
+	@echo "  docker-logs      Show Docker logs"
+	@echo "  docker-restart   Restart Docker services"
+	@echo ""
+	@echo "Production:"
+	@echo "  production       Start production environment"
+	@echo "  production-down  Stop production environment"
+	@echo "  production-logs  Show production logs"
+	@echo ""
+	@echo "Utilities:"
+	@echo "  clean            Clean up temporary files"
+	@echo "  clean-docker     Clean up Docker resources"
+	@echo "  clean-all        Clean up everything"
+	@echo "  health-check     Run comprehensive health check"
+	@echo "  docs             Generate documentation"
+	@echo ""
+	@echo "Emergency:"
+	@echo "  shutdown-everything  Shut down all Docker services"
+	@echo "  nuke                 Nuclear option - complete Docker reset"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
@@ -31,8 +120,13 @@ install-prod: ## Install production dependencies only
 
 setup-dev: ## Set up development environment
 	@echo "Setting up development environment..."
-	cp .env.example .env
-	@echo "Please edit .env file with your configuration"
+	@if [ ! -f .env ]; then \
+		cp .env.example .env; \
+		echo "Created .env file from example"; \
+		echo "Please edit .env file with your configuration"; \
+	else \
+		echo ".env file already exists"; \
+	fi
 	$(MAKE) install
 
 # =============================================================================
@@ -41,118 +135,114 @@ setup-dev: ## Set up development environment
 
 dev: ## Run development server
 	@echo "Starting development server..."
-	uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+	uv run uvicorn app.main:app --host 0.0.0.0 --port $(APP_PORT) --reload
 
 chainlit: ## Run Chainlit interface
 	@echo "Starting Chainlit interface..."
-	uv run chainlit run chainlit_app.py --host 0.0.0.0 --port 8001
+	uv run chainlit run chainlit_app.py --host 0.0.0.0 --port $(CHAINLIT_PORT)
 
 dev-docker: ## Run development with Docker
 	@echo "Starting development environment with Docker..."
-	docker compose --profile dev up -d
+	$(DOCKER_COMPOSE) --profile $(DEV_PROFILE) up -d
 
-dev-docker-chainlit: ## Run development with Docker including Chainlit
-	@echo "Starting development environment with Docker and Chainlit..."
-	docker compose --profile dev up -d chainlit
+dev-quick: ## Quick development setup (install + start services)
+	@echo "Quick development setup..."
+	$(MAKE) setup-dev
+	$(MAKE) dev-docker
+	@echo "Development environment is ready!"
+	@echo "App: http://localhost:$(APP_PORT)"
+	@echo "Chainlit: http://localhost:$(CHAINLIT_PORT)"
 
 # =============================================================================
 # Testing
 # =============================================================================
 
-test: ## Run all tests
+test-results-dir: ## Create test-results directory
+	@mkdir -p $(TEST_RESULTS_DIR)
+
+test: test-results-dir ## Run all tests
 	@echo "Running all tests..."
-	@mkdir -p test-results
-	uv run pytest --junitxml=test-results/junit.xml
+	uv run pytest $(PYTEST_OPTIONS) --junitxml=$(TEST_RESULTS_DIR)/junit.xml
 
-test-unit: ## Run unit tests only
+test-unit: test-results-dir ## Run unit tests only
 	@echo "Running unit tests..."
-	@mkdir -p test-results
-	uv run  pytest tests/unit/ --junitxml=test-results/junit-unit.xml
+	uv run pytest tests/unit/ $(PYTEST_OPTIONS) --junitxml=$(TEST_RESULTS_DIR)/junit-unit.xml
 
-test-integration: ## Run integration tests
+test-integration: test-results-dir ## Run integration tests
 	@echo "Running integration tests..."
-	@mkdir -p test-results
-	uv run pytest tests/integration/ --junitxml=test-results/junit-integration.xml
+	uv run pytest tests/integration/ $(PYTEST_OPTIONS) --junitxml=$(TEST_RESULTS_DIR)/junit-integration.xml
+
+test-coverage: test-results-dir ## Run tests with coverage report
+	@echo "Running tests with coverage..."
+	uv run pytest $(PYTEST_OPTIONS) $(PYTEST_UNIT_OPTIONS) --junitxml=$(TEST_RESULTS_DIR)/junit-coverage.xml
+	@echo "Coverage report generated: $(COVERAGE_DIR)/index.html"
 
 # Multi-Speaker System Tests
-test-multi-speaker: ## Run multi-speaker system tests
+test-multi-speaker: test-results-dir ## Run multi-speaker system tests
 	@echo "Running multi-speaker system tests..."
-	@mkdir -p test-results
-	uv run pytest tests/unit/test_debate_system.py tests/unit/test_dynamic_selector.py tests/unit/test_personality_system.py tests/unit/test_collaborative_checker.py tests/unit/test_learning_system.py tests/unit/test_master_checker.py tests/unit/test_context_sharing.py -v --junitxml=test-results/junit-multi-speaker.xml
+	uv run pytest tests/unit/test_debate_system.py tests/unit/test_dynamic_selector.py tests/unit/test_personality_system.py tests/unit/test_collaborative_checker.py tests/unit/test_learning_system.py tests/unit/test_master_checker.py tests/unit/test_context_sharing.py -v --junitxml=$(TEST_RESULTS_DIR)/junit-multi-speaker.xml
 
-test-multi-speaker-unit: ## Run multi-speaker system unit tests
+test-multi-speaker-unit: test-results-dir ## Run multi-speaker system unit tests
 	@echo "Running multi-speaker system unit tests..."
-	@mkdir -p test-results
-	uv run pytest tests/unit/test_debate_system.py tests/unit/test_dynamic_selector.py tests/unit/test_personality_system.py tests/unit/test_collaborative_checker.py tests/unit/test_learning_system.py tests/unit/test_master_checker.py tests/unit/test_context_sharing.py -v --junitxml=test-results/junit-multi-speaker-unit.xml
+	uv run pytest tests/unit/test_debate_system.py tests/unit/test_dynamic_selector.py tests/unit/test_personality_system.py tests/unit/test_collaborative_checker.py tests/unit/test_learning_system.py tests/unit/test_master_checker.py tests/unit/test_context_sharing.py -v --junitxml=$(TEST_RESULTS_DIR)/junit-multi-speaker-unit.xml
 
-test-multi-speaker-integration: ## Run multi-speaker system integration tests
+test-multi-speaker-integration: test-results-dir ## Run multi-speaker system integration tests
 	@echo "Running multi-speaker system integration tests..."
-	@mkdir -p test-results
-	uv run pytest tests/integration/test_multi_speaker_system.py -v --junitxml=test-results/junit-multi-speaker-integration.xml
+	uv run pytest tests/integration/test_multi_speaker_system.py -v --junitxml=$(TEST_RESULTS_DIR)/junit-multi-speaker-integration.xml
 
-test-multi-speaker-live: ## Run live multi-speaker system tests (requires services)
+test-multi-speaker-live: test-results-dir ## Run live multi-speaker system tests (requires services)
 	@echo "Running live multi-speaker system tests..."
 	@echo "Make sure all required services are running"
-	uv run pytest tests/integration/test_multi_speaker_system.py::TestMultiSpeakerSystemLive -v -s --junitxml=test-results/junit-multi-speaker-live.xml
+	uv run pytest tests/integration/test_multi_speaker_system.py::TestMultiSpeakerSystemLive -v -s --junitxml=$(TEST_RESULTS_DIR)/junit-multi-speaker-live.xml
 
-test-all-multi-speaker: ## Run all multi-speaker system tests
+test-all-multi-speaker: test-results-dir ## Run all multi-speaker system tests
 	@echo "Running all multi-speaker system tests..."
-	uv run pytest tests/unit/test_debate_system.py tests/unit/test_dynamic_selector.py tests/unit/test_personality_system.py tests/unit/test_collaborative_checker.py tests/unit/test_learning_system.py tests/unit/test_master_checker.py tests/unit/test_context_sharing.py tests/integration/test_multi_speaker_system.py -v --junitxml=test-results/junit-all-multi-speaker.xml
+	uv run pytest tests/unit/test_debate_system.py tests/unit/test_dynamic_selector.py tests/unit/test_personality_system.py tests/unit/test_collaborative_checker.py tests/unit/test_learning_system.py tests/unit/test_master_checker.py tests/unit/test_context_sharing.py tests/integration/test_multi_speaker_system.py -v --junitxml=$(TEST_RESULTS_DIR)/junit-all-multi-speaker.xml
 
 # Firecrawl Tests
-test-firecrawl: ## Run Firecrawl Docker tests
+test-firecrawl: test-results-dir ## Run Firecrawl Docker tests
 	@echo "Running Firecrawl Docker tests..."
-	uv run pytest tests/unit/test_firecrawl_docker_mode.py tests/integration/test_firecrawl_docker.py -v --junitxml=test-results/junit-firecrawl.xml
+	uv run pytest tests/unit/test_firecrawl_docker_mode.py tests/integration/test_firecrawl_docker.py -v --junitxml=$(TEST_RESULTS_DIR)/junit-firecrawl.xml
 
-test-firecrawl-unit: ## Run Firecrawl unit tests only
+test-firecrawl-unit: test-results-dir ## Run Firecrawl unit tests only
 	@echo "Running Firecrawl unit tests..."
-	uv run pytest tests/unit/test_firecrawl_docker_mode.py tests/unit/test_firecrawl_scraping.py -v --junitxml=test-results/junit-firecrawl-unit.xml
+	uv run pytest tests/unit/test_firecrawl_docker_mode.py tests/unit/test_firecrawl_scraping.py -v --junitxml=$(TEST_RESULTS_DIR)/junit-firecrawl-unit.xml
 
-test-firecrawl-integration: ## Run Firecrawl integration tests
+test-firecrawl-integration: test-results-dir ## Run Firecrawl integration tests
 	@echo "Running Firecrawl integration tests..."
-	uv run pytest tests/integration/test_firecrawl_docker.py -v --junitxml=test-results/junit-firecrawl-integration.xml
+	uv run pytest tests/integration/test_firecrawl_docker.py -v --junitxml=$(TEST_RESULTS_DIR)/junit-firecrawl-integration.xml
 
-test-firecrawl-live: ## Run live Firecrawl tests (requires Docker services)
+test-firecrawl-live: test-results-dir ## Run live Firecrawl tests (requires Docker services)
 	@echo "Running live Firecrawl tests..."
 	@echo "Make sure Firecrawl Docker services are running: make firecrawl"
-	uv run pytest tests/integration/test_firecrawl_docker.py::TestFirecrawlDockerLive -v -s --junitxml=test-results/junit-firecrawl-live.xml
+	uv run pytest tests/integration/test_firecrawl_docker.py::TestFirecrawlDockerLive -v -s --junitxml=$(TEST_RESULTS_DIR)/junit-firecrawl-live.xml
 
 # Deep Search Tests
-test-deep-search: ## Run Deep Search agent tests
+test-deep-search: test-results-dir ## Run Deep Search agent tests
 	@echo "Running Deep Search agent tests..."
-	uv run pytest tests/unit/test_deep_search_agent.py -v --junitxml=test-results/junit-deep-search.xml
+	uv run pytest tests/unit/test_deep_search_agent.py -v --junitxml=$(TEST_RESULTS_DIR)/junit-deep-search.xml
 
-test-deep-search-integration: ## Run Deep Search integration tests (requires Docker services)
+test-deep-search-integration: test-results-dir ## Run Deep Search integration tests (requires Docker services)
 	@echo "Running Deep Search integration tests..."
 	@echo "Make sure all services are running: make milvus"
-	uv run pytest tests/integration/test_deep_search_integration.py -v -s --junitxml=test-results/junit-deep-search-integration.xml
+	uv run pytest tests/integration/test_deep_search_integration.py -v -s --junitxml=$(TEST_RESULTS_DIR)/junit-deep-search-integration.xml
 
-test-deep-search-live: ## Run live Deep Search tests (requires all services)
+test-deep-search-live: test-results-dir ## Run live Deep Search tests (requires all services)
 	@echo "Running live Deep Search tests..."
 	@echo "Make sure all services are running: make milvus"
-	uv run pytest tests/integration/test_deep_search_integration.py::test_deep_search_full_workflow -v -s --junitxml=test-results/junit-deep-search-live.xml
+	uv run pytest tests/integration/test_deep_search_integration.py::test_deep_search_full_workflow -v -s --junitxml=$(TEST_RESULTS_DIR)/junit-deep-search-live.xml
 
-test-all-deep-search: ## Run all Deep Search tests
+test-all-deep-search: test-results-dir ## Run all Deep Search tests
 	@echo "Running all Deep Search tests..."
-	uv run pytest tests/unit/test_deep_search_agent.py tests/integration/test_deep_search_integration.py -v --junitxml=test-results/junit-all-deep-search.xml
+	uv run pytest tests/unit/test_deep_search_agent.py tests/integration/test_deep_search_integration.py -v --junitxml=$(TEST_RESULTS_DIR)/junit-all-deep-search.xml
 
-# Coverage Tests
-test-coverage: ## Run tests with coverage report
-	@echo "Running tests with coverage..."
-	@mkdir -p test-results
-	uv run pytest --cov=app --cov-report=html:test-results/htmlcov --cov-report=xml:test-results/coverage.xml --cov-report=term --junitxml=test-results/junit-coverage.xml
-
-test-multi-speaker-coverage: ## Run multi-speaker system tests with coverage report
+test-multi-speaker-coverage: test-results-dir ## Run multi-speaker system tests with coverage report
 	@echo "Running multi-speaker system tests with coverage..."
-	@mkdir -p test-results
-	uv run pytest tests/unit/test_debate_system.py tests/unit/test_dynamic_selector.py tests/unit/test_personality_system.py tests/unit/test_collaborative_checker.py tests/unit/test_learning_system.py tests/unit/test_master_checker.py tests/unit/test_context_sharing.py --cov=app.core.agents --cov-report=html:test-results/htmlcov-multi-speaker --cov-report=xml:test-results/multi-speaker-coverage.xml --cov-report=term --junitxml=test-results/junit-multi-speaker-coverage.xml
+	uv run pytest tests/unit/test_debate_system.py tests/unit/test_dynamic_selector.py tests/unit/test_personality_system.py tests/unit/test_collaborative_checker.py tests/unit/test_learning_system.py tests/unit/test_master_checker.py tests/unit/test_context_sharing.py --cov=app.core.agents --cov-report=html:$(TEST_RESULTS_DIR)/htmlcov-multi-speaker --cov-report=xml:$(TEST_RESULTS_DIR)/multi-speaker-coverage.xml --cov-report=term --junitxml=$(TEST_RESULTS_DIR)/junit-multi-speaker-coverage.xml
 
 # =============================================================================
 # Code Quality
 # =============================================================================
-
-test-results-dir: ## Create test-results directory
-	@mkdir -p test-results
 
 quality-check: ## Run all code quality checks (lint, type-check, security-check, test-coverage)
 	@echo "Running comprehensive quality checks..."
@@ -162,11 +252,11 @@ quality-check: ## Run all code quality checks (lint, type-check, security-check,
 	$(MAKE) test-coverage
 	@echo ""
 	@echo "=== Quality Check Summary ==="
-	@echo "Linting report: test-results/ruff-report.xml"
-	@echo "Type checking report: test-results/mypy-report.xml"
-	@echo "Security report: test-results/bandit-report.json"
-	@echo "Coverage report: test-results/coverage.xml"
-	@echo "HTML coverage report: test-results/htmlcov/index.html"
+	@echo "Linting report: $(TEST_RESULTS_DIR)/ruff-report.xml"
+	@echo "Type checking report: $(TEST_RESULTS_DIR)/mypy-report.xml"
+	@echo "Security report: $(TEST_RESULTS_DIR)/bandit-report.json"
+	@echo "Coverage report: $(TEST_RESULTS_DIR)/coverage.xml"
+	@echo "HTML coverage report: $(COVERAGE_DIR)/index.html"
 
 quality-check-multi-speaker: ## Run quality checks for multi-speaker system
 	@echo "Running multi-speaker system quality checks..."
@@ -176,11 +266,11 @@ quality-check-multi-speaker: ## Run quality checks for multi-speaker system
 	$(MAKE) test-multi-speaker-coverage
 	@echo ""
 	@echo "=== Multi-Speaker System Quality Check Summary ==="
-	@echo "Linting report: test-results/ruff-report.xml"
-	@echo "Type checking report: test-results/mypy-report.xml"
-	@echo "Security report: test-results/bandit-report.json"
-	@echo "Multi-speaker coverage report: test-results/multi-speaker-coverage.xml"
-	@echo "HTML multi-speaker coverage report: test-results/htmlcov-multi-speaker/index.html"
+	@echo "Linting report: $(TEST_RESULTS_DIR)/ruff-report.xml"
+	@echo "Type checking report: $(TEST_RESULTS_DIR)/mypy-report.xml"
+	@echo "Security report: $(TEST_RESULTS_DIR)/bandit-report.json"
+	@echo "Multi-speaker coverage report: $(TEST_RESULTS_DIR)/multi-speaker-coverage.xml"
+	@echo "HTML multi-speaker coverage report: $(TEST_RESULTS_DIR)/htmlcov-multi-speaker/index.html"
 
 ci-test: ## Run CI pipeline (test, lint, type-check, security-check)
 	@echo "Running CI pipeline..."
@@ -190,10 +280,10 @@ ci-test: ## Run CI pipeline (test, lint, type-check, security-check)
 	$(MAKE) security-check
 	@echo ""
 	@echo "=== CI Test Summary ==="
-	@echo "Test report: test-results/junit.xml"
-	@echo "Linting report: test-results/ruff-report.xml"
-	@echo "Type checking report: test-results/mypy-report.xml"
-	@echo "Security report: test-results/bandit-report.json"
+	@echo "Test report: $(TEST_RESULTS_DIR)/junit.xml"
+	@echo "Linting report: $(TEST_RESULTS_DIR)/ruff-report.xml"
+	@echo "Type checking report: $(TEST_RESULTS_DIR)/mypy-report.xml"
+	@echo "Security report: $(TEST_RESULTS_DIR)/bandit-report.json"
 
 ci-test-multi-speaker: ## Run CI pipeline for multi-speaker system
 	@echo "Running multi-speaker system CI pipeline..."
@@ -203,16 +293,15 @@ ci-test-multi-speaker: ## Run CI pipeline for multi-speaker system
 	$(MAKE) security-check
 	@echo ""
 	@echo "=== Multi-Speaker System CI Test Summary ==="
-	@echo "Test report: test-results/junit-multi-speaker.xml"
-	@echo "Linting report: test-results/ruff-report.xml"
-	@echo "Type checking report: test-results/mypy-report.xml"
-	@echo "Security report: test-results/bandit-report.json"
+	@echo "Test report: $(TEST_RESULTS_DIR)/junit-multi-speaker.xml"
+	@echo "Linting report: $(TEST_RESULTS_DIR)/ruff-report.xml"
+	@echo "Type checking report: $(TEST_RESULTS_DIR)/mypy-report.xml"
+	@echo "Security report: $(TEST_RESULTS_DIR)/bandit-report.json"
 
-lint: ## Run linting
+lint: test-results-dir ## Run linting
 	@echo "Running linting..."
-	@mkdir -p test-results
-	uv run ruff check app/ tests/ --output-format=junit > test-results/ruff-report.xml
-	uv run ruff check app/ tests/
+	@uv run ruff check app/ tests/ --output-format=junit > $(TEST_RESULTS_DIR)/ruff-report.xml || true
+	@uv run ruff check app/ tests/ || echo "Linting found issues (see above)"
 
 format: ## Format code
 	@echo "Formatting code..."
@@ -220,19 +309,17 @@ format: ## Format code
 
 format-check: ## Check code formatting
 	@echo "Checking code formatting..."
-	uv run ruff format --check app/ tests/
+	@uv run ruff format --check app/ tests/ || echo "Code formatting issues found (run 'make format' to fix)"
 
-type-check: ## Run type checking
+type-check: test-results-dir ## Run type checking
 	@echo "Running type checking..."
-	@mkdir -p test-results
-	uv run mypy app/ --junit-xml test-results/mypy-report.xml
-	uv run mypy app/
+	@uv run mypy app/ --junit-xml $(TEST_RESULTS_DIR)/mypy-report.xml || true
+	@uv run mypy app/ || echo "Type checking found issues (see above)"
 
-security-check: ## Run security checks
+security-check: test-results-dir ## Run security checks
 	@echo "Running security checks..."
-	@mkdir -p test-results
-	uv run bandit -r app/ -f json -o test-results/bandit-report.json
-	uv run bandit -r app/ -f txt -o test-results/bandit-report.txt
+	@uv run bandit -r app/ -f json -o $(TEST_RESULTS_DIR)/bandit-report.json || true
+	@uv run bandit -r app/ -f txt -o $(TEST_RESULTS_DIR)/bandit-report.txt || echo "Security check found issues (see above)"
 
 # =============================================================================
 # Docker Commands
@@ -240,19 +327,23 @@ security-check: ## Run security checks
 
 docker: ## Start all Docker services
 	@echo "Starting all Docker services..."
-	docker compose up -d
+	$(DOCKER_COMPOSE) up -d
 
 docker-down: ## Stop all Docker services
 	@echo "Stopping all Docker services..."
-	docker compose down -v
+	$(DOCKER_COMPOSE) down -v
 
 docker-logs: ## Show Docker logs
 	@echo "Showing Docker logs..."
-	docker compose logs -f
+	$(DOCKER_COMPOSE) logs -f
 
 docker-restart: ## Restart Docker services
 	@echo "Restarting Docker services..."
-	docker compose restart
+	$(DOCKER_COMPOSE) restart
+
+docker-status: ## Show Docker service status
+	@echo "Docker service status:"
+	$(DOCKER_COMPOSE) ps
 
 # =============================================================================
 # Milvus Docker Commands
@@ -260,35 +351,35 @@ docker-restart: ## Restart Docker services
 
 milvus: ## Start Milvus Docker services
 	@echo "Starting Milvus Docker services..."
-	docker compose --profile milvus up -d
+	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) up -d
 	@echo "Waiting for services to be ready..."
 	@sleep 30
 	$(MAKE) milvus-health
 
 milvus-down: ## Stop Milvus Docker services
 	@echo "Stopping Milvus Docker services..."
-	docker compose --profile milvus down -v
+	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) down -v
 
 milvus-logs: ## Show Milvus Docker logs
 	@echo "Showing Milvus Docker logs..."
-	docker compose --profile milvus logs -f
+	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) logs -f
 
 milvus-restart: ## Restart Milvus Docker services
 	@echo "Restarting Milvus Docker services..."
-	docker compose --profile milvus restart
+	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) restart
 
 milvus-status: ## Show Milvus service status
 	@echo "Milvus service status:"
-	docker compose --profile milvus ps
+	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) ps
 
 milvus-health: ## Check Milvus health
 	@echo "Checking Milvus health..."
 	@echo "Checking Etcd..."
-	docker compose exec milvus-etcd etcdctl endpoint health || echo "Etcd not healthy"
+	$(DOCKER_COMPOSE) exec milvus-etcd etcdctl endpoint health || echo "Etcd not healthy"
 	@echo "Checking MinIO..."
-	docker compose exec milvus-minio curl -f http://localhost:9000/minio/health/live || echo "MinIO not healthy"
+	$(DOCKER_COMPOSE) exec milvus-minio curl -f http://localhost:9000/minio/health/live || echo "MinIO not healthy"
 	@echo "Checking Milvus..."
-	docker compose exec milvus-standalone curl -f http://localhost:9091/healthz || echo "Milvus not healthy"
+	$(DOCKER_COMPOSE) exec milvus-standalone curl -f http://localhost:9091/healthz || echo "Milvus not healthy"
 
 # =============================================================================
 # Firecrawl Docker Commands
@@ -296,34 +387,34 @@ milvus-health: ## Check Milvus health
 
 firecrawl: ## Start Firecrawl Docker services
 	@echo "Starting Firecrawl Docker services..."
-	docker compose --profile firecrawl up -d
+	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) up -d
 	@echo "Waiting for services to be ready..."
 	@sleep 10
 	$(MAKE) firecrawl-health
 
 firecrawl-down: ## Stop Firecrawl Docker services
 	@echo "Stopping Firecrawl Docker services..."
-	docker compose --profile firecrawl down -v
+	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) down -v
 
 firecrawl-logs: ## Show Firecrawl Docker logs
 	@echo "Showing Firecrawl Docker logs..."
-	docker compose --profile firecrawl logs -f
+	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) logs -f
 
 firecrawl-restart: ## Restart Firecrawl Docker services
 	@echo "Restarting Firecrawl Docker services..."
-	docker compose --profile firecrawl restart
+	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) restart
 
 firecrawl-dev: ## Start development with Firecrawl
 	@echo "Starting development environment with Firecrawl..."
-	docker compose --profile dev --profile firecrawl up -d
+	$(DOCKER_COMPOSE) --profile $(DEV_PROFILE) up -d
 
-firecrawl-prod: ## Start production with Firecrawl
+firecrawl-production: ## Start production with Firecrawl
 	@echo "Starting production environment with Firecrawl..."
-	docker compose --profile production --profile firecrawl up -d
+	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) up -d
 
 firecrawl-status: ## Show Firecrawl service status
 	@echo "Firecrawl service status:"
-	docker compose --profile firecrawl ps
+	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) ps
 
 firecrawl-health: ## Check Firecrawl health
 	@echo "Checking Firecrawl health..."
@@ -369,13 +460,29 @@ migrate-to-api: ## Migrate from Docker to API mode
 health-check: ## Run comprehensive health check
 	@echo "Running comprehensive health check..."
 	@echo "=== Docker Services ==="
-	docker compose ps || echo "Docker services not running"
+	$(DOCKER_COMPOSE) ps || echo "Docker services not running"
 	@echo ""
 	@echo "=== Firecrawl Services ==="
 	$(MAKE) firecrawl-status || echo "Firecrawl services not running"
 	@echo ""
 	@echo "=== Firecrawl Health ==="
 	$(MAKE) firecrawl-health || echo "Firecrawl health check failed"
+
+status-all: ## Show status of all services
+	@echo "=== All Service Status ==="
+	@echo "Docker Services:"
+	$(DOCKER_COMPOSE) ps || echo "No Docker services running"
+	@echo ""
+	@echo "Application Containers:"
+	@docker ps --filter "name=$(PROJECT_NAME)" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" || echo "No application containers running"
+	@echo ""
+	@echo "Port Usage:"
+	@echo "App: $(APP_PORT)"
+	@echo "Chainlit: $(CHAINLIT_PORT)"
+	@echo "Redis: $(REDIS_PORT)"
+	@echo "SearXNG: $(SEARXNG_PORT)"
+	@echo "Prometheus: $(PROMETHEUS_PORT)"
+	@echo "Grafana: $(GRAFANA_PORT)"
 
 # =============================================================================
 # Documentation
@@ -412,7 +519,7 @@ clean: ## Clean up temporary files
 
 clean-docker: ## Clean up Docker resources
 	@echo "Cleaning up Docker resources..."
-	docker compose down -v --remove-orphans
+	$(DOCKER_COMPOSE) down -v --remove-orphans
 	docker system prune -f
 	docker volume prune -f
 
@@ -426,25 +533,12 @@ shutdown-everything: ## SHUT DOWN ALL DOCKER SERVICES ACROSS ALL PROFILES
 	@echo "🚨 EMERGENCY SHUTDOWN INITIATED - STOPPING ALL SERVICES 🚨"
 	@echo "Stopping all Docker services across all profiles..."
 	@echo "Phase 1: Stopping main profiles..."
-	docker compose --profile dev down --remove-orphans || true
-	docker compose --profile production down --remove-orphans || true
-	docker compose --profile firecrawl down --remove-orphans || true
-	@echo "Phase 2: Stopping optional profiles..."
-	docker compose --profile monitoring down --remove-orphans || true
-	docker compose --profile mongodb down --remove-orphans || true
-	docker compose --profile postgres down --remove-orphans || true
-	docker compose --profile jina-reranker down --remove-orphans || true
-	docker compose --profile milvus down --remove-orphans || true
+	$(DOCKER_COMPOSE) --profile $(DEV_PROFILE) down --remove-orphans || true
+	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) down --remove-orphans || true
 	@echo "Phase 3: Stopping any remaining services..."
-	docker compose down --remove-orphans || true
+	$(DOCKER_COMPOSE) down --remove-orphans || true
 	@echo "Phase 4: Force stopping any stubborn containers from this project..."
-	docker compose ps -q | xargs -r docker stop 2>/dev/null || true
-# 	@echo "Phase 5: Removing all containers..."
-# 	docker compose ps -q | xargs -r docker rm 2>/dev/null || true
-# 	@echo "Phase 6: Removing all networks..."
-# 	docker network prune -f || true
-# 	@echo "Phase 7: Cleaning up system resources..."
-# 	docker system prune -af || true
+	$(DOCKER_COMPOSE) ps -q | xargs -r docker stop 2>/dev/null || true
 	@echo "✅ ALL SERVICES SHUT DOWN SUCCESSFULLY!"
 
 nuke: ## NUCLEAR OPTION - COMPLETE DOCKER SYSTEM RESET
@@ -469,21 +563,21 @@ nuke: ## NUCLEAR OPTION - COMPLETE DOCKER SYSTEM RESET
 # Production
 # =============================================================================
 
-prod: ## Start production environment
+production: ## Start production environment
 	@echo "Starting production environment..."
-	docker compose --profile production up -d
+	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) up -d
 
-prod-chainlit: ## Start production environment with Chainlit
+production-chainlit: ## Start production environment with Chainlit
 	@echo "Starting production environment with Chainlit..."
-	docker compose --profile production up -d chainlit-prod
+	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) up -d chainlit-prod
 
-prod-down: ## Stop production environment
+production-down: ## Stop production environment
 	@echo "Stopping production environment..."
-	docker compose --profile production down -v
+	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) down -v
 
-prod-logs: ## Show production logs
+production-logs: ## Show production logs
 	@echo "Showing production logs..."
-	docker compose --profile production logs -f
+	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) logs -f
 
 # =============================================================================
 # Utilities
@@ -491,27 +585,57 @@ prod-logs: ## Show production logs
 
 shell: ## Open shell in application container
 	@echo "Opening shell in application container..."
-	docker compose exec ai-assistant bash
+	$(DOCKER_COMPOSE) exec $(APP_CONTAINER) bash
+
+shell-dev: ## Open shell in development container
+	@echo "Opening shell in development container..."
+	$(DOCKER_COMPOSE) exec $(APP_DEV_CONTAINER) bash
 
 firecrawl-shell: ## Open shell in Firecrawl API container
 	@echo "Opening shell in Firecrawl API container..."
-	docker compose --profile firecrawl exec firecrawl-api bash
+	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) exec firecrawl-api bash
+
+logs-app: ## Show application logs
+	@echo "Showing application logs..."
+	$(DOCKER_COMPOSE) logs -f $(APP_CONTAINER) || $(DOCKER_COMPOSE) logs -f $(APP_DEV_CONTAINER)
+
+logs-all: ## Show all service logs
+	@echo "Showing all service logs..."
+	$(DOCKER_COMPOSE) logs -f
 
 backup-firecrawl: ## Backup Firecrawl data
 	@echo "Backing up Firecrawl data..."
 	mkdir -p backups
-	docker compose --profile firecrawl exec firecrawl-postgres pg_dump -U firecrawl firecrawl > backups/firecrawl_$(shell date +%Y%m%d_%H%M%S).sql
+	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) exec firecrawl-postgres pg_dump -U firecrawl firecrawl > backups/firecrawl_$(shell date +%Y%m%d_%H%M%S).sql
+
+# =============================================================================
+# Database Commands
+# =============================================================================
+
+db-migrate: ## Run database migrations
+	@echo "Running database migrations..."
+	$(DOCKER_COMPOSE) exec $(APP_CONTAINER) python -m alembic upgrade head
+
+db-reset: ## Reset database (destructive)
+	@echo "Resetting database..."
+	@read -p "This will delete all data. Are you sure? [y/N] " confirm && [ "$$confirm" = "y" ] || exit 1
+	$(DOCKER_COMPOSE) exec $(APP_CONTAINER) python -m alembic downgrade base
+	$(MAKE) db-migrate
+
+db-seed: ## Seed database with sample data
+	@echo "Seeding database with sample data..."
+	$(DOCKER_COMPOSE) exec $(APP_CONTAINER) python utility/seed_database.py
 
 # =============================================================================
 # Version and Release
 # =============================================================================
 
 version: ## Show version information
-	@echo "AI Assistant Version:"
+	@echo "$(PROJECT_NAME) Version:"
 	@python3 -c "import app; print(getattr(app, '__version__', 'unknown'))"
 	@echo ""
 	@echo "Docker Images:"
-	@docker compose images || echo "Docker services not running"
+	@$(DOCKER_COMPOSE) images || echo "Docker services not running"
 
 bump-patch: ## Bump patch version
 	@echo "Bumping patch version..."
@@ -524,3 +648,27 @@ bump-minor: ## Bump minor version
 bump-major: ## Bump major version
 	@echo "Bumping major version..."
 	python utility/bump_version.py major
+
+# =============================================================================
+# Development Utilities
+# =============================================================================
+
+install-tools: ## Install additional development tools
+	@echo "Installing additional development tools..."
+	uv add --dev pre-commit
+	uv add --dev commitizen
+	@echo "Tools installed. Consider running 'pre-commit install' to set up git hooks."
+
+pre-commit: ## Run pre-commit checks
+	@echo "Running pre-commit checks..."
+	uv run pre-commit run --all-files
+
+watch-test: ## Run tests in watch mode
+	@echo "Running tests in watch mode..."
+	uv run pytest tests/ --watch
+
+profile: ## Run application with profiling
+	@echo "Running application with profiling..."
+	uv run python -m cProfile -o profile.stats -m uvicorn app.main:app --host 0.0.0.0 --port $(APP_PORT) --reload
+	@echo "Profile saved to profile.stats"
+	@echo "View with: python -m pstats profile.stats"

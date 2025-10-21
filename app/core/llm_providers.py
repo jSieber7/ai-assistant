@@ -399,10 +399,15 @@ class OllamaProvider(LLMProvider):
     async def list_models(self) -> List[ModelInfo]:
         """List available Ollama models"""
         try:
+            # Check if Ollama is running in Docker
+            if "localhost" in self.base_url or "127.0.0.1" in self.base_url:
+                logger.warning(f"Ollama base URL {self.base_url} may not be accessible from within Docker")
+                logger.info("Consider using 'http://host.docker.internal:11434' for Docker environments")
+            
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(f"{self.base_url}/api/tags")
                 if response.status_code != 200:
-                    raise Exception(f"Ollama API returned {response.status_code}")
+                    raise Exception(f"Ollama API returned {response.status_code}: {response.text}")
 
                 data = response.json()
                 models = []
@@ -419,8 +424,14 @@ class OllamaProvider(LLMProvider):
                     )
                     models.append(model_info)
 
+                self.set_health_status(True)
                 return models
 
+        except httpx.ConnectError as e:
+            logger.error(f"Failed to connect to Ollama at {self.base_url}: {str(e)}")
+            logger.info("Make sure Ollama is running and accessible from the application")
+            self.set_health_status(False)
+            return []
         except Exception as e:
             logger.error(f"Failed to list Ollama models: {str(e)}")
             self.set_health_status(False)
@@ -429,11 +440,21 @@ class OllamaProvider(LLMProvider):
     async def health_check(self) -> bool:
         """Check Ollama server health"""
         try:
+            # Check if Ollama is running in Docker
+            if "localhost" in self.base_url or "127.0.0.1" in self.base_url:
+                logger.warning(f"Ollama base URL {self.base_url} may not be accessible from within Docker")
+            
             async with httpx.AsyncClient(timeout=5.0) as client:
                 response = await client.get(f"{self.base_url}/api/tags")
                 is_healthy = response.status_code == 200
                 self.set_health_status(is_healthy)
+                if not is_healthy:
+                    logger.warning(f"Ollama health check failed with status {response.status_code}")
                 return is_healthy
+        except httpx.ConnectError as e:
+            logger.error(f"Failed to connect to Ollama at {self.base_url}: {str(e)}")
+            self.set_health_status(False)
+            return False
         except Exception as e:
             logger.error(f"Ollama health check failed: {str(e)}")
             self.set_health_status(False)

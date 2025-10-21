@@ -9,7 +9,7 @@ from datetime import datetime
 import logging
 
 from app.core.agents.content.multi_content_orchestrator import create_multi_content_orchestrator
-from app.core.storage.mongodb_client import get_mongodb_client
+from app.core.storage.postgresql_client import get_postgresql_client
 from app.core.multi_writer_config import (
     is_multi_writer_enabled,
     get_multi_writer_config,
@@ -157,7 +157,7 @@ async def get_workflow_status(workflow_id: str, _=Depends(check_multi_writer_ena
             )
 
         # Otherwise, check database
-        mongodb_client = await get_mongodb_client()
+        mongodb_client = await get_postgresql_client()
         workflow = await mongodb_client.get_workflow(workflow_id)
 
         if not workflow:
@@ -182,7 +182,7 @@ async def list_workflows(
 ):
     """List workflows with optional status filter"""
     try:
-        mongodb_client = await get_mongodb_client()
+        mongodb_client = await get_postgresql_client()
         workflows = await mongodb_client.list_workflows(status=status, limit=limit)
 
         return WorkflowListResponse(
@@ -199,7 +199,7 @@ async def list_workflows(
 async def get_workflow_content(workflow_id: str, _=Depends(check_multi_writer_enabled)):
     """Get all content generated for a workflow"""
     try:
-        mongodb_client = await get_mongodb_client()
+        mongodb_client = await get_postgresql_client()
         content = await mongodb_client.get_workflow_content(workflow_id)
 
         if not content:
@@ -220,7 +220,7 @@ async def get_workflow_check_results(
 ):
     """Get all check results for a workflow"""
     try:
-        mongodb_client = await get_mongodb_client()
+        mongodb_client = await get_postgresql_client()
         results = await mongodb_client.get_workflow_check_results(workflow_id)
 
         if not results:
@@ -241,7 +241,7 @@ async def get_workflow_check_results(
 async def delete_workflow(workflow_id: str, _=Depends(check_multi_writer_enabled)):
     """Delete a workflow and all related data"""
     try:
-        mongodb_client = await get_mongodb_client()
+        mongodb_client = await get_postgresql_client()
         success = await mongodb_client.delete_workflow(workflow_id)
 
         if not success:
@@ -260,7 +260,7 @@ async def delete_workflow(workflow_id: str, _=Depends(check_multi_writer_enabled
 async def get_statistics(_=Depends(check_multi_writer_enabled)):
     """Get system statistics"""
     try:
-        mongodb_client = await get_mongodb_client()
+        mongodb_client = await get_postgresql_client()
         stats = await mongodb_client.get_statistics()
 
         return StatisticsResponse(**stats)

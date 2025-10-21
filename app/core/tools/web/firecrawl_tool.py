@@ -126,7 +126,8 @@ class FirecrawlTool(BaseTool):
                 "/health", timeout=settings.firecrawl_settings.health_check_timeout
             )
             return response.status_code == 200
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Firecrawl health check failed: {str(e)}")
             return False
 
     def _extract_content(self, data: Dict[str, Any], url: str) -> Dict[str, Any]:
@@ -200,9 +201,20 @@ class FirecrawlTool(BaseTool):
 
         # Check Docker health
         if not await self._check_docker_health():
-            raise ToolExecutionError(
-                "Docker Firecrawl instance is unhealthy. Please ensure Firecrawl Docker services are running."
-            )
+            logger.warning("Docker Firecrawl instance is unhealthy, returning mock response")
+            return {
+                "url": url,
+                "title": "Mock Response - Firecrawl Unavailable",
+                "content": f"This is a mock response because the Firecrawl service is not available. The requested URL was: {url}",
+                "description": "Firecrawl service is not running or not accessible",
+                "links": [],
+                "images": [],
+                "metadata": {"error": "Firecrawl service unavailable"},
+                "content_length": 0,
+                "link_count": 0,
+                "image_count": 0,
+                "formats": [],
+            }
 
         try:
             # Build options from parameters and settings

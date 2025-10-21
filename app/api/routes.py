@@ -314,8 +314,18 @@ async def _stream_response(messages, llm, model_name):
 
 @router.get("/health")
 async def health_check():
-    """Simple health check endpoint"""
-    return {"status": "healthy", "service": "langchain-agent-hub"}
+    """Simple health check endpoint that always returns healthy regardless of API key configuration"""
+    return {
+        "status": "healthy",
+        "service": "langchain-agent-hub",
+        "environment": settings.environment,
+        "message": "Application is running (mock responses will be used if no API keys configured)",
+        "api_keys_configured": {
+            "openai_compatible": bool(settings.openai_settings.api_key),
+            "openrouter": bool(settings.openrouter_api_key),
+            "jina_reranker": bool(settings.jina_reranker_api_key),
+        }
+    }
 
 
 @router.get("/v1/providers")

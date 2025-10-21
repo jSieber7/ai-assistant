@@ -55,12 +55,18 @@ except Exception as e:
     print(f"Warning: Failed to mount SearxNG static files: {str(e)}")
 
 # Initialize LLM providers
-initialize_llm_providers()
+try:
+    initialize_llm_providers()
+    print("LLM providers initialized (mock responses will be used if no API keys configured)")
+except Exception as e:
+    print(f"Warning: Failed to initialize LLM providers: {str(e)}")
+    print("Continuing without LLM providers - mock responses will be used")
 
 # Initialize agent system
 if settings.agent_system_enabled:
     try:
         initialize_agent_system()
+        print("Agent system initialized successfully")
     except Exception as e:
         print(f"Warning: Failed to initialize agent system: {str(e)}")
         print("Agent system will be disabled until properly configured")
@@ -69,6 +75,7 @@ if settings.agent_system_enabled:
 if settings.firecrawl_settings.enabled:
     try:
         initialize_firecrawl_system()
+        print("Firecrawl system initialized successfully")
     except Exception as e:
         print(f"Warning: Failed to initialize Firecrawl system: {str(e)}")
         print("Firecrawl system will be disabled until properly configured")
@@ -77,9 +84,14 @@ if settings.firecrawl_settings.enabled:
 if settings.playwright_settings.enabled:
     try:
         initialize_playwright_system()
+        if settings.environment == "development":
+            print("Development mode: Playwright system initialized successfully")
     except Exception as e:
         print(f"Warning: Failed to initialize Playwright system: {str(e)}")
-        print("Playwright system will be disabled until properly configured")
+        if settings.environment == "development":
+            print("Development mode: Playwright system will be disabled until properly configured")
+        else:
+            print("Playwright system will be disabled until properly configured")
 
 # Initialize Jina Reranker system
 if settings.jina_reranker_enabled:
@@ -89,14 +101,29 @@ if settings.jina_reranker_enabled:
         jina_reranker_tool = JinaRerankerTool()
         tool_registry.register(jina_reranker_tool, category="reranking")
         print("Jina Reranker tool registered successfully")
+        print("Jina Reranker system initialized successfully")
     except Exception as e:
         print(f"Warning: Failed to initialize Jina Reranker system: {str(e)}")
         print("Jina Reranker system will be disabled until properly configured")
 
+# Initialize visual system
+if settings.visual_system_enabled:
+    try:
+        initialize_visual_system()
+        print("Visual system initialized successfully")
+    except Exception as e:
+        print(f"Warning: Failed to initialize visual system: {str(e)}")
+        print("Visual system will be disabled until properly configured")
+
 # Initialize multi-writer system (optional)
 multi_writer_config = None
 if is_multi_writer_enabled():
-    multi_writer_config = initialize_multi_writer_system()
+    try:
+        multi_writer_config = initialize_multi_writer_system()
+        print("Multi-writer system initialized successfully")
+    except Exception as e:
+        print(f"Warning: Failed to initialize multi-writer system: {str(e)}")
+        print("Multi-writer system will be disabled until properly configured")
 
 # Include API routes
 app.include_router(router)
@@ -109,10 +136,6 @@ if is_multi_writer_enabled():
     from .api.multi_writer_routes import router as multi_writer_router
 
     app.include_router(multi_writer_router)
-
-# Gradio interface has been removed from the codebase
-print("Note: Gradio interface has been removed. Using Chainlit interface instead.")
-
 
 @app.get("/")
 async def root():

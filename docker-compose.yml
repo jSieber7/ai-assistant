@@ -16,8 +16,6 @@ volumes:
     driver: local
   postgres_data:
     driver: local
-  mongodb_data:
-    driver: local
   prometheus_data:
     driver: local
   grafana_data:
@@ -26,117 +24,35 @@ volumes:
     driver: local
   firecrawl_redis_data:
     driver: local
-  firecrawl_postgres_data:
-    driver: local
   jina_reranker_logs:
     driver: local
   milvus_data:
     driver: local
 
 services:
-  # =============================================================================
-  # Firecrawl Self-Hosted Services
-  # =============================================================================
-  # Redis for Firecrawl queue and caching
-  firecrawl-redis:
-    image: redis:7.2-alpine
-    container_name: firecrawl-redis
-    volumes:
-      - firecrawl_redis_data:/data
-    networks:
-      - ai-assistant-network
-    restart: unless-stopped
-    command: redis-server --appendonly yes
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    profiles:
-      - firecrawl
-    labels:
-      - "traefik.enable=false"  # Internal service only
-
-  # PostgreSQL for Firecrawl data storage
-  firecrawl-postgres:
-    image: postgres:15-alpine
-    container_name: firecrawl-postgres
-    environment:
-      - POSTGRES_DB=firecrawl
-      - POSTGRES_USER=firecrawl
-      - POSTGRES_PASSWORD=firecrawl_password
-    volumes:
-      - firecrawl_postgres_data:/var/lib/postgresql/data
-    networks:
-      - ai-assistant-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U firecrawl"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    profiles:
-      - firecrawl
-    labels:
-      - "traefik.enable=false"  # Internal service only
-
-  # Firecrawl Playwright Service for browser automation
-  firecrawl-playwright:
-    image: ghcr.io/firecrawl/firecrawl-playwright:latest
-    container_name: firecrawl-playwright
-    environment:
-      - PORT=3000
-      - HOST=0.0.0.0
-    networks:
-      - ai-assistant-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    profiles:
-      - firecrawl
-    labels:
-      - "traefik.enable=false"  # Internal service only
-
-  # Firecrawl API Service
-  firecrawl-api:
+  firecrawl:
     image: ghcr.io/firecrawl/firecrawl:latest
-    container_name: firecrawl-api
+    container_name: firecrawl
     environment:
-      # Server Configuration
       - PORT=3002
       - HOST=0.0.0.0
-      
-      # Database Configuration
-      - DATABASE_URL=postgresql://firecrawl:firecrawl_password@firecrawl-postgres:5432/firecrawl
-      
-      # Redis Configuration
-      - REDIS_URL=redis://firecrawl-redis:6379
-      - REDIS_RATE_LIMIT_URL=redis://firecrawl-redis:6379
-      
-      # Playwright Service Configuration
-      - PLAYWRIGHT_MICROSERVICE_URL=http://firecrawl-playwright:3000
-      
-      # Authentication (optional, set to true if you want to enable)
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_assistant?options=--search_path%3Dfirecrawl
+      - POSTGRES_DB_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_assistant?options=--search_path%3Dfirecrawl
+      - POSTGRES_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_assistant?options=--search_path%3Dfirecrawl
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=ai_assistant
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
+      - REDIS_URL=redis://redis:6379/1
       - USE_DB_AUTHENTICATION=false
-      
-      # Queue Admin Panel
+      - USE_DB=false
       - BULL_AUTH_KEY=${FIRECRAWL_BULL_AUTH_KEY:-change_me_firecrawl}
-      
-      # API Rate Limiting
       - RATE_LIMIT_MAX_REQUESTS=100
       - RATE_LIMIT_WINDOW_MS=60000
-      
     depends_on:
-      firecrawl-redis:
-        condition: service_healthy
-      firecrawl-postgres:
-        condition: service_healthy
-      firecrawl-playwright:
-        condition: service_healthy
+      - postgres
+      - redis
     networks:
       - ai-assistant-network
     restart: unless-stopped
@@ -145,55 +61,16 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
     profiles:
-      - firecrawl
+      - production
+      - dev
     labels:
-      # Traefik routing for external access
       - "traefik.enable=true"
-      - "traefik.http.routers.jina-reranker.rule=PathPrefix(`/rerank`)"
-      - "traefik.http.routers.jina-reranker.priority=300"
-      - "traefik.http.routers.jina-reranker.entrypoints=web"
-      - "traefik.http.routers.jina-reranker.middlewares=security-headers@file,rate-limit@file,compression@file"
-      - "traefik.http.services.jina-reranker.loadbalancer.server.port=8080"
+      - "traefik.http.routers.firecrawl.rule=PathPrefix(`/firecrawl`)"
+      - "traefik.http.routers.firecrawl.entrypoints=web"
+      - "traefik.http.routers.firecrawl.middlewares=security-headers@file,rate-limit@file"
+      - "traefik.http.services.firecrawl.loadbalancer.server.port=3002"
 
-  # Firecrawl Worker Service
-  firecrawl-worker:
-    image: ghcr.io/firecrawl/firecrawl:latest
-    container_name: firecrawl-worker
-    command: ["npm", "run", "worker"]
-    environment:
-      # Database Configuration
-      - DATABASE_URL=postgresql://firecrawl:firecrawl_password@firecrawl-postgres:5432/firecrawl
-      
-      # Redis Configuration
-      - REDIS_URL=redis://firecrawl-redis:6379
-      - REDIS_RATE_LIMIT_URL=redis://firecrawl-redis:6379
-      
-      # Playwright Service Configuration
-      - PLAYWRIGHT_MICROSERVICE_URL=http://firecrawl-playwright:3000
-      
-      # Worker Configuration
-      - WORKER_CONCURRENCY=5
-      
-    depends_on:
-      firecrawl-redis:
-        condition: service_healthy
-      firecrawl-postgres:
-        condition: service_healthy
-      firecrawl-playwright:
-        condition: service_healthy
-    networks:
-      - ai-assistant-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3002/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    profiles:
-      - firecrawl
   # =============================================================================
   # Jina Reranker Service
   # =============================================================================
@@ -226,7 +103,6 @@ services:
     profiles:
       - production
       - dev
-      - jina-reranker
     labels:
       # Traefik routing for external access
       - "traefik.enable=true"
@@ -262,7 +138,6 @@ services:
     profiles:
       - production
       - dev
-      - milvus
     labels:
       - "traefik.enable=false"  # Internal service only
 
@@ -288,7 +163,6 @@ services:
     profiles:
       - production
       - dev
-      - milvus
     labels:
       - "traefik.enable=false"  # Internal service only
 
@@ -321,7 +195,6 @@ services:
     profiles:
       - production
       - dev
-      - milvus
     labels:
       - "traefik.enable=false"  # Internal service only
 
@@ -338,12 +211,14 @@ services:
     environment:
       - HOST=0.0.0.0
       - PORT=8000
-      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - ENVIRONMENT=production
       - REDIS_URL=redis://redis:6379/0
       - SEARXNG_URL=http://searxng:8080
       - BASE_URL=${BASE_URL:-http://localhost}
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_assistant
+      - MULTI_WRITER_POSTGRESQL_CONNECTION_STRING=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_assistant?options=--search_path%3Dmulti_writer
     env_file:
-      - .env
+      - .env.dev
     depends_on:
       redis:
         condition: service_healthy
@@ -351,9 +226,11 @@ services:
         condition: service_healthy
       milvus:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     volumes:
       - ./logs:/app/logs
-      - searxng_static:/usr/local/searxng/searx/static:ro  # Mount SearxNG static files
+      - searxng_static:/usr/local/searxng/searx/static:ro
     networks:
       - ai-assistant-network
     restart: unless-stopped
@@ -362,67 +239,14 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
     profiles:
-      - production
-      - firecrawl
+      - production # ONLY in production
     labels:
-      # Production Traefik routing with security
       - "traefik.enable=true"
       - "traefik.http.routers.ai-assistant.rule=PathPrefix(`/`) && !PathPrefix(`/chat`)"
       - "traefik.http.routers.ai-assistant.priority=1"
       - "traefik.http.routers.ai-assistant.entrypoints=web"
       - "traefik.http.routers.ai-assistant.middlewares=security-headers@file,rate-limit@file,compression@file"
-      - "traefik.http.routers.chainlit.rule=PathPrefix(`/chat`)"
-      - "traefik.http.routers.chainlit.priority=2"
-      - "traefik.http.routers.chainlit.entrypoints=web"
-      - "traefik.http.routers.chainlit.middlewares=security-headers@file,rate-limit@file,compression@file"
-      - "traefik.http.services.chainlit.loadbalancer.server.port=8001"
-
-  # Production Chainlit Interface Service
-  chainlit-prod:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: ai-assistant-chainlit-prod
-    environment:
-      - ENVIRONMENT=production
-      - HOST=0.0.0.0
-      - PORT=8001
-      - REDIS_URL=redis://redis:6379/0
-      - SEARXNG_URL=http://searxng:8080
-    env_file:
-      - .env
-    depends_on:
-      redis:
-        condition: service_healthy
-      searxng:
-        condition: service_healthy
-      milvus:
-        condition: service_healthy
-    volumes:
-      - ./logs:/app/logs
-    networks:
-      - ai-assistant-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    command: ["uv", "run", "chainlit", "run", "chainlit_app.py", "--host", "0.0.0.0", "--port", "8001"]
-    profiles:
-      - production
-      - firecrawl
-    labels:
-      # Production Traefik routing with security
-      - "traefik.enable=true"
-      - "traefik.http.routers.chainlit-prod.rule=PathPrefix(`/chat`)"
-      - "traefik.http.routers.chainlit-prod.priority=3"
-      - "traefik.http.routers.chainlit-prod.entrypoints=web"
-      - "traefik.http.routers.chainlit-prod.middlewares=security-headers@file,rate-limit@file,compression@file"
-      - "traefik.http.services.chainlit-prod.loadbalancer.server.port=8001"
 
   # Redis for caching
   redis:
@@ -439,8 +263,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    labels:
-      - "traefik.enable=false"  # Internal service only
 
   # SearXNG for web search capabilities
   searxng:
@@ -498,9 +320,9 @@ services:
     container_name: ai-assistant-traefik
     restart: unless-stopped
     ports:
-      - "80:80"        # HTTP entry point
-      - "443:443"      # HTTPS entry point (for future SSL)
-      - "8080:8080"    # Traefik Dashboard (secure in production)
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
     command:
       - "--api.insecure=false"
       - "--providers.docker=true"
@@ -530,28 +352,69 @@ services:
       retries: 3
       start_period: 10s
     profiles:
-      - production
-    labels:
-      # Only expose dashboard in production
-      - "traefik.enable=true"
-      - "traefik.http.routers.traefik.rule=PathPrefix(`/dashboard`)"
-      - "traefik.http.routers.traefik.entrypoints=traefik"
-      - "traefik.http.routers.traefik.service=api@internal"
-      - "traefik.http.routers.traefik.middlewares=auth"
-      - "traefik.http.middlewares.auth.basicauth.users=admin:$$apr1$$q8eL8Zt7$$8LZv8t8g8f8v8t8g8f8v8"
-
+      - production # ONLY in production
   # =============================================================================
   # Development Profile
   # =============================================================================
 
-  # Development Traefik Reverse Proxy
+  # Development AI Assistant
+  ai-assistant-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: ai-assistant-dev
+    volumes:
+      - .:/app
+      - ./logs:/app/logs
+      - /app/.venv
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - RELOAD=true
+      - REDIS_URL=redis://redis:6379/0
+      - SEARXNG_URL=http://searxng:8080
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_assistant
+      - MULTI_WRITER_POSTGRESQL_CONNECTION_STRING=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_assistant?options=--search_path%3Dmulti_writer
+    env_file:
+      - .env.dev
+    depends_on:
+      redis:
+        condition: service_healthy
+      searxng:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - ai-assistant-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/monitoring/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    profiles:
+      - dev # ONLY in dev
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ai-assistant-dev.rule=PathPrefix(`/`) && !PathPrefix(`/search`) && !PathPrefix(`/chat`)"
+      - "traefik.http.routers.ai-assistant-dev.priority=100"
+      - "traefik.http.routers.ai-assistant-dev.entrypoints=web"
+      - "traefik.http.services.ai-assistant-dev.loadbalancer.server.port=8000"
+
+  # Development Traefik
   traefik-dev:
     image: traefik:v3.0
     container_name: ai-assistant-traefik-dev
     restart: unless-stopped
     ports:
-      - "8000:80"      # Main entry point for dev (redirect to port 80)
-      - "8080:8080"    # Traefik Dashboard
+      - "8000:80"
+      - "8080:8080"
     command:
       - "--api.insecure=true"
       - "--providers.docker=true"
@@ -579,68 +442,7 @@ services:
       retries: 3
       start_period: 10s
     profiles:
-      - dev
-    labels:
-      # Expose dashboard at /dashboard in development
-      - "traefik.enable=true"
-      - "traefik.http.routers.traefik-dev.rule=PathPrefix(`/dashboard`)"
-      - "traefik.http.routers.traefik-dev.entrypoints=traefik"
-      - "traefik.http.routers.traefik-dev.service=api@internal"
-
-  # Development configuration with Traefik routing
-  ai-assistant-dev:
-    build:
-      context: .
-      dockerfile: Dockerfile.dev
-    container_name: ai-assistant-dev
-    volumes:
-      - .:/app  # Mount source code for hot reload
-      - ./logs:/app/logs
-      # Exclude .venv to prevent Docker from using host's virtual environment
-      - /app/.venv
-    environment:
-      - ENVIRONMENT=development
-      - DEBUG=true
-      - RELOAD=true
-      - REDIS_URL=redis://redis:6379/0  # Override for Docker network
-      - SEARXNG_URL=http://searxng:8080   # Override for Docker network
-      - HOST=0.0.0.0
-      - PORT=8000
-    env_file:
-      - .env
-    depends_on:
-      redis:
-        condition: service_healthy
-      searxng:
-        condition: service_healthy
-      milvus:
-        condition: service_healthy
-    networks:
-      - ai-assistant-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "uv", "run", "python", "-c", "import requests; requests.get('http://localhost:8000/monitoring/health', timeout=5)"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 120s
-    command: ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-    profiles:
-      - dev
-      - firecrawl
-    labels:
-      # Development Traefik routing
-      - "traefik.enable=true"
-      - "traefik.http.routers.ai-assistant-dev.rule=PathPrefix(`/`) && !PathPrefix(`/search`) && !PathPrefix(`/chat`)"
-      - "traefik.http.routers.ai-assistant-dev.priority=100"
-      - "traefik.http.routers.ai-assistant-dev.entrypoints=web"
-      - "traefik.http.routers.ai-assistant-dev.service=ai-assistant-dev"
-      - "traefik.http.services.ai-assistant-dev.loadbalancer.server.port=8000"
-      - "traefik.http.routers.chainlit-dev.rule=PathPrefix(`/chat`)"
-      - "traefik.http.routers.chainlit-dev.priority=5"
-      - "traefik.http.routers.chainlit-dev.entrypoints=web"
-      - "traefik.http.routers.chainlit-dev.service=chainlit"
-      - "traefik.http.services.chainlit-dev.loadbalancer.server.port=8001"
+      - dev # ONLY in dev
 
   # Chainlit Interface Service
   chainlit:
@@ -661,8 +463,10 @@ services:
       - SEARXNG_URL=http://searxng:8080   # Override for Docker network
       - HOST=0.0.0.0
       - PORT=8001
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_assistant
+      - MULTI_WRITER_POSTGRESQL_CONNECTION_STRING=postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_assistant?options=--search_path%3Dmulti_writer
     env_file:
-      - .env
+      - .env.dev
     depends_on:
       redis:
         condition: service_healthy
@@ -670,11 +474,13 @@ services:
         condition: service_healthy
       milvus:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     networks:
       - ai-assistant-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "uv", "run", "python", "-c", "import requests; requests.get('http://localhost:8001/', timeout=5)"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "-O-", "http://localhost:8001/"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -682,7 +488,7 @@ services:
     command: ["uv", "run", "chainlit", "run", "chainlit_app.py", "--host", "0.0.0.0", "--port", "8001"]
     profiles:
       - dev
-      - firecrawl
+      - production
     labels:
       # Development Traefik routing for Chainlit
       - "traefik.enable=true"
@@ -695,16 +501,6 @@ services:
       - "traefik.http.services.chainlit.loadbalancer.sticky.cookie=true"
       - "traefik.http.services.chainlit.loadbalancer.sticky.cookie.name=chainlit-session"
 
-  # Development tools
-  debug-tools:
-    image: python:3.12.3-slim
-    container_name: ai-assistant-debug-tools
-    volumes:
-      - .:/app
-    working_dir: /app
-    command: tail -f /dev/null  # Keep container running
-    profiles:
-      - dev
 
   # Redis Commander for Redis GUI
   redis-commander:
@@ -737,68 +533,16 @@ services:
   # Optional Services (can be enabled with any profile)
   # =============================================================================
 
-  # MongoDB for multi-writer system
-  mongodb:
-    image: mongo:7.0
-    container_name: ai-assistant-mongodb
-    restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: password123
-      MONGO_INITDB_DATABASE: multi_writer_system
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongodb_data:/data/db
-      - ./config/mongodb/init-mongo.js:/docker-entrypoint-initdb.d/init-mongo.js:ro
-    networks:
-      - ai-assistant-network
-    healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    profiles:
-      - mongodb
-
-  # MongoDB Express (optional web UI)
-  mongo-express:
-    image: mongo-express:1.0.0
-    container_name: ai-assistant-mongo-express
-    restart: unless-stopped
-    environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
-      ME_CONFIG_MONGODB_ADMINPASSWORD: password123
-      ME_CONFIG_MONGODB_URL: mongodb://admin:password123@mongodb:27017/
-      ME_CONFIG_BASICAUTH_USERNAME: admin
-      ME_CONFIG_BASICAUTH_PASSWORD: admin123
-    ports:
-      - "8082:8081"
-    depends_on:
-      mongodb:
-        condition: service_healthy
-    networks:
-      - ai-assistant-network
-    healthcheck:
-      test: ["CMD-SHELL", "netstat -tlnp | grep :8081"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    profiles:
-      - mongodb
-
-  # PostgreSQL for future use
   postgres:
     image: postgres:15-alpine
     container_name: ai-assistant-postgres
     environment:
-      - POSTGRES_DB=langchain_agent_hub
+      - POSTGRES_DB=ai_assistant
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=password
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./config/postgres/init-supabase.sql:/docker-entrypoint-initdb.d/init-supabase.sql:ro
     networks:
       - ai-assistant-network
     restart: unless-stopped
@@ -807,10 +551,10 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    labels:
-      - "traefik.enable=false"  # Internal service only
     profiles:
-      - postgres
+      - dev        # Available in dev
+      - production # Available in production
+
 
   # Prometheus for monitoring
   prometheus:
@@ -819,7 +563,6 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./config/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -836,7 +579,8 @@ services:
       retries: 3
       start_period: 30s
     profiles:
-      - monitoring
+      - production
+      - dev
 
   # Grafana for visualization
   grafana:
@@ -861,4 +605,5 @@ services:
       retries: 3
       start_period: 30s
     profiles:
-      - monitoring
+      - production
+      - dev
