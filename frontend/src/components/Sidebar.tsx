@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageCircle, Plus, Search, Trash, PanelLeft, SquarePen } from 'lucide-react';
+import { Search, Trash, PanelLeft, SquarePen } from 'lucide-react';
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
@@ -22,6 +22,7 @@ interface SidebarProps {
   onDeleteChat: (chatId: string) => void;
   isCollapsed: boolean;
   onToggleCollapse: () => void;
+  isOffScreen: boolean;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -32,6 +33,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onDeleteChat,
   isCollapsed,
   onToggleCollapse,
+  isOffScreen,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -57,26 +59,26 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <div className={`fixed top-0 left-0 h-screen bg-gray-50 dark:bg-gray-900 transition-all duration-300 z-40 ${
+    <div className={`fixed top-0 left-0 h-screen bg-gray-50 dark:bg-gray-900 transition-all duration-300 ease-in-out z-40 transform ${
       isCollapsed ? 'w-12' : 'w-80'
-    }`}>
+    } ${isOffScreen ? '-translate-x-full' : 'translate-x-0'}`}>
       {/* Header */}
-      <div className="flex items-center p-4">
+      <div className={`flex p-4 ${isCollapsed ? 'flex-col gap-2' : 'items-center'}`}>
         <button
           onClick={onToggleCollapse}
-          className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-400 -ml-1"
+          className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-400 -ml-2"
         >
           <PanelLeft className="h-5 w-5" />
         </button>
-        {!isCollapsed && (
-          <button
-            onClick={onNewChat}
-            className="flex items-center gap-2 px-3 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors ml-2"
-          >
-            <SquarePen className="h-5 w-5" />
-            <span>New Chat</span>
-          </button>
-        )}
+        <button
+          onClick={onNewChat}
+          className={`p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-400 ${
+            isCollapsed ? '-ml-1' : 'flex items-center gap-2 px-3 py-2 ml-2'
+          }`}
+        >
+          <SquarePen className="h-5 w-5 -ml-1" />
+          {!isCollapsed && <span>New Chat</span>}
+        </button>
       </div>
 
       {!isCollapsed && (

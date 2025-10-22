@@ -16,6 +16,7 @@ import AddProviderModal from './components/AddProviderModal';
 import { useChat } from './hooks/useChat';
 import { useModels } from './hooks/useModels';
 import { useBackendConnection } from './hooks/useBackendConnection';
+import { useConversations } from './hooks/useConversations';
 import type { ChatMessage, Model, Agent } from './services/api';
 import { showToast } from './lib/toast';
 
@@ -48,6 +49,7 @@ const SimpleHeader = ({
   onSelectModel,
   models,
   isLoadingModels,
+  onAddProvider,
   selectedAgents,
   onSelectAgents,
   agents,
@@ -60,6 +62,7 @@ const SimpleHeader = ({
   onSelectModel: (model: string) => void;
   models: Model[];
   isLoadingModels: boolean;
+  onAddProvider: () => void;
   selectedAgents: string[];
   onSelectAgents: (agents: string[]) => void;
   agents: Agent[];
@@ -112,7 +115,7 @@ const SimpleHeader = ({
         {currentView === 'chat' && (
           <>
             <Select value={selectedModel} onValueChange={onSelectModel} disabled={isLoadingModels}>
-              <SelectTrigger className="w-48 md:w-40 sm:w-36">
+              <SelectTrigger className="w-48 md:w-40 sm:w-36 border border-input bg-background hover:bg-accent hover:text-accent-foreground text-foreground">
                 <Plug className="h-5 w-5 mr-2" />
                 <SelectValue placeholder={isLoadingModels ? 'Loading...' : 'Select a model'} className="hidden md:inline" />
               </SelectTrigger>
@@ -122,6 +125,10 @@ const SimpleHeader = ({
                     {model.id} {model.supports_tools && '🔧'}
                   </SelectItem>
                 ))}
+                <SelectItem value="add-model-action">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Model
+                </SelectItem>
               </SelectContent>
             </Select>
             
@@ -359,14 +366,41 @@ const App: React.FC = () => {
   const [maxTokens, setMaxTokens] = useState(0);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [currentView, setCurrentView] = useState<'chat' | 'agents'>('chat');
+  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
+  const [isSidebarOffScreen, setIsSidebarOffScreen] = useState(false);
+
+  // Handle sidebar animation state based on currentView
+  useEffect(() => {
+    if (currentView === 'agents') {
+      // Start closing animation
+      setIsSidebarOffScreen(true);
+      const timer = setTimeout(() => {
+        setIsSidebarVisible(false);
+      }, 300); // Match the CSS transition duration
+      return () => clearTimeout(timer);
+    } else if (currentView === 'chat') {
+      // Start opening animation
+      if (!isSidebarVisible) {
+        setIsSidebarVisible(true);
+        setIsSidebarOffScreen(true); // Start off-screen
+        const timer = setTimeout(() => {
+          setIsSidebarOffScreen(false); // Animate on-screen
+        }, 20); // Small delay to ensure render
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [currentView]); // Only depend on currentView
   
   // Use the hooks for state management
   const modelsState = useModels();
+  const conversationsState = useConversations();
+  
   const chatState = useChat({
     model: modelsState.selectedModel || undefined,
     agentName: modelsState.selectedAgent || undefined,
     temperature,
     maxTokens,
+    conversationId: conversationsState.currentConversation?.id,
   });
   
   // Use the backend connection hook
@@ -393,28 +427,84 @@ const App: React.FC = () => {
 
   return (
     <div className="h-screen bg-background flex">
-      <div className={`transition-all duration-300 ease-in-out ${
-        currentView === 'agents' ? '-translate-x-full' : 'translate-x-0'
-      }`}>
-        <Sidebar
-          chatHistory={[]}
-          currentChatId={null}
-          onNewChat={() => {}}
-          onSelectChat={() => {}}
-          onDeleteChat={() => {}}
-          isCollapsed={isSidebarCollapsed}
-          onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-        />
-      </div>
+      <Sidebar
+        chatHistory={conversationsState.conversations.map(conv => ({
+          id: conv.id,
+          title: conv.title || 'Untitled Conversation',
+          lastMessage: conv.message_count && conv.message_count > 0
+            ? 'Click to view messages'
+            : 'No messages yet',
+          timestamp: new Date(conv.updated_at),
+          messages: conversationsState.currentConversation?.id === conv.id
+            ? conversationsState.currentConversation.messages.map(msg => ({
+                role: msg.role,
+                content: msg.content,
+              }))
+            : []
+        }))}
+        currentChatId={conversationsState.currentConversation?.id || null}
+        onNewChat={async () => {
+          try {
+            const newConversation = await conversationsState.createConversation(
+              undefined,
+              modelsState.selectedModel || undefined,
+              modelsState.selectedAgent || undefined
+            );
+            // Clear the current chat state
+            chatState.clearChat();
+            chatState.setConversationId(newConversation.id);
+          } catch (error) {
+            console.error('Failed to create new conversation:', error);
+          }
+        }}
+        onSelectChat={async (chatId) => {
+          try {
+            await conversationsState.loadConversation(chatId);
+            // Update the chat state with the conversation messages
+            if (conversationsState.currentConversation) {
+              const messages = conversationsState.currentConversation.messages.map(msg => ({
+                role: msg.role,
+                content: msg.content,
+              }));
+              chatState.setMessages(messages);
+              chatState.setConversationId(chatId);
+            }
+          } catch (error) {
+            console.error('Failed to load conversation:', error);
+          }
+        }}
+        onDeleteChat={async (chatId) => {
+          try {
+            await conversationsState.deleteConversation(chatId);
+            // If the deleted conversation was the current one, clear the chat state
+            if (conversationsState.currentConversation?.id === chatId) {
+              chatState.clearChat();
+              conversationsState.clearCurrentConversation();
+            }
+          } catch (error) {
+            console.error('Failed to delete conversation:', error);
+          }
+        }}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        isOffScreen={isSidebarOffScreen}
+      />
       
       <div className={`flex-1 flex flex-col transition-all duration-300 ${
         isSidebarCollapsed ? 'ml-12' : currentView === 'agents' ? 'ml-0' : 'ml-80'
       }`}>
         <SimpleHeader
           selectedModel={modelsState.selectedModel || ''}
-          onSelectModel={(model) => modelsState.selectModel(modelsState.selectedProvider || '', model)}
+          onSelectModel={(model) => {
+            if (model === 'add-model-action') {
+              setIsAddProviderOpen(true);
+            } else {
+              modelsState.selectModel(modelsState.selectedProvider || '', model);
+            }
+          }}
           models={modelsState.models}
           isLoadingModels={modelsState.isLoading}
+          onAddProvider={() => setIsAddProviderOpen(true)}
           selectedAgents={modelsState.selectedAgent ? [modelsState.selectedAgent] : []}
           onSelectAgents={() => {}} // Placeholder for now
           agents={modelsState.agents}

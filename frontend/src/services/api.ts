@@ -49,6 +49,47 @@ export interface ChatResponse {
     error?: string;
     metadata?: Record<string, any>;
   }>;
+  conversation_id?: string;
+}
+
+// Conversation types
+export interface Conversation {
+  id: string;
+  title?: string;
+  user_id?: string;
+  model_id?: string;
+  agent_name?: string;
+  metadata: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+  message_count?: number;
+}
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  metadata: Record<string, any>;
+  created_at: string;
+}
+
+export interface ConversationWithMessages extends Conversation {
+  messages: Message[];
+}
+
+export interface ConversationCreate {
+  title?: string;
+  model_id?: string;
+  agent_name?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface MessageCreate {
+  conversation_id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  metadata?: Record<string, any>;
 }
 
 export interface Model {
@@ -200,6 +241,53 @@ export const apiService = {
   // Add provider
   async addProvider(request: AddProviderRequest): Promise<AddProviderResponse> {
     const response = await api.post('/v1/providers', request);
+    return response.data;
+  },
+
+  // Conversation management endpoints
+  
+  // Create a new conversation
+  async createConversation(request: ConversationCreate): Promise<Conversation> {
+    const response = await api.post('/api/v1/conversations', request);
+    return response.data;
+  },
+
+  // List conversations
+  async listConversations(limit = 50, offset = 0): Promise<Conversation[]> {
+    const response = await api.get('/api/v1/conversations', {
+      params: { limit, offset }
+    });
+    return response.data;
+  },
+
+  // Get a conversation with all its messages
+  async getConversation(conversationId: string): Promise<ConversationWithMessages> {
+    const response = await api.get(`/api/v1/conversations/${conversationId}`);
+    return response.data;
+  },
+
+  // Add a message to a conversation
+  async addMessage(request: MessageCreate): Promise<Message> {
+    const response = await api.post(`/api/v1/conversations/${request.conversation_id}/messages`, request);
+    return response.data;
+  },
+
+  // Delete a conversation
+  async deleteConversation(conversationId: string): Promise<{ message: string }> {
+    const response = await api.delete(`/api/v1/conversations/${conversationId}`);
+    return response.data;
+  },
+
+  // Update conversation metadata
+  async updateConversation(
+    conversationId: string,
+    title?: string,
+    metadata?: Record<string, any>
+  ): Promise<Conversation> {
+    const response = await api.put(`/api/v1/conversations/${conversationId}`, {
+      title,
+      metadata
+    });
     return response.data;
   },
 };

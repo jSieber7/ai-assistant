@@ -6,6 +6,7 @@ import json
 import asyncio
 import uuid
 import logging
+from datetime import datetime
 
 # Import directly from the config module to avoid circular imports
 from app.core.config import get_llm, settings, initialize_llm_providers
@@ -40,6 +41,7 @@ class ChatResponse(BaseModel):
     choices: List[dict]
     agent_name: Optional[str] = None  # Indicate which agent was used
     tool_results: Optional[List[dict]] = None  # If tools were used
+    conversation_id: Optional[str] = None  # Include conversation ID in response
 
 
 # Pydantic models for the add provider endpoint
@@ -79,17 +81,24 @@ async def list_models():
         # Convert to OpenAI-compatible format
         model_data = []
         for model in models:
+            model_id = model.name
+            # For OpenRouter and OpenAI-compatible providers, don't prefix with provider type
+            if model.provider.value not in ["openrouter", "openai_compatible"]:
+                model_id = f"{model.provider.value}:{model.name}"
+            
+            # Get the provider name to use for owned_by field
+            provider_name = model.provider.value
+            for provider in provider_registry.list_providers():
+                if provider.provider_type == model.provider:
+                    provider_name = provider.name
+                    break
+            
             model_data.append(
                 {
-                    "id": (
-                        f"{model.provider.value}:{model.name}"
-                        if model.provider.value
-                        not in ["openrouter", "openai_compatible"]
-                        else model.name
-                    ),
+                    "id": model_id,
                     "object": "model",
                     "created": 1677610602,
-                    "owned_by": model.provider.value,
+                    "owned_by": provider_name,
                     "permission": [],
                     "root": model.name,
                     "parent": None,
@@ -121,7 +130,6 @@ async def list_models():
             ],
         }
 
-
 @router.post("/v1/chat/completions")
 async def chat_completions(request: ChatRequest):
     """OpenAI Compatible API compatible chat endpoint with agent system integration"""
@@ -132,6 +140,9 @@ async def chat_completions(request: ChatRequest):
             request.agent_name is not None or settings.default_agent is not None
         )
 
+        # Get conversation ID or create new one
+        conversation_id = request.conversation_id
+        
         if use_agent_system:
             # Use agent system for processing
             user_messages = [msg for msg in request.messages if msg.role == "user"]
@@ -141,14 +152,77 @@ async def chat_completions(request: ChatRequest):
                 )
 
             last_user_message = user_messages[-1].content
+            
+            # Create conversation if needed
+            if not conversation_id:
+                from app.api.conversation_routes import get_postgresql_client, ConversationCreate
+                db_client = await get_postgresql_client()
+                
+                # Create a new conversation
+                async with db_client.pool.acquire() as conn:
+                    result = await conn.fetchrow(
+                        """
+                        INSERT INTO agent_memory.chat_conversations
+                        (title, model_id, agent_name, metadata)
+                        VALUES ($1, $2, $3, $4)
+                        RETURNING id
+                        """,
+                        f"New Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                        request.model,
+                        request.agent_name,
+                        request.context or {}
+                    )
+                    conversation_id = str(result["id"])
+            
+            # Save user message to database
+            from app.api.conversation_routes import get_postgresql_client
+            db_client = await get_postgresql_client()
+            async with db_client.pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO agent_memory.chat_messages
+                    (conversation_id, role, content, metadata)
+                    VALUES ($1, $2, $3, $4)
+                    """,
+                    conversation_id,
+                    "user",
+                    last_user_message,
+                    request.context or {}
+                )
+                
+                # Update conversation's updated_at
+                await conn.execute(
+                    "UPDATE agent_memory.chat_conversations SET updated_at = NOW() WHERE id = $1",
+                    conversation_id
+                )
 
             # Process message with agent system
             result = await agent_registry.process_message(
                 message=last_user_message,
                 agent_name=request.agent_name,
-                conversation_id=request.conversation_id,
+                conversation_id=conversation_id,
                 context=request.context or {},
             )
+            
+            # Save assistant response to database
+            async with db_client.pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO agent_memory.chat_messages
+                    (conversation_id, role, content, metadata)
+                    VALUES ($1, $2, $3, $4)
+                    """,
+                    conversation_id,
+                    "assistant",
+                    result.response,
+                    {"agent_name": result.agent_name, "tool_results": [tr.dict() for tr in result.tool_results] if result.tool_results else []}
+                )
+                
+                # Update conversation's updated_at
+                await conn.execute(
+                    "UPDATE agent_memory.chat_conversations SET updated_at = NOW() WHERE id = $1",
+                    conversation_id
+                )
 
             # Format tool results for response
             tool_results = None
@@ -180,18 +254,63 @@ async def chat_completions(request: ChatRequest):
                 ],
                 agent_name=result.agent_name,
                 tool_results=tool_results,
+                conversation_id=conversation_id,
             )
         else:
             # Use direct LLM approach (original behavior)
             # Convert messages to LangChain format
             langchain_messages: List[Union[HumanMessage, AIMessage, SystemMessage]] = []
+            user_message = None
+            
             for msg in request.messages:
                 if msg.role == "user":
                     langchain_messages.append(HumanMessage(content=msg.content))
+                    user_message = msg.content
                 elif msg.role == "assistant":
                     langchain_messages.append(AIMessage(content=msg.content))
                 elif msg.role == "system":
                     langchain_messages.append(SystemMessage(content=msg.content))
+
+            # Create conversation if needed
+            if not conversation_id and user_message:
+                from app.api.conversation_routes import get_postgresql_client
+                db_client = await get_postgresql_client()
+                
+                # Create a new conversation
+                async with db_client.pool.acquire() as conn:
+                    result = await conn.fetchrow(
+                        """
+                        INSERT INTO agent_memory.chat_conversations
+                        (title, model_id, agent_name, metadata)
+                        VALUES ($1, $2, $3, $4)
+                        RETURNING id
+                        """,
+                        f"New Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                        request.model,
+                        None,
+                        request.context or {}
+                    )
+                    conversation_id = str(result["id"])
+                
+                # Save user message to database
+                async with db_client.pool.acquire() as conn:
+                    await conn.execute(
+                        """
+                        INSERT INTO agent_memory.chat_messages
+                        (conversation_id, role, content, metadata)
+                        VALUES ($1, $2, $3, $4)
+                        """,
+                        conversation_id,
+                        "user",
+                        user_message,
+                        request.context or {}
+                    )
+                    
+                    # Update conversation's updated_at
+                    await conn.execute(
+                        "UPDATE agent_memory.chat_conversations SET updated_at = NOW() WHERE id = $1",
+                        conversation_id
+                    )
 
             # Get LLM and generate response
             llm = await get_llm(
@@ -207,6 +326,29 @@ async def chat_completions(request: ChatRequest):
                 )
             else:
                 response = await llm.ainvoke(langchain_messages)
+                
+                # Save assistant response to database if we have a conversation
+                if conversation_id:
+                    from app.api.conversation_routes import get_postgresql_client
+                    db_client = await get_postgresql_client()
+                    async with db_client.pool.acquire() as conn:
+                        await conn.execute(
+                            """
+                            INSERT INTO agent_memory.chat_messages
+                            (conversation_id, role, content, metadata)
+                            VALUES ($1, $2, $3, $4)
+                            """,
+                            conversation_id,
+                            "assistant",
+                            response.content,
+                            {"model": request.model}
+                        )
+                        
+                        # Update conversation's updated_at
+                        await conn.execute(
+                            "UPDATE agent_memory.chat_conversations SET updated_at = NOW() WHERE id = $1",
+                            conversation_id
+                        )
 
                 return ChatResponse(
                     id=f"chatcmpl-{uuid.uuid4()}",
@@ -221,6 +363,7 @@ async def chat_completions(request: ChatRequest):
                             "finish_reason": "stop",
                         }
                     ],
+                    conversation_id=conversation_id,
                 )
 
     except HTTPException:

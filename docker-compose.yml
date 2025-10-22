@@ -81,6 +81,7 @@ services:
     profiles:
       - production
       - dev
+      - firecrawl
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.firecrawl.rule=PathPrefix(`/firecrawl`)"

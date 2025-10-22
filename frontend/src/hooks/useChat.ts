@@ -14,6 +14,7 @@ export interface UseChatOptions {
   model?: string;
   temperature?: number;
   maxTokens?: number;
+  conversationId?: string;
   onMessage?: (message: ChatMessage) => void;
 }
 
@@ -22,7 +23,7 @@ export const useChat = (options: UseChatOptions = {}) => {
     messages: [],
     isLoading: false,
     error: null,
-    conversationId: null,
+    conversationId: options.conversationId || null,
   });
 
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -46,7 +47,7 @@ export const useChat = (options: UseChatOptions = {}) => {
         temperature: options.temperature,
         max_tokens: options.maxTokens,
         agent_name: options.agentName,
-        conversation_id: chatState.conversationId,
+        conversation_id: chatState.conversationId || options.conversationId,
       };
 
       // Create abort controller for this request

@@ -524,7 +524,87 @@ def initialize_llm_providers():
                 openai_provider = openrouter_provider
         except Exception as e:
             logger.error(f"Failed to initialize OpenRouter provider: {str(e)}", exc_info=True)
-    else:
+    
+    # Check for dynamically added providers from secure settings
+    try:
+        llm_providers_config = secure_settings.get_category("llm_providers", {})
+        
+        # Initialize OpenAI-compatible provider from secure settings
+        if "openai_compatible" in llm_providers_config:
+            config = llm_providers_config["openai_compatible"]
+            if config.get("enabled", True) and config.get("api_key"):
+                try:
+                    api_key = config["api_key"]
+                    base_url = config.get("base_url", "https://openrouter.ai/api/v1")
+                    provider_name = config.get("provider_name")
+                    
+                    # Check if this is an OpenRouter provider based on the URL
+                    if "openrouter.ai" in base_url:
+                        openrouter_provider = OpenRouterProvider(
+                            api_key=api_key,
+                            base_url=base_url,
+                        )
+                        provider_registry.register_provider(openrouter_provider)
+                        logger.info(f"OpenRouter provider initialized from secure settings: {openrouter_provider.name}")
+                        openai_provider = openrouter_provider
+                    elif not openai_provider:  # Avoid duplicate if already initialized
+                        openai_provider = OpenAICompatibleProvider(
+                            api_key=api_key,
+                            base_url=base_url,
+                            provider_name=provider_name,
+                        )
+                        provider_registry.register_provider(openai_provider)
+                        logger.info(f"OpenAI-compatible provider initialized from secure settings: {openai_provider.name}")
+                except Exception as e:
+                    logger.error(f"Failed to initialize OpenAI-compatible provider from secure settings: {str(e)}", exc_info=True)
+        
+        # Initialize Ollama provider from secure settings
+        if "ollama" in llm_providers_config:
+            config = llm_providers_config["ollama"]
+            if config.get("enabled", True):
+                try:
+                    base_url = config.get("base_url", "http://localhost:11434")
+                    
+                    # Adjust base URL for Docker environment if needed
+                    if "localhost" in base_url:
+                        # Check if we're running in Docker
+                        if os.path.exists("/.dockerenv"):
+                            # We're in Docker, need to use host.docker.internal
+                            base_url = base_url.replace("localhost", "172.18.0.1")
+                            logger.info(f"Adjusted Ollama base URL for Docker: {base_url}")
+                        elif os.getenv("ENVIRONMENT") == "production":
+                            # In Docker production, localhost won't work
+                            logger.warning("Ollama base URL uses localhost which won't work in Docker production")
+                            logger.info("Consider using host.docker.internal or running Ollama in Docker")
+                    
+                    ollama_provider = OllamaProvider(base_url=base_url)
+                    provider_registry.register_provider(ollama_provider)
+                    logger.info(f"Ollama provider initialized from secure settings at {base_url}")
+                except Exception as e:
+                    logger.error(f"Failed to initialize Ollama provider from secure settings: {str(e)}", exc_info=True)
+        
+        # Initialize Llama.cpp provider from secure settings
+        if "llama.cpp" in llm_providers_config:
+            config = llm_providers_config["llama.cpp"]
+            if config.get("enabled", True):
+                try:
+                    base_url = config.get("base_url", "http://localhost:8080")
+                    
+                    # Llama.cpp doesn't have a dedicated provider class, so we'll use OpenAI-compatible
+                    llama_provider = OpenAICompatibleProvider(
+                        api_key="llama.cpp",  # Llama.cpp doesn't use API keys
+                        base_url=base_url,
+                        provider_name="Llama.cpp",
+                    )
+                    provider_registry.register_provider(llama_provider)
+                    logger.info(f"Llama.cpp provider initialized from secure settings at {base_url}")
+                except Exception as e:
+                    logger.error(f"Failed to initialize Llama.cpp provider from secure settings: {str(e)}", exc_info=True)
+                    
+    except Exception as e:
+        logger.error(f"Failed to load providers from secure settings: {str(e)}", exc_info=True)
+    
+    if not provider_registry.list_providers():
         logger.info("No API keys configured - app will start with mock LLM for testing")
 
     # Initialize Ollama provider if enabled
@@ -532,10 +612,16 @@ def initialize_llm_providers():
         try:
             # Adjust base URL for Docker environment if needed
             base_url = settings.ollama_settings.base_url
-            if "localhost" in base_url and os.getenv("ENVIRONMENT") == "production":
-                # In Docker production, localhost won't work
-                logger.warning("Ollama base URL uses localhost which won't work in Docker production")
-                logger.info("Consider using host.docker.internal or running Ollama in Docker")
+            if "localhost" in base_url:
+                # Check if we're running in Docker
+                if os.path.exists("/.dockerenv"):
+                    # We're in Docker, need to use host.docker.internal
+                    base_url = base_url.replace("localhost", "172.18.0.1")
+                    logger.info(f"Adjusted Ollama base URL for Docker: {base_url}")
+                elif os.getenv("ENVIRONMENT") == "production":
+                    # In Docker production, localhost won't work
+                    logger.warning("Ollama base URL uses localhost which won't work in Docker production")
+                    logger.info("Consider using host.docker.internal or running Ollama in Docker")
             
             ollama_provider = OllamaProvider(base_url=base_url)
             provider_registry.register_provider(ollama_provider)
@@ -839,6 +925,48 @@ def initialize_agent_system():
         agent_registry.set_default_agent(tool_agent.name)
 
         logger.info("Agent system initialized successfully")
+        return agent_registry
+    except Exception as e:
+        logger.error(f"Failed to initialize agent system: {str(e)}")
+        logger.warning("Agent system will be disabled until properly configured")
+        return None
+
+
+async def initialize_agent_system_async():
+    """Async version of initialize_agent_system for contexts where async is available"""
+    from .agents.management.registry import agent_registry
+    from .agents.specialized.tool_agent import ToolAgent
+    from .agents.utilities.strategies import KeywordStrategy
+    from .tools.execution.registry import tool_registry
+
+    if not settings.agent_system_enabled:
+        logger.info("Agent system disabled in settings")
+        return None
+
+    # Initialize LLM providers first
+    initialize_llm_providers()
+
+    # Get LLM asynchronously
+    try:
+        llm = await get_llm()
+    except Exception as e:
+        logger.error(f"Failed to get LLM for agent system: {str(e)}")
+        logger.warning("Agent system will be disabled until properly configured")
+        return None
+
+    try:
+        tool_agent = ToolAgent(
+            tool_registry=tool_registry,
+            llm=llm,
+            selection_strategy=KeywordStrategy(),
+            max_iterations=settings.max_agent_iterations,
+        )
+
+        # Register the agent
+        agent_registry.register(tool_agent, category="default")
+        agent_registry.set_default_agent(tool_agent.name)
+
+        logger.info("Agent system initialized successfully (async)")
         return agent_registry
     except Exception as e:
         logger.error(f"Failed to initialize agent system: {str(e)}")

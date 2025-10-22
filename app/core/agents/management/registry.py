@@ -257,10 +257,10 @@ class AgentRegistry:
             },
         }
 
-    def reset_all_agents(self):
+    async def reset_all_agents(self):
         """Reset all registered agents"""
         for agent in self._agents.values():
-            agent.reset()
+            await agent.reset()
         logger.info("Reset all agents")
 
 

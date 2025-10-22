@@ -21,6 +21,7 @@ from .api.routes import router
 from .api.tool_routes import router as tool_router
 from .api.agent_routes import router as agent_router
 from .api.monitoring_routes import router as monitoring_router
+from .api.conversation_routes import router as conversation_router
 from .api import ui_routes
 from app import __version__
 
@@ -65,8 +66,22 @@ except Exception as e:
 # Initialize agent system
 if settings.agent_system_enabled:
     try:
-        initialize_agent_system()
-        print("Agent system initialized successfully")
+        # Try async initialization first
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # We're in an async context, create a task
+                asyncio.create_task(initialize_agent_system_async())
+                print("Agent system initialization scheduled (async)")
+            else:
+                # We're not in an async context, run it
+                loop.run_until_complete(initialize_agent_system_async())
+                print("Agent system initialized successfully (async)")
+        except RuntimeError:
+            # No event loop, fall back to sync initialization
+            initialize_agent_system()
+            print("Agent system initialized successfully (sync)")
     except Exception as e:
         print(f"Warning: Failed to initialize agent system: {str(e)}")
         print("Agent system will be disabled until properly configured")
@@ -130,6 +145,7 @@ app.include_router(router)
 app.include_router(tool_router)
 app.include_router(agent_router)
 app.include_router(monitoring_router)
+app.include_router(conversation_router, prefix="/api/v1", tags=["conversations"])
 app.include_router(ui_routes.router)
 
 # Include multi-writer routes if enabled

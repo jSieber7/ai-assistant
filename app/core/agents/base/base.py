@@ -179,25 +179,54 @@ class BaseAgent(ABC):
         """
         pass
 
-    def start_conversation(self) -> str:
+    async def start_conversation(
+        self,
+        title: Optional[str] = None,
+        model_id: Optional[str] = None,
+        metadata: Dict[str, Any] = None
+    ) -> str:
         """Start a new conversation and return conversation ID"""
-        self._current_conversation_id = str(uuid.uuid4())
+        from app.core.agents.conversation_manager import ConversationManager
+        
+        # Create conversation in database
+        self._current_conversation_id = await ConversationManager.create_conversation(
+            title=title,
+            model_id=model_id,
+            agent_name=self.name,
+            metadata=metadata or {}
+        )
+        
+        # Reset in-memory history
         self._conversation_history = []
         return self._current_conversation_id
 
-    def get_conversation_history(self, conversation_id: str) -> List[Dict[str, Any]]:
+    async def get_conversation_history(self, conversation_id: str) -> List[Dict[str, Any]]:
         """Get conversation history for a specific conversation"""
+        from app.core.agents.conversation_manager import ConversationManager
+        
         if conversation_id != self._current_conversation_id:
+            # Load conversation from database
+            conversation = await ConversationManager.get_conversation(conversation_id)
+            if conversation:
+                return conversation.get("messages", [])
             return []
+        
+        # Return in-memory history if it's the current conversation
         return self._conversation_history.copy()
 
-    def add_to_conversation(
-        self, role: str, content: str, metadata: Dict[str, Any] = None
+    async def add_to_conversation(
+        self,
+        role: str,
+        content: str,
+        metadata: Dict[str, Any] = None
     ):
         """Add a message to the current conversation"""
+        from app.core.agents.conversation_manager import ConversationManager
+        
         if not self._current_conversation_id:
-            self.start_conversation()
+            await self.start_conversation()
 
+        # Add to in-memory history
         message = {
             "role": role,
             "content": content,
@@ -205,6 +234,14 @@ class BaseAgent(ABC):
             "metadata": metadata or {},
         }
         self._conversation_history.append(message)
+        
+        # Save to database
+        await ConversationManager.add_message(
+            conversation_id=self._current_conversation_id,
+            role=role,
+            content=content,
+            metadata=metadata or {}
+        )
 
     async def execute_tool(self, tool_name: str, **kwargs) -> ToolResult:
         """Execute a tool with proper state management"""
@@ -249,7 +286,7 @@ class BaseAgent(ABC):
             "conversation_history_length": len(self._conversation_history),
         }
 
-    def reset(self):
+    async def reset(self):
         """Reset agent state and clear conversation history"""
         self.state = AgentState.IDLE
         self._conversation_history = []

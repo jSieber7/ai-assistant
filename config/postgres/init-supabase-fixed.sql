@@ -92,7 +92,29 @@ CREATE TABLE IF NOT EXISTS firecrawl.crawls (
   metadata JSONB DEFAULT '{}'::jsonb
 );
 
--- Agent memory table for conversation history
+-- Chat conversations table for managing conversation sessions
+CREATE TABLE IF NOT EXISTS agent_memory.chat_conversations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title TEXT,
+  user_id TEXT, -- Optional user ID for multi-user support
+  model_id TEXT, -- The model used for this conversation
+  agent_name TEXT, -- The agent used for this conversation
+  metadata JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Chat messages table for storing individual messages
+CREATE TABLE IF NOT EXISTS agent_memory.chat_messages (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  conversation_id UUID NOT NULL REFERENCES agent_memory.chat_conversations(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+  content TEXT NOT NULL,
+  metadata JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Keep the old conversations table for backward compatibility
 CREATE TABLE IF NOT EXISTS agent_memory.conversations (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   session_id TEXT NOT NULL,
@@ -117,6 +139,15 @@ CREATE INDEX IF NOT EXISTS crawls_status_idx ON firecrawl.crawls(status);
 CREATE INDEX IF NOT EXISTS conversations_session_idx ON agent_memory.conversations(session_id);
 CREATE INDEX IF NOT EXISTS conversations_created_idx ON agent_memory.conversations(created_at);
 CREATE INDEX IF NOT EXISTS settings_key_idx ON app_data.settings(key);
+
+-- Indexes for chat conversations
+CREATE INDEX IF NOT EXISTS chat_conversations_user_id_idx ON agent_memory.chat_conversations(user_id);
+CREATE INDEX IF NOT EXISTS chat_conversations_created_at_idx ON agent_memory.chat_conversations(created_at);
+CREATE INDEX IF NOT EXISTS chat_conversations_updated_at_idx ON agent_memory.chat_conversations(updated_at);
+
+-- Indexes for chat messages
+CREATE INDEX IF NOT EXISTS chat_messages_conversation_id_idx ON agent_memory.chat_messages(conversation_id);
+CREATE INDEX IF NOT EXISTS chat_messages_created_at_idx ON agent_memory.chat_messages(created_at);
 
 -- Multi-writer workflow table
 CREATE TABLE IF NOT EXISTS multi_writer.workflows (
