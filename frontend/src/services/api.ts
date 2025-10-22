@@ -15,6 +15,15 @@ const api = axios.create({
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
+  agent_name?: string;
+  tool_results?: Array<{
+    tool_name: string;
+    success: boolean;
+    execution_time: number;
+    data: any;
+    error?: string;
+    metadata?: Record<string, any>;
+  }>;
 }
 
 export interface ChatRequest {

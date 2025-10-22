@@ -11,7 +11,7 @@ x-common-service: &common-service
       soft: 65535
       hard: 65535
   networks:
-    - backend
+    - ai_assistant_ai-assistant-network
   extra_hosts:
     - "host.docker.internal:host-gateway"
 
@@ -58,7 +58,7 @@ services:
       PROXY_PASSWORD: ${PROXY_PASSWORD}
       BLOCK_MEDIA: ${BLOCK_MEDIA}
     networks:
-      - backend
+      - ai_assistant_ai-assistant-network
 
   api:
     <<: *common-service
@@ -84,7 +84,7 @@ services:
     # image: valkey/valkey:alpine
 
     networks:
-      - backend
+      - ai_assistant_ai-assistant-network
     command: redis-server --bind 0.0.0.0
   
   nuq-postgres:
@@ -95,10 +95,10 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
     networks:
-      - backend
+      - ai_assistant_ai-assistant-network
     ports:
-      - "5432:5432"
+      - "5433:5432"
 
 networks:
-  backend:
-    driver: bridge
+  ai_assistant_ai-assistant-network:
+    external: true

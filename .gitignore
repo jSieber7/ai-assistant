@@ -135,4 +135,4 @@ secure_settings.enc
 # Error documentation files
 docker_errors.md
 frontend/MIGRATION_GUIDE.md
-.gitignore
+notebooks

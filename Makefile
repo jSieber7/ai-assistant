@@ -45,7 +45,7 @@ PYTEST_UNIT_OPTIONS := --cov=app --cov-report=html:$(COVERAGE_DIR) --cov-report=
 # Default Target
 # =============================================================================
 
-.PHONY: help install dev test lint format clean production production-down production-logs firecrawl firecrawl-down firecrawl-logs health-check docs shutdown-everything nuke quality-check ci-test test-results-dir
+.PHONY: help install dev test lint format clean production production-down production-logs firecrawl firecrawl-down firecrawl-logs health-check docs shutdown-everything nuke quality-check ci-test test-results-dir dev-jupyter
 
 .DEFAULT_GOAL := help
 
@@ -65,7 +65,8 @@ help: ## Show this help message
 	@echo ""
 	@echo "Development:"
 	@echo "  dev              Run development server"
-	@echo "  dev-docker       Run development with Docker"
+	@echo "  dev-docker       Run development with Docker (includes all tool dockers)"
+	@echo "  dev-jupyter      Start Jupyter notebook for interactive development"
 	@echo ""
 	@echo "Testing:"
 	@echo "  test             Run all tests"
@@ -135,9 +136,17 @@ dev: ## Run development server
 	@echo "Starting development server..."
 	uv run uvicorn app.main:app --host 0.0.0.0 --port $(APP_PORT) --reload
 
-dev-docker: ## Run development with Docker
-	@echo "Starting development environment with Docker..."
+dev-docker: ## Run development with Docker (includes all tool dockers)
+	@echo "Starting development environment with Docker and all tools..."
+	@echo "Starting main development services..."
 	$(DOCKER_COMPOSE) --env-file .env --profile $(DEV_PROFILE) up -d
+	@echo "Starting Firecrawl services..."
+	$(DOCKER_COMPOSE) -f docker-compose.firecrawl.yml --env-file .env.firecrawl up -d
+	@echo "Waiting for services to be ready..."
+	@sleep 10
+	@echo "Development environment with all tools is ready!"
+	@echo "App: http://localhost:$(APP_PORT)"
+	@echo "Firecrawl API: http://localhost:3002"
 
 dev-quick: ## Quick development setup (install + start services)
 	@echo "Quick development setup..."
@@ -661,3 +670,37 @@ profile: ## Run application with profiling
 	uv run python -m cProfile -o profile.stats -m uvicorn app.main:app --host 0.0.0.0 --port $(APP_PORT) --reload
 	@echo "Profile saved to profile.stats"
 	@echo "View with: python -m pstats profile.stats"
+
+# =============================================================================
+# Jupyter Development
+# =============================================================================
+
+dev-jupyter: ## Start Jupyter notebook for interactive development
+	@echo "Starting Jupyter notebook for interactive development..."
+	@echo "Checking if development environment is running..."
+	@if ! $(DOCKER_COMPOSE) ps --filter "name=ai-assistant-dev" --format "table {{.Names}}" | grep -q "ai-assistant-dev"; then \
+		echo "Development environment not running. Starting it first..."; \
+		$(DOCKER_COMPOSE) --env-file .env --profile $(DEV_PROFILE) up -d; \
+		echo "Waiting for services to be ready..."; \
+		sleep 10; \
+	fi
+	@echo "Stopping any existing Jupyter instances..."
+	@$(DOCKER_COMPOSE) exec ai-assistant-dev pkill -f jupyter || echo "No existing Jupyter instances found"
+	@echo "Starting Jupyter notebook in development container..."
+	@$(DOCKER_COMPOSE) exec -d ai-assistant-dev uv run jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root
+	@echo "Waiting for Jupyter to start..."
+	@sleep 5
+	@echo "Getting Jupyter access token..."
+	@$(eval TOKEN := $(shell $(DOCKER_COMPOSE) exec ai-assistant-dev uv run jupyter notebook list | grep ":8888/" | grep -o 'token=[a-zA-Z0-9]*' | cut -d'=' -f2))
+	@echo "Jupyter is ready!"
+	@echo "Access it at: http://localhost:8888/?token=$(TOKEN)"
+	@echo "To get the token again, run: docker exec ai-assistant-dev uv run jupyter notebook list"
+	@echo "To stop Jupyter, run: docker exec ai-assistant-dev pkill -f jupyter"
+
+jupyter-logs: ## Show Jupyter logs
+	@echo "Showing Jupyter logs..."
+	$(DOCKER_COMPOSE) logs -f ai-assistant-dev | grep jupyter || $(DOCKER_COMPOSE) logs -f ai-assistant-dev
+
+jupyter-stop: ## Stop Jupyter notebook
+	@echo "Stopping Jupyter notebook..."
+	$(DOCKER_COMPOSE) exec ai-assistant-dev pkill -f jupyter || echo "Jupyter not running"

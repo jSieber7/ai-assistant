@@ -122,7 +122,7 @@ services:
       - playwright-service
       - nuq-postgres
     ports:
-      - "${PORT:-3002}:${INTERNAL_PORT:-3002}"
+      - "3002:${INTERNAL_PORT:-3002}"
     command: node dist/src/harness.js --start-docker
     restart: unless-stopped
     healthcheck:

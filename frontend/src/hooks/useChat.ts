@@ -65,6 +65,8 @@ export const useChat = (options: UseChatOptions = {}) => {
       const assistantMessage: ChatMessage = {
         role: 'assistant',
         content: response.choices[0]?.message?.content || '',
+        agent_name: response.agent_name,
+        tool_results: response.tool_results,
       };
 
       // Update state with assistant response

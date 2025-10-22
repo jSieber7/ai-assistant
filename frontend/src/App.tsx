@@ -14,6 +14,7 @@ import SettingsModal from './components/SettingsModal';
 import AgentManager from './components/AgentManager';
 import AddProviderModal from './components/AddProviderModal';
 import ToolAnalysis from './components/ToolAnalysis';
+import AgentToolInfo from './components/AgentToolInfo';
 import { useChat } from './hooks/useChat';
 import { useModels } from './hooks/useModels';
 import { useBackendConnection } from './hooks/useBackendConnection';
@@ -253,6 +254,7 @@ const SimpleMessageArea = ({
                 }`}>
                   <CardContent className="p-3">
                     <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+                    {msg.role === 'assistant' && <AgentToolInfo message={msg} />}
                   </CardContent>
                 </Card>
                 {msg.role === 'user' && (
