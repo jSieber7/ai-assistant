@@ -57,23 +57,23 @@ const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <div className={`fixed top-0 left-0 h-screen bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 z-40 ${
+    <div className={`fixed top-0 left-0 h-screen bg-gray-50 dark:bg-gray-900 transition-all duration-300 z-40 ${
       isCollapsed ? 'w-12' : 'w-80'
     }`}>
       {/* Header */}
       <div className="flex items-center p-4">
         <button
           onClick={onToggleCollapse}
-          className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-400"
+          className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-400 -ml-1"
         >
-          <PanelLeft className="h-4 w-4" />
+          <PanelLeft className="h-5 w-5" />
         </button>
         {!isCollapsed && (
           <button
             onClick={onNewChat}
             className="flex items-center gap-2 px-3 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors ml-2"
           >
-            <SquarePen className="h-4 w-4" />
+            <SquarePen className="h-5 w-5" />
             <span>New Chat</span>
           </button>
         )}
@@ -84,7 +84,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           {/* Search */}
           <div className="p-4">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
                 type="text"
                 placeholder="Search chats..."
@@ -132,7 +132,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         }}
                         className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-100 dark:hover:bg-red-900 transition-all"
                       >
-                        <Trash className="h-4 w-4 text-red-500" />
+                        <Trash className="h-5 w-5 text-red-500" />
                       </button>
                     </div>
                   </div>

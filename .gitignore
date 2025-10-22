@@ -130,6 +130,7 @@ TODO-*.md
 
 .chainlit/
 .files/
+secure_settings.enc
 
 # Error documentation files
 docker_errors.md

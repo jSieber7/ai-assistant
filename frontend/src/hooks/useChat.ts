@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { apiService, ChatMessage, ChatRequest } from '../services/api';
+import { apiService } from '../services/api';
+import type { ChatMessage, ChatRequest } from '../services/api';
 
 export interface ChatState {
   messages: ChatMessage[];

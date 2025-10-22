@@ -2,7 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { ChatMessage } from '../services/api';
+import type { ChatMessage } from '../services/api';
 import { UserCircle, Cpu } from 'lucide-react';
 
 interface MessageAreaProps {

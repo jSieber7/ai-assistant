@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // API base URL - adjust this to match your backend
-const API_BASE_URL = 'http://localhost:8000';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 // Create axios instance
 const api = axios.create({
@@ -99,6 +99,21 @@ export interface AgentsResponse {
   total_count: number;
 }
 
+export interface AddProviderRequest {
+  name: string;
+  type: string;
+  api_key?: string;
+  api_base?: string;
+  model_list?: string[];
+  [key: string]: any; // Allow additional provider-specific fields
+}
+
+export interface AddProviderResponse {
+  success: boolean;
+  message: string;
+  provider?: Provider;
+}
+
 // API functions
 export const apiService = {
   // Health check
@@ -143,6 +158,30 @@ export const apiService = {
     return response.data;
   },
 
+  // Activate agent
+  async activateAgent(agentName: string): Promise<any> {
+    const response = await api.post(`/api/v1/agents/${agentName}/activate`);
+    return response.data;
+  },
+
+  // Deactivate agent
+  async deactivateAgent(agentName: string): Promise<any> {
+    const response = await api.post(`/api/v1/agents/${agentName}/deactivate`);
+    return response.data;
+  },
+
+  // Set default agent
+  async setDefaultAgent(agentName: string): Promise<any> {
+    const response = await api.post(`/api/v1/agents/${agentName}/set-default`);
+    return response.data;
+  },
+
+  // Get registry info
+  async getRegistryInfo(): Promise<any> {
+    const response = await api.get('/api/v1/agents/registry/info');
+    return response.data;
+  },
+
   // Get UI state
   async getUIState(): Promise<any> {
     const response = await api.get('/api/ui/state');
@@ -155,6 +194,12 @@ export const apiService = {
       provider,
       model,
     });
+    return response.data;
+  },
+
+  // Add provider
+  async addProvider(request: AddProviderRequest): Promise<AddProviderResponse> {
+    const response = await api.post('/v1/providers', request);
     return response.data;
   },
 };

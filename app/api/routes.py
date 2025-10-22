@@ -1,14 +1,18 @@
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, validator, ConfigDict
 from typing import List, Optional, Union, Dict, Any
 from langchain.schema import AIMessage, HumanMessage, SystemMessage
 import json
 import asyncio
 import uuid
+import logging
 
 # Import directly from the config module to avoid circular imports
-from app.core.config import get_llm, settings
+from app.core.config import get_llm, settings, initialize_llm_providers
 from ..core.agents.management.registry import agent_registry
+from ..core.secure_settings import secure_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -36,6 +40,32 @@ class ChatResponse(BaseModel):
     choices: List[dict]
     agent_name: Optional[str] = None  # Indicate which agent was used
     tool_results: Optional[List[dict]] = None  # If tools were used
+
+
+# Pydantic models for the add provider endpoint
+class AddProviderRequest(BaseModel):
+    model_config = ConfigDict(extra='allow')
+    
+    name: str
+    type: str
+    api_key: Optional[str] = None
+    api_base: Optional[str] = None
+    is_default: Optional[bool] = False
+    model_list: Optional[List[str]] = None
+
+    @validator('api_key')
+    def validate_api_key(cls, v, values):
+        # API key is required for non-local providers
+        provider_type = values.get('type', '').lower()
+        local_providers = ['ollama', 'llama.cpp']
+        if provider_type not in local_providers and not v:
+            raise ValueError('API key is required for this provider type')
+        return v
+
+class AddProviderResponse(BaseModel):
+    success: bool
+    message: str
+    provider: Optional[Dict[str, Any]] = None
 
 
 @router.get("/v1/models")
@@ -442,3 +472,70 @@ async def health_check_providers():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/v1/providers", response_model=AddProviderResponse)
+async def add_provider(request: AddProviderRequest):
+    """
+    Add or update a model provider configuration.
+    This endpoint securely stores the provider details, including API keys,
+    using the SecureSettingsManager and then re-initializes the LLM providers.
+    """
+    provider_type = request.type.lower()
+    provider_name = request.name
+
+    # Map frontend provider types to backend configuration keys
+    # For now, we support a generic 'openai_compatible' and 'ollama'
+    backend_config_key = "openai_compatible"
+    if provider_type in ["ollama", "llama.cpp"]:
+        backend_config_key = provider_type
+
+    # Prepare the configuration dictionary for secure storage
+    provider_config = {
+        "enabled": True,
+        "api_key": request.api_key,
+        "base_url": request.api_base,
+        "provider_name": provider_name, # Store the user-friendly name
+        "timeout": 30,
+        "max_retries": 3,
+        # Add default model if provided
+        "default_model": request.model_list[0] if request.model_list else None,
+    }
+
+    # For Ollama, the API key is not used
+    if backend_config_key in ["ollama", "llama.cpp"]:
+        provider_config["api_key"] = None
+
+    try:
+        # Update the configuration in secure storage
+        # This will overwrite any existing configuration for this provider type
+        secure_settings.set_category("llm_providers", {backend_config_key: provider_config})
+        logger.info(f"Successfully updated configuration for provider type: {backend_config_key}")
+
+        # Re-initialize LLM providers to pick up the new configuration
+        initialize_llm_providers()
+        logger.info("LLM providers re-initialized after adding new provider.")
+
+        # If this is set as the default provider, update the main settings
+        if request.is_default:
+            secure_settings.set_setting("system_config", "preferred_provider", backend_config_key)
+            logger.info(f"Set {backend_config_key} as the preferred provider.")
+
+        return AddProviderResponse(
+            success=True,
+            message=f"Provider '{provider_name}' added successfully. Please refresh the provider list.",
+            provider={
+                "name": provider_name,
+                "type": provider_type,
+                "configured": True,
+                "healthy": True, # Assume healthy until a health check is run
+                "default": request.is_default or False
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to add provider '{provider_name}': {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"An internal error occurred while saving the provider configuration: {str(e)}"
+        )

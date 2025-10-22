@@ -703,7 +703,7 @@ def _create_mock_llm(model_name: str, **kwargs):
         
         def __init__(self, model_name: str = "mock", **kwargs):
             super().__init__(**kwargs)
-            self.model_name = model_name
+            self._model_name = model_name
         
         def _generate(
             self,
@@ -736,7 +736,12 @@ def _create_mock_llm(model_name: str, **kwargs):
         @property
         def model(self) -> str:
             """Return the model name for compatibility"""
-            return self.model_name
+            return self._model_name
+            
+        @property
+        def model_name(self) -> str:
+            """Return the model name for compatibility"""
+            return self._model_name
     
     return MockLLM(model_name, **kwargs)
 

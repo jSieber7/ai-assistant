@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Settings, ChevronDown, Sun, Moon } from 'lucide-react';
-import { Model, Provider, Agent } from '../services/api';
+import type { Model, Provider, Agent } from '../services/api';
 
 interface HeaderProps {
   selectedModel: string | null;
