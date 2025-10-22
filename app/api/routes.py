@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, validator, ConfigDict
 from typing import List, Optional, Union, Dict, Any
-from langchain.schema import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 import json
 import asyncio
 import uuid
@@ -12,6 +12,7 @@ from datetime import datetime
 from app.core.config import get_llm, settings, initialize_llm_providers
 from ..core.agents.management.registry import agent_registry
 from ..core.secure_settings import secure_settings
+from ..core.deep_agents import deep_agent_manager
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,9 @@ async def chat_completions(request: ChatRequest):
     """OpenAI Compatible API compatible chat endpoint with agent system integration"""
 
     try:
+        # Check if deep agents should be used
+        use_deep_agents = settings.deep_agents_enabled
+        
         # Check if agent system should be used
         use_agent_system = settings.agent_system_enabled and (
             request.agent_name is not None or settings.default_agent is not None
@@ -143,7 +147,106 @@ async def chat_completions(request: ChatRequest):
         # Get conversation ID or create new one
         conversation_id = request.conversation_id
         
-        if use_agent_system:
+        if use_deep_agents:
+            # Use deep agents system for processing
+            user_messages = [msg for msg in request.messages if msg.role == "user"]
+            if not user_messages:
+                raise HTTPException(
+                    status_code=400, detail="No user messages found in request"
+                )
+
+            last_user_message = user_messages[-1].content
+            
+            # Create conversation if needed
+            if not conversation_id:
+                from app.api.conversation_routes import get_postgresql_client, ConversationCreate
+                db_client = await get_postgresql_client()
+                
+                # Create a new conversation
+                async with db_client.pool.acquire() as conn:
+                    result = await conn.fetchrow(
+                        """
+                        INSERT INTO agent_memory.chat_conversations
+                        (title, model_id, agent_name, metadata)
+                        VALUES ($1, $2, $3, $4)
+                        RETURNING id
+                        """,
+                        f"New Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                        request.model,
+                        "deep-agent",
+                        request.context or {}
+                    )
+                    conversation_id = str(result["id"])
+            
+            # Save user message to database
+            from app.api.conversation_routes import get_postgresql_client
+            db_client = await get_postgresql_client()
+            async with db_client.pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO agent_memory.chat_messages
+                    (conversation_id, role, content, metadata)
+                    VALUES ($1, $2, $3, $4)
+                    """,
+                    conversation_id,
+                    "user",
+                    last_user_message,
+                    request.context or {}
+                )
+                
+                # Update conversation's updated_at
+                await conn.execute(
+                    "UPDATE agent_memory.chat_conversations SET updated_at = NOW() WHERE id = $1",
+                    conversation_id
+                )
+
+            # Process message with deep agent system
+            try:
+                agent_response = await deep_agent_manager.invoke(
+                    message=last_user_message,
+                    conversation_id=conversation_id,
+                )
+            except Exception as e:
+                logger.error(f"Deep agent processing failed: {str(e)}")
+                raise HTTPException(status_code=500, detail=f"Deep agent processing failed: {str(e)}")
+            
+            # Save assistant response to database
+            async with db_client.pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    INSERT INTO agent_memory.chat_messages
+                    (conversation_id, role, content, metadata)
+                    VALUES ($1, $2, $3, $4)
+                    """,
+                    conversation_id,
+                    "assistant",
+                    agent_response,
+                    {"agent_name": "deep-agent", "system": "deepagents"}
+                )
+                
+                # Update conversation's updated_at
+                await conn.execute(
+                    "UPDATE agent_memory.chat_conversations SET updated_at = NOW() WHERE id = $1",
+                    conversation_id
+                )
+
+            # Generate response ID
+            response_id = f"chatcmpl-{uuid.uuid4()}"
+
+            return ChatResponse(
+                id=response_id,
+                model=request.model or "deep-agent",
+                choices=[
+                    {
+                        "index": 0,
+                        "message": {"role": "assistant", "content": agent_response},
+                        "finish_reason": "stop",
+                    }
+                ],
+                agent_name="deep-agent",
+                conversation_id=conversation_id,
+            )
+        elif use_agent_system:
             # Use agent system for processing
             user_messages = [msg for msg in request.messages if msg.role == "user"]
             if not user_messages:

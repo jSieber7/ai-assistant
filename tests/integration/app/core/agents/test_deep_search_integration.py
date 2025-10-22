@@ -41,7 +41,7 @@ async def test_deep_search_full_workflow():
 
     # Get embeddings
     try:
-        from langchain.embeddings import OpenAIEmbeddings
+        from langchain_openai import OpenAIEmbeddings
 
         embeddings = OpenAIEmbeddings()
     except Exception as e:
@@ -79,7 +79,7 @@ async def test_milvus_connection():
     pytest.importorskip("pymilvus")
 
     from app.core.storage.milvus_client import MilvusClient
-    from langchain.embeddings import OpenAIEmbeddings
+    from langchain_openai import OpenAIEmbeddings
 
     # Skip if no API key
     if not settings.openai_settings.api_key:
@@ -98,7 +98,7 @@ async def test_milvus_connection():
         assert collection_name.startswith("deep_search_")
 
         # Test document ingestion
-        from langchain.docstore.document import Document
+        from langchain_core.documents import Document
 
         documents = [
             Document(
@@ -229,7 +229,7 @@ async def test_deep_search_with_real_query():
     tool_registry = ToolRegistry()
     llm = await get_llm()
 
-    from langchain.embeddings import OpenAIEmbeddings
+    from langchain_openai import OpenAIEmbeddings
 
     embeddings = OpenAIEmbeddings()
 
@@ -267,7 +267,7 @@ async def test_deep_search_error_handling():
     if not settings.openai_settings.api_key:
         pytest.skip("OpenAI API key not configured")
 
-    from langchain.embeddings import OpenAIEmbeddings
+    from langchain_openai import OpenAIEmbeddings
 
     embeddings = OpenAIEmbeddings()
 

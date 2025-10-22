@@ -4,7 +4,7 @@ import json
 from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
 from app.main import app
-from langchain.schema import AIMessage
+from langchain_core.messages import AIMessage
 
 
 @pytest.fixture(scope="session")

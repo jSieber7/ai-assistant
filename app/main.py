@@ -86,6 +86,31 @@ if settings.agent_system_enabled:
         print(f"Warning: Failed to initialize agent system: {str(e)}")
         print("Agent system will be disabled until properly configured")
 
+# Initialize Deep Agents system
+if settings.deep_agents_enabled:
+    try:
+        from .core.deep_agents import deep_agent_manager
+        # Try async initialization first
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # We're in an async context, create a task
+                asyncio.create_task(deep_agent_manager.initialize())
+                print("Deep Agents system initialization scheduled (async)")
+            else:
+                # We're not in an async context, run it
+                loop.run_until_complete(deep_agent_manager.initialize())
+                print("Deep Agents system initialized successfully (async)")
+        except RuntimeError:
+            # No event loop, this should not happen in FastAPI startup
+            # but we handle it gracefully
+            print("Warning: Deep Agents requires an async context to initialize.")
+            print("Deep Agents system will be disabled until properly configured")
+    except Exception as e:
+        print(f"Warning: Failed to initialize Deep Agents system: {str(e)}")
+        print("Deep Agents system will be disabled until properly configured")
+
 # Initialize Firecrawl system
 if settings.firecrawl_settings.enabled:
     try:

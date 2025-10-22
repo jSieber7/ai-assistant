@@ -7,8 +7,8 @@ This service handles the initial query processing phase:
 
 import logging
 from typing import Dict, Any, Optional
-from langchain.prompts import ChatPromptTemplate
-from langchain.chat_models.base import BaseChatModel
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.language_models.chat_models import BaseChatModel
 
 logger = logging.getLogger(__name__)
 

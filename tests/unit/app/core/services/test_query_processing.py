@@ -4,7 +4,7 @@ Unit tests for Query Processing Service.
 
 import pytest
 from unittest.mock import Mock, AsyncMock
-from langchain.chat_models.base import BaseChatModel
+from langchain_core.language_models.chat_models import BaseChatModel
 
 from app.core.services.query_processing import QueryProcessingService
 

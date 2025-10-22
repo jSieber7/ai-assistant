@@ -8,8 +8,8 @@ with advanced features like comprehensive data extraction and processing.
 import json
 import logging
 from typing import Dict, Any, List, Optional
-from langchain.schema import HumanMessage, SystemMessage
-from langchain.chat_models.base import BaseChatModel
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.language_models.chat_models import BaseChatModel
 
 from app.core.agents.base.base import BaseAgent, AgentResult
 from app.core.tools.execution.registry import tool_registry

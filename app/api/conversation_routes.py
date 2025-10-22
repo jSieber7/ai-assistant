@@ -37,7 +37,7 @@ class ConversationResponse(BaseModel):
 
 class MessageCreate(BaseModel):
     conversation_id: str
-    role: str = Field(..., regex="^(user|assistant|system)$")
+    role: str = Field(..., pattern="^(user|assistant|system)$")
     content: str
     metadata: Optional[Dict[str, Any]] = {}
 
@@ -269,6 +269,16 @@ async def delete_conversation(
             
             if "DELETE 1" not in result:
                 raise HTTPException(status_code=500, detail="Failed to delete conversation")
+            
+            # Clear state from DeepAgentManager if it's enabled
+            from app.core.config import settings
+            if settings.deep_agents_enabled:
+                try:
+                    from app.core.deep_agents import deep_agent_manager
+                    deep_agent_manager.clear_conversation_state(conversation_id)
+                except Exception as e:
+                    # Log error but don't fail the request
+                    logger.warning(f"Failed to clear deep agent state for conversation {conversation_id}: {str(e)}")
             
             return {"message": "Conversation deleted successfully"}
     except HTTPException:

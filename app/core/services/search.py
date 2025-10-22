@@ -9,7 +9,7 @@ import asyncio
 import logging
 import time
 from typing import Dict, Any, List, Optional
-from langchain.docstore.document import Document
+from langchain_core.documents import Document
 
 from ..tools.execution.registry import ToolRegistry
 from ..tools.execution.dynamic_executor import DynamicToolExecutor, TaskRequest, TaskType

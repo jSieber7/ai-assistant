@@ -20,8 +20,8 @@ from pymilvus import (
     DataType,
     utility,
 )
-from langchain.embeddings.base import Embeddings
-from langchain.docstore.document import Document
+from langchain_core.embeddings import Embeddings
+from langchain_core.documents import Document
 from langchain.vectorstores import Milvus as LangChainMilvus
 
 from ..config import settings

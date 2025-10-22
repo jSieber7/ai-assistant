@@ -59,8 +59,8 @@ RUN uv run playwright install-deps
 # Make the startup script executable
 RUN chmod +x utility/startup_dev.py
 
-# Expose the application port.
-EXPOSE 8000
+# Expose the application and Jupyter ports.
+EXPOSE 8000 8888
 
 # Run the startup script first, then the application with Uvicorn and hot-reloading for development.
 # This command correctly finds app.main located at /app/app/main.py

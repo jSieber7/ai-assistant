@@ -6,9 +6,22 @@ work seamlessly with LangChain agents and tools.
 """
 
 from typing import List, Dict, Any
-from langchain.schema import BaseOutputParser
-from langchain.agents import AgentExecutor
-from langchain.agents.agent_toolkits.base import BaseToolkit
+from langchain_core.output_parsers import BaseOutputParser
+
+# Handle AgentExecutor import with fallback for different LangChain versions
+AgentExecutor = None
+try:
+    from langchain.agents import AgentExecutor
+except ImportError:
+    try:
+        from langchain_core.agents import AgentExecutor
+    except ImportError:
+        # AgentExecutor not available in this version of LangChain
+        import warnings
+        warnings.warn("AgentExecutor is not available in the current LangChain version. Some features may be limited.")
+        AgentExecutor = None
+
+from langchain_core.tools import BaseToolkit
 from langchain_core.tools import BaseTool as LangChainCoreTool
 
 from app.core.tools.base.base import BaseTool
@@ -88,7 +101,7 @@ class ToolOutputParser(BaseOutputParser):
         return "tool_output_parser"
 
 
-def create_agent_with_tools(llm, registry: ToolRegistry = None) -> AgentExecutor:
+def create_agent_with_tools(llm, registry: ToolRegistry = None):
     """
     Create a LangChain agent that can use our tool system
 
@@ -97,10 +110,10 @@ def create_agent_with_tools(llm, registry: ToolRegistry = None) -> AgentExecutor
         registry: Tool registry (uses default if None)
 
     Returns:
-        AgentExecutor configured with our tools
+        Agent configured with our tools
     """
-    from langchain.agents import create_tool_calling_agent, AgentExecutor
-    from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+    # LangChain 1.0 compatibility - use new agent creation pattern
+    from langchain.agents import create_agent
 
     registry = registry or get_tool_registry()
     toolkit = LangChainToolkit(registry)
@@ -109,39 +122,26 @@ def create_agent_with_tools(llm, registry: ToolRegistry = None) -> AgentExecutor
     if not tools:
         logger.warning("No tools available for agent creation")
         # Return a simple agent without tools
-        from langchain.agents import create_openai_functions_agent
+        system_prompt = "You are a helpful AI assistant."
+        agent = create_agent(model=llm, tools=[], system_prompt=system_prompt, debug=True)
+        return agent
 
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                ("system", "You are a helpful AI assistant."),
-                ("user", "{input}"),
-            ]
-        )
-        agent = create_openai_functions_agent(llm, [], prompt)
-        return AgentExecutor(agent=agent, tools=[], verbose=True)
-
-    # Create tool-calling agent
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                """You are a helpful AI assistant with access to tools.
+    # Create agent with tools
+    tool_names = ", ".join([tool.name for tool in tools])
+    system_prompt = f"""You are a helpful AI assistant with access to tools.
         Use the available tools when appropriate to help answer questions.
         
         Available tools: {tool_names}
         
-        When using tools, be precise with your inputs and provide clear reasoning.""",
-            ),
-            ("human", "{input}"),
-            MessagesPlaceholder(variable_name="agent_scratchpad"),
-        ]
+        When using tools, be precise with your inputs and provide clear reasoning."""
+
+    agent = create_agent(
+        model=llm,
+        tools=tools,
+        system_prompt=system_prompt,
+        debug=True
     )
-
-    tool_names = ", ".join([tool.name for tool in tools])
-    prompt = prompt.partial(tool_names=tool_names)
-
-    agent = create_tool_calling_agent(llm, tools, prompt)
-    return AgentExecutor(agent=agent, tools=tools, verbose=True)
+    return agent
 
 
 def get_tool_descriptions(registry: ToolRegistry = None) -> List[Dict[str, Any]]:

@@ -319,6 +319,9 @@ class Settings(BaseSettings):
     default_agent: Optional[str] = None
     max_agent_iterations: int = 3
     agent_timeout: int = 60
+
+    # Deep Agents system settings
+    deep_agents_enabled: bool = False
     
     # Multi-writer system settings
     multi_writer_enabled: bool = False
@@ -380,6 +383,9 @@ class Settings(BaseSettings):
                 )
                 self.agent_system_enabled = secure_system_config.get(
                     "agent_system_enabled", self.agent_system_enabled
+                )
+                self.deep_agents_enabled = secure_system_config.get(
+                    "deep_agents_enabled", self.deep_agents_enabled
                 )
                 self.multi_writer_enabled = secure_system_config.get(
                     "multi_writer_enabled", self.multi_writer_enabled
@@ -779,8 +785,8 @@ async def get_llm(model_name: Optional[str] = None, **kwargs):
 
 def _create_mock_llm(model_name: str, **kwargs):
     """Create a mock LLM for when no providers are available"""
-    from langchain.schema import AIMessage, HumanMessage
-    from langchain.chat_models.base import BaseChatModel
+    from langchain_core.messages import AIMessage, HumanMessage
+    from langchain_core.language_models.chat_models import BaseChatModel
     from typing import Any, List, Optional
     import asyncio
     
@@ -799,7 +805,7 @@ def _create_mock_llm(model_name: str, **kwargs):
             **kwargs: Any,
         ) -> Any:
             """Generate a mock response"""
-            from langchain.schema import AIMessage
+            from langchain_core.messages import AIMessage
             
             content = f"This is a mock response from {self.model_name}. No LLM providers are configured. Configure API keys to use actual AI models."
             return AIMessage(content=content)

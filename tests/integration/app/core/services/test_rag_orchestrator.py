@@ -4,9 +4,9 @@ Integration tests for RAG Orchestrator.
 
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
-from langchain.chat_models.base import BaseChatModel
-from langchain.embeddings.base import Embeddings
-from langchain.docstore.document import Document
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.embeddings import Embeddings
+from langchain_core.documents import Document
 
 from app.core.services.rag_orchestrator import RAGOrchestrator
 from app.core.services.query_processing import QueryProcessingService

@@ -9,8 +9,8 @@ import pytest
 from unittest.mock import Mock, AsyncMock, patch
 from typing import List, Dict, Any
 
-from langchain.embeddings.base import Embeddings
-from langchain.docstore.document import Document
+from langchain_core.embeddings import Embeddings
+from langchain_core.documents import Document
 
 from app.core.agents.specialized.deep_search_agent import DeepSearchAgent
 from app.core.tools.base.base import ToolResult

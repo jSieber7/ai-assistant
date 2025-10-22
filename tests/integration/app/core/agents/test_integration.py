@@ -308,7 +308,7 @@ class TestRealAPIIntegration:
         """Test actual connection to OpenRouter API."""
         # This test requires a real API key and should be run separately
         from app.core.config import get_llm
-        from langchain.schema import HumanMessage
+        from langchain_core.messages import HumanMessage
 
         llm = get_llm()
         response = llm.invoke([HumanMessage(content="Say hello")])

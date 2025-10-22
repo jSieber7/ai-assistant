@@ -363,22 +363,18 @@ class OllamaProvider(LLMProvider):
 
     async def create_llm(self, model_name: str, **kwargs) -> Any:
         """Create LangChain ChatOllama instance"""
+        # LangChain 1.0 compatibility - use langchain_ollama package
         try:
-            # Try the new langchain_ollama package first
             from langchain_ollama import ChatOllama
         except ImportError:
-            # Fallback to langchain_community
+            # This is the correct fallback for LangChain 1.0
             try:
                 from langchain_community.chat_models import ChatOllama
             except ImportError:
-                # Fallback to older import path
-                try:
-                    from langchain.chat_models import ChatOllama
-                except ImportError:
-                    raise ImportError(
-                        "LangChain Ollama integration not found. "
-                        "Install with: pip install langchain-ollama"
-                    )
+                raise ImportError(
+                    "LangChain Ollama integration not found. "
+                    "Install with: pip install langchain-ollama"
+                )
 
         if not self.is_configured:
             raise ValueError("Ollama provider is not configured with base URL")

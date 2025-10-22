@@ -8,12 +8,12 @@ This service handles the synthesis phase:
 import logging
 import time
 from typing import Dict, Any, List, Optional
-from langchain.chat_models.base import BaseChatModel
-from langchain.prompts import ChatPromptTemplate
+from langchain_core.language_models.chat_models import BaseChatModel
+from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain.chains import create_retrieval_chain
 from langchain_core.retrievers import BaseRetriever
-from langchain.docstore.document import Document
+from langchain_core.documents import Document
 
 logger = logging.getLogger(__name__)
 

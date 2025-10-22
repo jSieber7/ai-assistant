@@ -8,7 +8,7 @@ This service handles the retrieval phase:
 import logging
 import time
 from typing import Dict, Any, List, Optional
-from langchain.docstore.document import Document
+from langchain_core.documents import Document
 
 from ..storage.milvus_client import MilvusClient
 from ..tools.execution.registry import ToolRegistry

@@ -9,9 +9,9 @@ import logging
 import time
 import uuid
 from typing import Dict, Any, List, Optional
-from langchain.embeddings.base import Embeddings
+from langchain_core.embeddings import Embeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.docstore.document import Document
+from langchain_core.documents import Document
 
 from ..storage.milvus_client import MilvusClient
 

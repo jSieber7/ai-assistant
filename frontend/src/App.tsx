@@ -8,11 +8,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { Plus, MessageSquare, Cpu, User, Send, Paperclip, Settings, ChevronDown, Users, Plug, SquarePen, PanelLeft, RefreshCw, Bot } from 'lucide-react';
+import { Plus, MessageSquare, Cpu, User, Send, Paperclip, Settings, ChevronDown, Users, Plug, SquarePen, PanelLeft, RefreshCw, Bot, Wrench } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import SettingsModal from './components/SettingsModal';
 import AgentManager from './components/AgentManager';
 import AddProviderModal from './components/AddProviderModal';
+import ToolAnalysis from './components/ToolAnalysis';
 import { useChat } from './hooks/useChat';
 import { useModels } from './hooks/useModels';
 import { useBackendConnection } from './hooks/useBackendConnection';
@@ -73,8 +74,8 @@ const SimpleHeader = ({
     lastChecked: Date | null;
   };
   onRefreshConnection: () => void;
-  currentView: 'chat' | 'agents';
-  onChangeView: (view: 'chat' | 'agents') => void;
+  currentView: 'chat' | 'agents' | 'tools';
+  onChangeView: (view: 'chat' | 'agents' | 'tools') => void;
 }) => {
   const handleAgentToggle = (agentName: string) => {
     if (selectedAgents.includes(agentName)) {
@@ -110,6 +111,15 @@ const SimpleHeader = ({
         >
           <Bot className="h-5 w-5" />
           <span className="hidden sm:inline">Agents</span>
+        </Button>
+        
+        <Button
+          variant={currentView === 'tools' ? 'default' : 'outline'}
+          onClick={() => onChangeView('tools')}
+          className="flex items-center gap-2"
+        >
+          <Wrench className="h-5 w-5" />
+          <span className="hidden sm:inline">Tools</span>
         </Button>
         
         {currentView === 'chat' && (
@@ -365,13 +375,13 @@ const App: React.FC = () => {
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(0);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [currentView, setCurrentView] = useState<'chat' | 'agents'>('chat');
+  const [currentView, setCurrentView] = useState<'chat' | 'agents' | 'tools'>('chat');
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
   const [isSidebarOffScreen, setIsSidebarOffScreen] = useState(false);
 
   // Handle sidebar animation state based on currentView
   useEffect(() => {
-    if (currentView === 'agents') {
+    if (currentView === 'agents' || currentView === 'tools') {
       // Start closing animation
       setIsSidebarOffScreen(true);
       const timer = setTimeout(() => {
@@ -491,7 +501,7 @@ const App: React.FC = () => {
       />
       
       <div className={`flex-1 flex flex-col transition-all duration-300 ${
-        isSidebarCollapsed ? 'ml-12' : currentView === 'agents' ? 'ml-0' : 'ml-80'
+        isSidebarCollapsed ? 'ml-12' : (currentView === 'agents' || currentView === 'tools') ? 'ml-0' : 'ml-80'
       }`}>
         <SimpleHeader
           selectedModel={modelsState.selectedModel || ''}
@@ -533,6 +543,8 @@ const App: React.FC = () => {
               onSettingsOpen={() => setIsSettingsOpen(true)}
             />
           </>
+        ) : currentView === 'tools' ? (
+          <ToolAnalysis />
         ) : (
           <AgentManager
             agents={modelsState.agents}

@@ -4,7 +4,7 @@ Unit tests for Search Service.
 
 import pytest
 from unittest.mock import Mock, patch
-from langchain.docstore.document import Document
+from langchain_core.documents import Document
 
 from app.core.services.search import SearchService
 from app.core.tools.execution.registry import ToolRegistry

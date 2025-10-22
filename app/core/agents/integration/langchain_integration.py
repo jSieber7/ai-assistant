@@ -7,10 +7,17 @@ vice versa.
 """
 
 from typing import Any, List, Optional
-from langchain.tools import BaseTool as LangChainBaseTool
-from langchain.agents import AgentType, initialize_agent, AgentExecutor
-from langchain.tools.render import render_text_description
+from langchain_core.tools import BaseTool as LangChainBaseTool
+from langchain_community.tools.render import render_text_description
 import logging
+
+# Handle agent creation for LangChain 1.0 compatibility
+try:
+    from langchain.agents import create_agent, AgentExecutor
+except ImportError:
+    # In case AgentExecutor is not available in future versions
+    from langchain.agents import create_agent
+    AgentExecutor = None
 
 from app.core.agents.base.base import BaseAgent
 from app.core.agents.management.registry import agent_registry
@@ -145,26 +152,32 @@ class LangChainAgentExecutor:
         self,
         llm,
         tools: List[LangChainBaseTool] = None,
-        agent_type: AgentType = AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+        agent_type: str = "tool-calling",  # Changed from AgentType enum to string
     ):
         self.llm = llm
         self.tools = tools or []
         self.agent_type = agent_type
-        self.agent_executor: Optional[AgentExecutor] = None
+        self.agent = None
 
     def initialize_agent(self):
-        """Initialize the LangChain agent executor"""
+        """Initialize the LangChain agent"""
         if not self.tools:
             logger.warning("No tools provided for LangChain agent")
             return
 
         try:
-            self.agent_executor = initialize_agent(
+            # Use LangChain 1.0 pattern for agent creation
+            from langchain.agents import create_agent
+            
+            # Create system prompt for the agent
+            system_prompt = "You are a helpful assistant with access to tools. Use the appropriate tool when necessary."
+            
+            # Create agent using the new pattern
+            self.agent = create_agent(
+                model=self.llm,
                 tools=self.tools,
-                llm=self.llm,
-                agent=self.agent_type,
-                verbose=True,
-                handle_parsing_errors=True,
+                system_prompt=system_prompt,
+                debug=True
             )
         except Exception as e:
             logger.error(f"Failed to initialize LangChain agent: {str(e)}")
@@ -172,12 +185,13 @@ class LangChainAgentExecutor:
 
     async def run(self, query: str, **kwargs) -> str:
         """Run the LangChain agent"""
-        if not self.agent_executor:
+        if not self.agent:
             self.initialize_agent()
 
         try:
-            result = await self.agent_executor.arun(input=query, **kwargs)
-            return result
+            # Use the new execution pattern in LangChain 1.0
+            result = await self.agent.ainvoke({"messages": [{"role": "user", "content": query}]})
+            return result.get("messages", [])[-1].get("content", "No output generated")
         except Exception as e:
             logger.error(f"LangChain agent execution failed: {str(e)}")
             return f"Agent execution failed: {str(e)}"
@@ -186,7 +200,7 @@ class LangChainAgentExecutor:
         """Add a tool to the agent"""
         self.tools.append(tool)
         # Reinitialize agent with new tools
-        if self.agent_executor:
+        if self.agent:
             self.initialize_agent()
 
 
@@ -215,7 +229,7 @@ class HybridAgentSystem:
         self.langchain_agent = LangChainAgentExecutor(
             llm=self.llm,
             tools=agent_tools,
-            agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+            agent_type="tool-calling",  # Updated for LangChain 1.0
         )
 
     async def process_message(self, message: str, use_hybrid: bool = True) -> str:

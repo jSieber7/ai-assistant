@@ -155,6 +155,59 @@ export interface AddProviderResponse {
   provider?: Provider;
 }
 
+// Tool-related types
+export interface Tool {
+  name: string;
+  description: string;
+  categories: string[];
+  enabled: boolean;
+}
+
+export interface ToolInfo {
+  name: string;
+  description: string;
+  version: string;
+  author: string;
+  categories: string[];
+  keywords: string[];
+  parameters: Record<string, Record<string, any>>;
+  enabled: boolean;
+  timeout: number;
+}
+
+export interface ToolExecutionRequest {
+  tool_name: string;
+  parameters: Record<string, any>;
+}
+
+export interface ToolExecutionResponse {
+  success: boolean;
+  data: any;
+  error?: string;
+  tool_name: string;
+  execution_time: number;
+  metadata: Record<string, any>;
+}
+
+export interface ToolsListResponse {
+  tools: Tool[];
+  total: number;
+  enabled_only: boolean;
+}
+
+export interface ToolsByCategoryResponse {
+  category: string;
+  tools: Tool[];
+  total: number;
+}
+
+export interface ToolRegistryStats {
+  total_tools: number;
+  enabled_tools: number;
+  disabled_tools: number;
+  categories: Record<string, number>;
+}
+
 // API functions
 export const apiService = {
   // Health check
@@ -288,6 +341,52 @@ export const apiService = {
       title,
       metadata
     });
+    return response.data;
+  },
+
+  // Tool-related endpoints
+  
+  // List all available tools
+  async listTools(enabledOnly = true): Promise<ToolsListResponse> {
+    const response = await api.get('/v1/tools', {
+      params: { enabled_only: enabledOnly }
+    });
+    return response.data;
+  },
+
+  // Get detailed information about a specific tool
+  async getToolInfo(toolName: string): Promise<ToolInfo> {
+    const response = await api.get(`/v1/tools/${toolName}`);
+    return response.data;
+  },
+
+  // Execute a tool with given parameters
+  async executeTool(request: ToolExecutionRequest): Promise<ToolExecutionResponse> {
+    const response = await api.post('/v1/tools/execute', request);
+    return response.data;
+  },
+
+  // Get tool registry statistics
+  async getRegistryStats(): Promise<ToolRegistryStats> {
+    const response = await api.get('/v1/tools/registry/stats');
+    return response.data;
+  },
+
+  // Enable a specific tool
+  async enableTool(toolName: string): Promise<{ status: string; tool: string }> {
+    const response = await api.post(`/v1/tools/${toolName}/enable`);
+    return response.data;
+  },
+
+  // Disable a specific tool
+  async disableTool(toolName: string): Promise<{ status: string; tool: string }> {
+    const response = await api.post(`/v1/tools/${toolName}/disable`);
+    return response.data;
+  },
+
+  // Get all tools in a specific category
+  async getToolsByCategory(category: string): Promise<ToolsByCategoryResponse> {
+    const response = await api.get(`/v1/tools/categories/${category}`);
     return response.data;
   },
 };

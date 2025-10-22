@@ -13,8 +13,8 @@ import logging
 import time
 from typing import Dict, List, Any, Optional
 
-from langchain.embeddings.base import Embeddings
-from langchain.chat_models.base import BaseChatModel
+from langchain_core.embeddings import Embeddings
+from langchain_core.language_models.chat_models import BaseChatModel
 
 from app.core.agents.base.base import BaseAgent, AgentResult, AgentState
 from app.core.tools.execution.registry import ToolRegistry
