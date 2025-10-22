@@ -26,6 +26,31 @@ from chainlit.input_widget import Select, TextInput, Switch, Slider
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# Authentication
+# =============================================================================
+@cl.password_auth_callback
+def auth_callback(username: str, password: str):
+    """
+    Authenticate the user.
+    
+    This is a simple example for demonstration. In production, you should
+    verify the username and password against a secure database.
+    """
+    # Fetch user credentials from environment or a secure store
+    # For this example, we use hardcoded credentials
+    ADMIN_USERNAME = "admin"
+    ADMIN_PASSWORD = "admin"
+    
+    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        return cl.User(
+            identifier=username,
+            metadata={"role": "admin", "provider": "internal"}
+        )
+    else:
+        return None
+
+
 @dataclass
 class DropdownState:
     """State management for the dropdown system"""
@@ -405,11 +430,11 @@ async def on_chat_start():
         is_api_serving=dropdown_state.selected_provider is not None and dropdown_state.selected_model is not None
     )
     
-    # Display the chat history sidebar
-    await display_chat_history_sidebar()
+    # TEMPORARILY DISABLED: Display the chat history sidebar
+    # await display_chat_history_sidebar()
     
-    # Display the sidebar layout adjuster
-    await display_sidebar_layout_adjuster()
+    # TEMPORARILY DISABLED: Display the sidebar layout adjuster
+    # await display_sidebar_layout_adjuster()
     
     # Store settings in session
     cl.user_session.set("dropdown_state", dropdown_state)

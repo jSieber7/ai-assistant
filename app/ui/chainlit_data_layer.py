@@ -90,15 +90,17 @@ class PostgreSQLDataLayer(BaseDataLayer):
                 
                 await conn.execute(
                     """
-                    INSERT INTO chainlit.users (id, identifier, metadata, "createdAt")
-                    VALUES ($1, $2, $3, $4)
+                    INSERT INTO "User" (id, identifier, metadata, "createdAt", "updatedAt")
+                    VALUES ($1, $2, $3, $4, $5)
                     ON CONFLICT (identifier) DO UPDATE SET
-                        metadata = EXCLUDED.metadata
+                        metadata = EXCLUDED.metadata,
+                        "updatedAt" = EXCLUDED."updatedAt"
                     RETURNING id
                     """,
                     user_id,
                     user.identifier,
                     json.dumps(user.metadata or {}),
+                    now,
                     now
                 )
                 
@@ -121,7 +123,7 @@ class PostgreSQLDataLayer(BaseDataLayer):
                 row = await conn.fetchrow(
                     """
                     SELECT id, identifier, metadata, "createdAt"
-                    FROM chainlit.users
+                    FROM "User"
                     WHERE identifier = $1
                     """,
                     identifier
@@ -145,22 +147,25 @@ class PostgreSQLDataLayer(BaseDataLayer):
         
         try:
             async with self.pool.acquire() as conn:
+                now = datetime.now(timezone.utc).isoformat()
+                
                 result = await conn.execute(
                     """
-                    UPDATE chainlit.users
-                    SET metadata = $2
+                    UPDATE "User"
+                    SET metadata = $2, "updatedAt" = $3
                     WHERE identifier = $1
                     RETURNING id, identifier, metadata, "createdAt"
                     """,
                     identifier,
-                    json.dumps(metadata)
+                    json.dumps(metadata),
+                    now
                 )
                 
                 if "UPDATE 1" in result:
                     row = await conn.fetchrow(
                         """
                         SELECT id, identifier, metadata, "createdAt"
-                        FROM chainlit.users
+                        FROM "User"
                         WHERE identifier = $1
                         """,
                         identifier
@@ -184,7 +189,7 @@ class PostgreSQLDataLayer(BaseDataLayer):
         try:
             async with self.pool.acquire() as conn:
                 result = await conn.execute(
-                    "DELETE FROM chainlit.users WHERE identifier = $1",
+                    "DELETE FROM \"User\" WHERE identifier = $1",
                     identifier
                 )
                 return "DELETE 1" in result
@@ -203,7 +208,7 @@ class PostgreSQLDataLayer(BaseDataLayer):
                 
                 await conn.execute(
                     """
-                    INSERT INTO chainlit.threads 
+                    INSERT INTO "Thread" 
                     (id, "createdAt", name, "userId", "userIdentifier", tags, metadata)
                     VALUES ($1, $2, $3, $4, $5, $6, $7)
                     RETURNING id
@@ -239,7 +244,7 @@ class PostgreSQLDataLayer(BaseDataLayer):
                 row = await conn.fetchrow(
                     """
                     SELECT id, "createdAt", name, "userId", "userIdentifier", tags, metadata
-                    FROM chainlit.threads
+                    FROM "Thread"
                     WHERE id = $1
                     """,
                     thread_id
@@ -287,7 +292,7 @@ class PostgreSQLDataLayer(BaseDataLayer):
                 values.append(thread_id)
                 
                 query = f"""
-                    UPDATE chainlit.threads
+                    UPDATE "Thread"
                     SET {', '.join(set_clauses)}
                     WHERE id = ${param_count}
                     RETURNING id, "createdAt", name, "userId", "userIdentifier", tags, metadata
@@ -317,7 +322,7 @@ class PostgreSQLDataLayer(BaseDataLayer):
         try:
             async with self.pool.acquire() as conn:
                 result = await conn.execute(
-                    "DELETE FROM chainlit.threads WHERE id = $1",
+                    "DELETE FROM \"Thread\" WHERE id = $1",
                     thread_id
                 )
                 return "DELETE 1" in result
@@ -335,7 +340,7 @@ class PostgreSQLDataLayer(BaseDataLayer):
                 rows = await conn.fetch(
                     """
                     SELECT id, "createdAt", name, "userId", "userIdentifier", tags, metadata
-                    FROM chainlit.threads
+                    FROM "Thread"
                     WHERE "userIdentifier" = $1
                     ORDER BY "createdAtTimestamp" DESC
                     LIMIT $2 OFFSET $3
@@ -372,10 +377,10 @@ class PostgreSQLDataLayer(BaseDataLayer):
                 
                 await conn.execute(
                     """
-                    INSERT INTO chainlit.steps
+                    INSERT INTO "Step"
                     (id, name, type, "threadId", "parentId", streaming, "waitForAnswer", 
                      "isError", metadata, tags, input, output, "createdAt", command, 
-                     start, "end", generation, "showInput", language, indent, "defaultOpen")
+                     start_time, end_time, generation, "showInput", language, indent, "defaultOpen")
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 
                             $15, $16, $17, $18, $19, $20, $21)
                     RETURNING id
@@ -457,12 +462,12 @@ class PostgreSQLDataLayer(BaseDataLayer):
                 values.append(step_id)
                 
                 query = f"""
-                    UPDATE chainlit.steps
+                    UPDATE "Step"
                     SET {', '.join(set_clauses)}
                     WHERE id = ${param_count}
                     RETURNING id, name, type, "threadId", "parentId", streaming, 
                              "waitForAnswer", "isError", metadata, tags, input, output, 
-                             "createdAt", command, start, "end", generation, 
+                             "createdAt", command, start_time, end_time, generation, 
                              "showInput", language, indent, "defaultOpen"
                 """
                 
@@ -484,8 +489,8 @@ class PostgreSQLDataLayer(BaseDataLayer):
                         output=row["output"],
                         createdAt=row["createdAt"],
                         command=row["command"],
-                        start=row["start"],
-                        end=row["end"],
+                        start=row["start_time"],
+                        end=row["end_time"],
                         generation=row["generation"],
                         showInput=row["showInput"],
                         language=row["language"],
@@ -507,9 +512,9 @@ class PostgreSQLDataLayer(BaseDataLayer):
                     """
                     SELECT id, name, type, "threadId", "parentId", streaming, 
                            "waitForAnswer", "isError", metadata, tags, input, output, 
-                           "createdAt", command, start, "end", generation, 
+                           "createdAt", command, start_time, end_time, generation, 
                            "showInput", language, indent, "defaultOpen"
-                    FROM chainlit.steps
+                    FROM "Step"
                     WHERE id = $1
                     """,
                     step_id
@@ -531,8 +536,8 @@ class PostgreSQLDataLayer(BaseDataLayer):
                         output=row["output"],
                         createdAt=row["createdAt"],
                         command=row["command"],
-                        start=row["start"],
-                        end=row["end"],
+                        start=row["start_time"],
+                        end=row["end_time"],
                         generation=row["generation"],
                         showInput=row["showInput"],
                         language=row["language"],
@@ -551,7 +556,7 @@ class PostgreSQLDataLayer(BaseDataLayer):
         try:
             async with self.pool.acquire() as conn:
                 result = await conn.execute(
-                    "DELETE FROM chainlit.steps WHERE id = $1",
+                    "DELETE FROM \"Step\" WHERE id = $1",
                     step_id
                 )
                 return "DELETE 1" in result
@@ -569,9 +574,9 @@ class PostgreSQLDataLayer(BaseDataLayer):
                     """
                     SELECT id, name, type, "threadId", "parentId", streaming, 
                            "waitForAnswer", "isError", metadata, tags, input, output, 
-                           "createdAt", command, start, "end", generation, 
+                           "createdAt", command, start_time, end_time, generation, 
                            "showInput", language, indent, "defaultOpen"
-                    FROM chainlit.steps
+                    FROM "Step"
                     WHERE "threadId" = $1
                     ORDER BY "createdAtTimestamp" ASC
                     """,
@@ -594,8 +599,8 @@ class PostgreSQLDataLayer(BaseDataLayer):
                         output=row["output"],
                         createdAt=row["createdAt"],
                         command=row["command"],
-                        start=row["start"],
-                        end=row["end"],
+                        start=row["start_time"],
+                        end=row["end_time"],
                         generation=row["generation"],
                         showInput=row["showInput"],
                         language=row["language"],
@@ -927,7 +932,7 @@ class PostgreSQLDataLayer(BaseDataLayer):
                 row = await conn.fetchrow(
                     """
                     SELECT "userIdentifier"
-                    FROM chainlit.threads
+                    FROM "Thread"
                     WHERE id = $1
                     """,
                     thread_id
@@ -960,7 +965,7 @@ class PostgreSQLDataLayer(BaseDataLayer):
         try:
             async with self.pool.acquire() as conn:
                 result = await conn.execute(
-                    "DELETE FROM chainlit.steps WHERE \"threadId\" = $1",
+                    "DELETE FROM \"Step\" WHERE \"threadId\" = $1",
                     thread_id
                 )
                 return True  # We don't check count here as it might be 0
@@ -993,7 +998,7 @@ class PostgreSQLDataLayer(BaseDataLayer):
                 threads = await conn.fetch(
                     """
                     SELECT id, "createdAt", name, "userId", "userIdentifier", tags, metadata
-                    FROM chainlit.threads
+                    FROM "Thread"
                     WHERE "userIdentifier" = $1
                     ORDER BY "createdAtTimestamp" DESC
                     """,
@@ -1007,9 +1012,9 @@ class PostgreSQLDataLayer(BaseDataLayer):
                         """
                         SELECT id, name, type, "threadId", "parentId", streaming, 
                                "waitForAnswer", "isError", metadata, tags, input, output, 
-                               "createdAt", command, start, "end", generation, 
+                               "createdAt", command, start_time, end_time, generation, 
                                "showInput", language, indent, "defaultOpen"
-                        FROM chainlit.steps
+                        FROM "Step"
                         WHERE "threadId" = $1
                         ORDER BY "createdAtTimestamp" ASC
                         """,
@@ -1040,8 +1045,8 @@ class PostgreSQLDataLayer(BaseDataLayer):
                                 output=step["output"],
                                 createdAt=step["createdAt"],
                                 command=step["command"],
-                                start=step["start"],
-                                end=step["end"],
+                                start=step["start_time"],
+                                end=step["end_time"],
                                 generation=step["generation"],
                                 showInput=step["showInput"],
                                 language=step["language"],
