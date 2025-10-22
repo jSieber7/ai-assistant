@@ -13,7 +13,6 @@ docker compose --profile dev up
 
 # Access the application
 # Main API: http://localhost:8000
-# Chainlit UI: http://localhost:8001
 # Health Check: http://localhost:8000/health
 ```
 
@@ -24,7 +23,6 @@ docker compose up
 
 # Access the application
 # Main API: http://localhost:8000
-# Chainlit UI: http://localhost:8001
 # Health Check: http://localhost:8000/health
 ```
 
@@ -174,14 +172,12 @@ The application will automatically detect and use the API key.
 
 ### Development Services
 - `ai-assistant-dev` - Main application (port 8000)
-- `chainlit` - Chat interface (port 8001)
 - `redis` - Caching and sessions
 - `postgres` - Database
 - `searxng` - Search functionality
 
 ### Production Services
 - `ai-assistant` - Main application (port 8000)
-- `chainlit` - Chat interface (port 8001)
 - All supporting services (redis, postgres, searxng, etc.)
 
 ### Health Checks

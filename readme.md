@@ -63,20 +63,10 @@ docker-compose ps
 
 Access the application:
 - AI Assistant API: http://localhost:8000
-- Chainlit Interface: http://localhost:8001 (or http://localhost/chat with Docker)
 - SearXNG Search: http://localhost:8080
 
 For detailed Docker setup, see [Docker Integration Guide](docs/docker-integration.md).
 
-### Option 3: Docker with Chainlit
-
-```bash
-# Development with Chainlit
-make dev-docker-chainlit
-
-# Production with Chainlit
-make prod-chainlit
-```
 
 ### Option 2: Local Development
 
@@ -111,13 +101,8 @@ echo "OPENROUTER_API_KEY=your_key_here" >> .env
 # Start the development server
 uv run uvicorn app.main:app --reload
 
-# Start the Chainlit interface (in another terminal)
-make chainlit
-# or
-uv run chainlit run chainlit_app.py --host 0.0.0.0 --port 8001
-
-# Or run everything with Docker including Chainlit
-make dev-docker-chainlit
+# Start the application
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### Provider Features
@@ -157,7 +142,7 @@ The LLM Tool System Foundation is built on a modular architecture that enables s
 - **🐳 Docker Support**: Complete containerization with docker-compose
 - **🔍 SearXNG Integration**: Privacy-focused web search capabilities
 - **📈 Prometheus Metrics**: Built-in monitoring and alerting
-- **🖥️ Chainlit Interface**: Conversational AI interface for interaction
+- **🖥️ Web Interface**: FastAPI-based REST API with documentation
 
 ## 📚 Documentation
 
@@ -192,13 +177,13 @@ The LLM Tool System Foundation is built on a modular architecture that enables s
 - Environment setup
 - Getting started quickly
 
-### [Chainlit Interface](docs/ui/chainlit-interface.md)
-- Conversational AI interface for interaction
+### Web Interface
+- FastAPI-based REST API with OpenAPI documentation
 - System information and status monitoring
 - Query testing with different models and parameters
 
-### [Chainlit Interface](docs/ui/chainlit-interface.md)
-- Conversational chat interface for interacting with AI
+### Web Interface
+- FastAPI-based REST API with OpenAPI documentation
 - Dynamic provider and model selection
 - Support for adding new providers
 - Command system for configuration and help

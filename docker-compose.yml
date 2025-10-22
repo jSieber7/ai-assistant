@@ -234,7 +234,6 @@ services:
       - BASE_URL=${BASE_URL:-http://localhost}
       - DATABASE_URL=postgresql://postgres:dev-password@supabase-db:5432/postgres
       - MULTI_WRITER_POSTGRESQL_CONNECTION_STRING=postgresql://postgres:dev-password@supabase-db:5432/postgres?options=--search_path%3Dmulti_writer
-      - CHAINLIT_DATABASE_URL=postgresql://postgres:dev-password@supabase-db:5432/postgres
     depends_on:
       redis:
         condition: service_healthy
@@ -393,8 +392,6 @@ services:
       - PORT=8000
       - DATABASE_URL=postgresql://postgres:dev-password@supabase-db:5432/postgres
       - MULTI_WRITER_POSTGRESQL_CONNECTION_STRING=postgresql://postgres:dev-password@supabase-db:5432/postgres?options=--search_path%3Dmulti_writer
-      - CHAINLIT_DATABASE_URL=postgresql://postgres:dev-password@supabase-db:5432/postgres
-      - CHAINLIT_AUTH_SECRET=db0ae3ef3565b0a98fad8dcbdb867334050c6967aa37e7a22a1973364a250ba9
     depends_on:
       redis:
         condition: service_healthy

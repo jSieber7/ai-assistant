@@ -22,7 +22,6 @@ from .api.tool_routes import router as tool_router
 from .api.agent_routes import router as agent_router
 from .api.monitoring_routes import router as monitoring_router
 from .api import ui_routes
-from chainlit.utils import mount_chainlit
 from app import __version__
 
 
@@ -139,14 +138,8 @@ if is_multi_writer_enabled():
 
     app.include_router(multi_writer_router)
 
-# Mount Chainlit as a subapplication
-try:
-    # Mount Chainlit at /chat path
-    mount_chainlit(app=app, target="chainlit_app.py", path="/chat")
-    print("Chainlit app mounted successfully at /chat")
-except Exception as e:
-    print(f"Warning: Failed to mount Chainlit app: {str(e)}")
-    print("Chainlit interface will not be available")
+# Chainlit has been removed from this application
+# A React-based UI will be implemented in the future
 
 @app.get("/")
 async def root():
@@ -159,7 +152,6 @@ async def root():
         "message": "AI Assistant Tool System is running!",
         "version": __version__,
         "status": "ready",
-        "chainlit_interface": f"http://{settings.host}:{settings.port}/chat",
         "tool_system": {
             "enabled": settings.tool_system_enabled,
             "tools_registered": tool_registry_stats["total_tools"],

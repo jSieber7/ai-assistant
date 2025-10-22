@@ -27,7 +27,6 @@ GRAFANA_PORT := 3000
 # Container Names
 APP_CONTAINER := ai-assistant
 APP_DEV_CONTAINER := ai-assistant-dev
-CHAINLIT_CONTAINER := ai-assistant-chainlit
 REDIS_CONTAINER := ai-assistant-redis
 SEARXNG_CONTAINER := ai-assistant-searxng
 FIRECRAWL_CONTAINER := firecrawl
@@ -46,7 +45,7 @@ PYTEST_UNIT_OPTIONS := --cov=app --cov-report=html:$(COVERAGE_DIR) --cov-report=
 # Default Target
 # =============================================================================
 
-.PHONY: help install dev test lint format clean production production-down production-logs firecrawl firecrawl-down firecrawl-logs health-check docs shutdown-everything nuke quality-check ci-test test-results-dir chainlit
+.PHONY: help install dev test lint format clean production production-down production-logs firecrawl firecrawl-down firecrawl-logs health-check docs shutdown-everything nuke quality-check ci-test test-results-dir
 
 .DEFAULT_GOAL := help
 
@@ -66,7 +65,6 @@ help: ## Show this help message
 	@echo ""
 	@echo "Development:"
 	@echo "  dev              Run development server"
-	@echo "  chainlit         Run Chainlit interface"
 	@echo "  dev-docker       Run development with Docker"
 	@echo ""
 	@echo "Testing:"
@@ -137,10 +135,6 @@ dev: ## Run development server
 	@echo "Starting development server..."
 	uv run uvicorn app.main:app --host 0.0.0.0 --port $(APP_PORT) --reload
 
-chainlit: ## Run Chainlit interface
-	@echo "Starting Chainlit interface..."
-	uv run chainlit run chainlit_app.py --host 0.0.0.0 --port $(CHAINLIT_PORT)
-
 dev-docker: ## Run development with Docker
 	@echo "Starting development environment with Docker..."
 	$(DOCKER_COMPOSE) --env-file .env --profile $(DEV_PROFILE) up -d
@@ -151,7 +145,6 @@ dev-quick: ## Quick development setup (install + start services)
 	$(MAKE) dev-docker
 	@echo "Development environment is ready!"
 	@echo "App: http://localhost:$(APP_PORT)"
-	@echo "Chainlit: http://localhost:$(CHAINLIT_PORT)"
 
 # =============================================================================
 # Testing
@@ -478,7 +471,6 @@ status-all: ## Show status of all services
 	@echo ""
 	@echo "Port Usage:"
 	@echo "App: $(APP_PORT)"
-	@echo "Chainlit: $(CHAINLIT_PORT)"
 	@echo "Redis: $(REDIS_PORT)"
 	@echo "SearXNG: $(SEARXNG_PORT)"
 	@echo "Prometheus: $(PROMETHEUS_PORT)"
@@ -567,9 +559,6 @@ production: ## Start production environment
 	@echo "Starting production environment..."
 	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) up -d
 
-production-chainlit: ## Start production environment with Chainlit
-	@echo "Starting production environment with Chainlit..."
-	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) up -d chainlit-prod
 
 production-down: ## Stop production environment
 	@echo "Stopping production environment..."

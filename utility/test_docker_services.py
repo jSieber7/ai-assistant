@@ -150,17 +150,7 @@ class DockerServiceTester:
                 }
                 logger.error(f"❌ Firecrawl Scrape - Error: {str(e)}")
     
-    async def test_chainlit(self):
-        """Test Chainlit service"""
-        logger.info("Testing Chainlit service...")
-        
-        # Test direct connection
-        chainlit_result = await self.test_service("Chainlit", "http://chainlit:8001/", 200)
-        self.results["Chainlit"] = chainlit_result
-        
-        # Test through Traefik
-        traefik_result = await self.test_service("Chainlit via Traefik", "http://traefik-dev:80/chat", 200)
-        self.results["Chainlit via Traefik"] = traefik_result
+    # Chainlit has been removed from the application
     
     async def test_traefik(self):
         """Test Traefik reverse proxy"""
@@ -180,7 +170,6 @@ class DockerServiceTester:
         
         await self.test_core_services()
         await self.test_firecrawl()
-        await self.test_chainlit()
         await self.test_traefik()
         
         return self.results
@@ -220,7 +209,6 @@ class DockerServiceTester:
             print("🎉 ALL SERVICES ARE WORKING CORRECTLY!")
             print("\nAccess URLs:")
             print("- AI Assistant: http://localhost:8000")
-            print("- Chainlit Chat: http://localhost:8000/chat")
             print("- Traefik Dashboard: http://localhost:8080")
             print("- SearXNG Search: http://localhost:8000/search")
             print("- Redis Commander: http://localhost:8000/redis")
