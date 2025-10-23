@@ -11,6 +11,7 @@ coverage.xml
 htmlcov/
 .tox/
 .nox/
+notes/
 
 # Virtual environments
 .venv

@@ -1,0 +1,77 @@
+# =============================================================================
+# Development Environment Docker Compose Override
+# =============================================================================
+# This file contains development-specific overrides for the main docker-compose.yml
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+name: ${COMPOSE_PROJECT_NAME:-my-stack}-dev
+
+services:
+  # Development overrides for FastAPI App
+  fast-api-app:
+    build:
+      args:
+        BUILD_MODE: development
+    environment:
+      BUILD_MODE: development
+      DEBUG: true
+      RELOAD: true
+    volumes:
+      # Mount the local app directory into the container for hot-reloading
+      - ../app:/app/app
+      # Mount utility scripts for development
+      - ../utility:/app/utility
+      # Mount .env file if it exists in the root directory
+      - ../.env:/app/.env
+    ports:
+      # Expose port directly for development
+      - "8000:8000"
+
+  # Development overrides for Frontend
+  frontend:
+    build:
+      args:
+        BUILD_MODE: development
+    environment:
+      # Pass the API URL to the frontend
+      - VITE_API_BASE_URL=http://fastapi.${BASE_DOMAIN:-localhost}
+    volumes:
+      # Mount the local frontend directory for hot-reloading in development
+      - ../frontend:/app
+      - /app/node_modules  # Prevent overwriting node_modules
+    ports:
+      # Expose port directly for development
+      - "5173:5173"
+
+  # Development overrides for Firecrawl API
+  firecrawl-api:
+    ports:
+      # Expose port directly for development
+      - "3002:3002"
+    environment:
+      LOGGING_LEVEL: debug
+
+  # Development overrides for SearXNG
+  searxng:
+    ports:
+      # Expose port directly for development
+      - "8080:8080"
+
+  # Development overrides for Supabase Studio
+  studio:
+    ports:
+      # Expose port directly for development
+      - "3000:3000"
+
+  # Development overrides for Supabase Kong
+  kong:
+    ports:
+      # Expose ports directly for development
+      - "8000:8000"
+      - "8443:8443"
+
+  # Development overrides for Supabase Analytics
+  analytics:
+    ports:
+      # Expose port directly for development
+      - "4000:4000"

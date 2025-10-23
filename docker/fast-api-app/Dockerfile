@@ -27,7 +27,7 @@ RUN pip install --no-cache-dir uv==0.9.3
 WORKDIR /app
 
 # Copy dependency files
-COPY pyproject.toml uv.lock README.md ./
+COPY pyproject.toml uv.lock readme.md ./
 
 # Copy application code first (needed for version import)
 COPY app/ ./app/
@@ -44,7 +44,8 @@ RUN if [ "$BUILD_MODE" = "development" ]; then \
     fi
 
 # Install Playwright browsers
-RUN /opt/venv/bin/playwright install chromium firefox webkit
+RUN uv run -m playwright install chromium firefox webkit
+RUN uv run playwright install-deps
 
 # =============================================================================
 # Production Stage
@@ -67,6 +68,9 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
+
+# Install uv via pip (as requested)
+RUN pip install --no-cache-dir uv==0.9.3
 
 # Install Chrome and ChromeDriver only in production mode
 ARG BUILD_MODE=production
@@ -126,11 +130,6 @@ RUN if [ "$BUILD_MODE" = "production" ]; then \
         && rm /tmp/chromedriver.zip; \
     fi
 
-# Install Playwright dependencies only in development mode
-RUN if [ "$BUILD_MODE" = "development" ]; then \
-        /opt/venv/bin/playwright install-deps; \
-    fi
-
 # Create non-root user with proper permissions
 RUN groupadd -r app && \
     useradd -r -g app --home-dir /app --shell /bin/bash app
@@ -162,7 +161,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Copy entrypoint script that handles both production and development modes
-COPY --chown=app:app entrypoint.sh /app/entrypoint.sh
+COPY --chown=app:app docker/fast-api-app/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
 # Run the application with the appropriate command

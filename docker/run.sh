@@ -5,16 +5,32 @@
 # =============================================================================
 # This script starts all services, performs health checks, and provides
 # comprehensive status reporting for the hybrid Docker Compose setup.
-# Usage: ./run.sh [dev|prod] [command]
+# Usage: ./run.sh [dev|prod] [command] [options]
 #   - Environment: dev (default) or prod
-#   - Command: up (default), down, logs, etc.
+#   - Command: up (default), down, logs, build, etc.
+#   - Options: --build (build images before starting)
 # =============================================================================
 
 set -e  # Exit on any error
 
+# Check for help flag first
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+    show_usage
+    exit 0
+fi
 # Default to 'dev' environment and 'up' command
 ENVIRONMENT=${1:-dev}
 COMMAND=${2:-up}
+BUILD_IMAGES=false
+
+# Check if --build flag is provided
+if [[ "$3" == "--build" || "$2" == "--build" ]]; then
+    BUILD_IMAGES=true
+    # If --build is the second argument, shift command to default "up"
+    if [[ "$2" == "--build" ]]; then
+        COMMAND="up"
+    fi
+fi
 
 # Validate environment
 if [[ "$ENVIRONMENT" != "dev" && "$ENVIRONMENT" != "prod" ]]; then
@@ -44,6 +60,32 @@ HEALTH_CHECK_INTERVAL=5
 # Helper Functions
 # =============================================================================
 
+show_usage() {
+    echo "Usage: $0 [dev|prod] [command] [options]"
+    echo
+    echo "Environment:"
+    echo "  dev     Development environment (default)"
+    echo "  prod    Production environment"
+    echo
+    echo "Commands:"
+    echo "  up      Start all services (default)"
+    echo "  down    Stop all services"
+    echo "  logs    Show logs for all services"
+    echo "  build   Build all Docker images"
+    echo
+    echo "Options:"
+    echo "  --build Build images before starting (only with 'up' command)"
+    echo
+    echo "Examples:"
+    echo "  $0                # Start dev environment"
+    echo "  $0 dev up         # Start dev environment explicitly"
+    echo "  $0 prod up        # Start production environment"
+    echo "  $0 dev up --build # Build and start dev environment"
+    echo "  $0 dev build      # Build images for dev environment"
+    echo "  $0 prod down      # Stop production environment"
+    echo "  $0 dev logs       # Show logs for dev environment"
+}
+
 log_info() {
     echo -e "${BLUE}[INFO]${NC} $1"
 }
@@ -68,8 +110,8 @@ setup_environment() {
     log_info "Setting up '$ENVIRONMENT' environment..."
     
     # Check if base .env file exists
-    if [ ! -f ".env" ]; then
-        log_error "Main .env file not found!"
+    if [ ! -f "../.env" ]; then
+        log_error "Main .env file not found at ../.env!"
         exit 1
     fi
 
@@ -97,7 +139,7 @@ get_docker_compose_cmd() {
         compose_files="$compose_files -f docker-compose.${ENVIRONMENT}.yml"
     fi
 
-    local env_files="--env-file .env"
+    local env_files="--env-file ../.env"
     local services=("firecrawl" "searxng" "supabase")
     for service in "${services[@]}"; do
         if [ -f "env/${service}.env" ]; then
@@ -122,10 +164,35 @@ start_services() {
     
     # Start services
     log_info "Starting services with Docker Compose..."
-    if $compose_cmd up -d --quiet-pull; then
-        log_success "All services started successfully"
+    if [ "$BUILD_IMAGES" = true ]; then
+        log_info "Building images before starting..."
+        if $compose_cmd up -d --build --quiet-pull; then
+            log_success "All services built and started successfully"
+        else
+            log_error "Failed to build and start services"
+            exit 1
+        fi
     else
-        log_error "Failed to start services"
+        if $compose_cmd up -d --quiet-pull; then
+            log_success "All services started successfully"
+        else
+            log_error "Failed to start services"
+            exit 1
+        fi
+    fi
+}
+
+build_services() {
+    log_info "Building all services for '$ENVIRONMENT' environment..."
+    
+    local compose_cmd=$(get_docker_compose_cmd)
+    
+    # Build services
+    log_info "Building images with Docker Compose..."
+    if $compose_cmd build; then
+        log_success "All services built successfully"
+    else
+        log_error "Failed to build services"
         exit 1
     fi
 }
@@ -334,7 +401,7 @@ check_http_service() {
 
 test_traefik() {
     log_info "Testing Traefik dashboard..."
-    if curl -s -f "http://traefik.localhost:8080/dashboard/" > /dev/null; then
+    if curl -s -f "http://traefik.localhost:8881/dashboard/" > /dev/null; then
         log_success "Traefik dashboard is accessible"
         return 0
     else
@@ -595,6 +662,133 @@ main() {
                 exit 1
             fi
             ;;
+        build)
+            build_services
+            echo
+            
+            # Wait for services to start and become healthy
+            log_info "Waiting for services to start and become healthy..."
+            echo
+            
+            local max_wait_time=120  # Maximum wait time in seconds
+            local check_interval=5   # Check interval in seconds
+            local elapsed=0
+            
+            # Wait for all services to become healthy
+            while [ $elapsed -lt $max_wait_time ]; do
+                local all_healthy=true
+                local unhealthy_services=()
+                
+                for service in "${SERVICES[@]}"; do
+                    if ! check_service_health_quiet "$service"; then
+                        all_healthy=false
+                        unhealthy_services+=("$service")
+                    fi
+                done
+                
+                if [ "$all_healthy" = true ]; then
+                    log_success "All services are healthy!"
+                    echo
+                    break
+                fi
+                
+                log_info "Waiting for services to become healthy... (${elapsed}s elapsed)"
+                log_info "Unhealthy services: ${unhealthy_services[*]}"
+                echo
+                
+                sleep $check_interval
+                elapsed=$((elapsed + check_interval))
+            done
+            
+            if [ $elapsed -ge $max_wait_time ]; then
+                log_warning "Timeout waiting for services to become healthy. Proceeding with tests anyway..."
+                echo
+            fi
+            
+            # Check service health
+            log_info "Checking service health..."
+            echo
+            
+            local failed_services=()
+            
+            for service in "${SERVICES[@]}"; do
+                if ! check_service_health "$service"; then
+                    failed_services+=("$service")
+                fi
+            done
+            
+            echo
+            
+            # Test HTTP services
+            log_info "Testing HTTP endpoints..."
+            echo
+            
+            if ! test_traefik; then
+                failed_services+=("traefik-http")
+            fi
+            
+            if ! test_firecrawl; then
+                failed_services+=("firecrawl-http")
+            fi
+            
+            if ! test_searxng; then
+                failed_services+=("searxng-http")
+            fi
+
+            if ! test_fast_api_app; then
+                failed_services+=("fast-api-app-http")
+            fi
+            
+            if ! test_redis; then
+                failed_services+=("redis-test")
+            fi
+            
+            if ! test_postgres; then
+                failed_services+=("postgres-test")
+            fi
+            
+            if ! test_supabase_studio; then
+                failed_services+=("supabase-studio-test")
+            fi
+            
+            if ! test_supabase_kong; then
+                failed_services+=("supabase-kong-test")
+            fi
+            
+            if ! test_supabase_auth; then
+                failed_services+=("supabase-auth-test")
+            fi
+            
+            if ! test_supabase_db; then
+                failed_services+=("supabase-db-test")
+            fi
+            
+            echo
+            echo "=============================================================================="
+            
+            # Final status
+            if [ ${#failed_services[@]} -eq 0 ]; then
+                log_success "All services are running and accessible!"
+                echo
+                echo "Service URLs:"
+                echo "  - Traefik Dashboard: http://traefik.${BASE_DOMAIN:-localhost}:8080"
+                echo "  - FastAPI App: http://fastapi.${BASE_DOMAIN:-localhost}"
+                echo "  - Firecrawl API: http://firecrawl.${BASE_DOMAIN:-localhost}"
+                echo "  - SearXNG: http://searxng.${BASE_DOMAIN:-localhost}"
+                echo "  - Supabase Studio: http://supabase.${BASE_DOMAIN:-localhost}"
+                echo
+                echo "To view logs: $compose_cmd logs -f"
+                echo "To stop services: $compose_cmd down"
+            else
+                log_error "Some services failed:"
+                for service in "${failed_services[@]}"; do
+                    echo "  - $service"
+                done
+                echo
+                echo "To view logs: $compose_cmd logs"
+                exit 1
+            fi
+            ;;
         down)
             log_info "Stopping all services..."
             $compose_cmd down --remove-orphans
@@ -612,33 +806,6 @@ main() {
     
     echo "=============================================================================="
 }
-
-# Show usage information
-show_usage() {
-    echo "Usage: $0 [dev|prod] [command]"
-    echo ""
-    echo "Environments:"
-    echo "  dev     Development environment (default)"
-    echo "  prod    Production environment"
-    echo ""
-    echo "Commands:"
-    echo "  up      Start services (default)"
-    echo "  down    Stop and remove services"
-    echo "  logs    View and follow logs"
-    echo "  *       Pass any other command to docker compose"
-    echo ""
-    echo "Examples:"
-    echo "  $0              # Start dev environment"
-    echo "  $0 prod up      # Start prod environment"
-    echo "  $0 dev logs     # View logs for dev environment"
-    echo "  $0 prod pull    # Pull latest images for prod"
-}
-
-# Check for help flag
-if [[ "$1" == "-h" || "$1" == "--help" ]]; then
-    show_usage
-    exit 0
-fi
 
 # Run main function
 main "$@"

@@ -70,8 +70,8 @@ services:
 
   fast-api-app:
     build:
-      context: ./fast-api-app
-      dockerfile: Dockerfile
+      context: ../
+      dockerfile: docker/fast-api-app/Dockerfile
       args:
         # This build argument controls the build process (e.g., which dependencies to install)
         BUILD_MODE: ${BUILD_MODE:-production}
@@ -83,9 +83,15 @@ services:
       # Add any other required environment variables for your FastAPI app here
       # Example: DATABASE_URL=${DATABASE_URL}
       # Example: REDIS_URL=${REDIS_URL}
+      # CORS configuration for frontend
+      CORS_ORIGINS: http://frontend.${BASE_DOMAIN:-localhost},http://${BASE_DOMAIN:-localhost}
     volumes:
       # Mount the local app directory into the container for hot-reloading in development
-      - ./fast-api-app/app:/app/app
+      - ../app:/app/app
+      # Mount utility scripts for development
+      - ../utility:/app/utility
+      # Mount .env file if it exists in the root directory
+      - ../.env:/app/.env
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
@@ -99,3 +105,36 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.fastapi.rule=Host(`fastapi.${BASE_DOMAIN:-localhost}`)"
       - "traefik.http.services.fastapi.loadbalancer.server.port=8000"
+      # CORS headers for frontend
+      - "traefik.http.middlewares.cors-headers.headers.accesscontrolalloworiginlist=http://frontend.${BASE_DOMAIN:-localhost},http://${BASE_DOMAIN:-localhost}"
+      - "traefik.http.middlewares.cors-headers.headers.accesscontrolallowcredentials=true"
+      - "traefik.http.middlewares.cors-headers.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS"
+      - "traefik.http.middlewares.cors-headers.headers.accesscontrolallowheaders=Content-Type,Authorization"
+      - "traefik.http.routers.fastapi.middlewares=cors-headers"
+
+  frontend:
+    build:
+      context: ../
+      dockerfile: docker/frontend/Dockerfile.${BUILD_MODE:-prod}
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-frontend
+    restart: unless-stopped
+    environment:
+      # Pass the API URL to the frontend
+      - VITE_API_BASE_URL=http://fastapi.${BASE_DOMAIN:-localhost}
+    volumes:
+      # Mount the local frontend directory for hot-reloading in development
+      - ../frontend:/app
+      - /app/node_modules  # Prevent overwriting node_modules
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - shared-network
+    labels:
+      # Traefik configuration for routing
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`frontend.${BASE_DOMAIN:-localhost}`,`${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.services.frontend.loadbalancer.server.port=5173"
