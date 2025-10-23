@@ -1,6 +1,0 @@
-# This file is kept for reference but the traefik service is now defined in the main docker-compose.yml
-# to avoid duplication. The main docker-compose.yml contains the complete traefik configuration
-# with environment variables, proper labels, and shared-network integration.
-
-# If you need to add additional traefik-related services, add them to the main docker-compose.yml
-# or create a separate include file for specific extensions.

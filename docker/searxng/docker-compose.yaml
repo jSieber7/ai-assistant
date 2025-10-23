@@ -1,0 +1,67 @@
+services:
+  # Caddy service disabled - using Traefik as the main reverse proxy
+  # caddy:
+  #   container_name: caddy
+  #   image: docker.io/library/caddy:2-alpine
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - caddy-data:/data:rw
+  #     - caddy-config:/config:rw
+  #   environment:
+  #     - SEARXNG_HOSTNAME=${SEARXNG_HOSTNAME:-http://localhost}
+  #     - SEARXNG_TLS=${LETSENCRYPT_EMAIL:-internal}
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "1m"
+  #       max-file: "1"
+
+  # Redis service disabled - using shared redis from main docker-compose.yml
+  # redis:
+  #   container_name: redis
+  #   image: docker.io/valkey/valkey:8-alpine
+  #   command: valkey-server --save 30 1 --loglevel warning
+  #   restart: unless-stopped
+  #   networks:
+  #     - shared-network
+  #   volumes:
+  #     - valkey-data2:/data
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "1m"
+  #       max-file: "1"
+
+  searxng:
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-searxng
+    image: docker.io/searxng/searxng:latest
+    restart: unless-stopped
+    # Expose port to traefik network only
+    expose:
+      - "8080"
+    volumes:
+      - ./searxng:/etc/searxng:rw
+      - searxng-data:/var/cache/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=https://${SEARXNG_HOSTNAME:-localhost}/
+    networks:
+      - shared-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "1m"
+        max-file: "1"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.searxng.rule=Host(`searxng.${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.services.searxng.loadbalancer.server.port=8080"
+      - "traefik.http.routers.searxng.tls=true"
+      # - "traefik.http.routers.searxng.tls.certresolver=${TLS_CERT_RESOLVER:-selfsigned}"
+
+
+volumes:
+  caddy-data:
+  caddy-config:
+  valkey-data2:
+  searxng-data:

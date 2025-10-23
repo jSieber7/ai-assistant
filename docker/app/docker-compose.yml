@@ -1,0 +1,27 @@
+services:
+  app:
+    build:
+      context: ../../
+      dockerfile: docker/app/Dockerfile
+      args:
+        BUILD_MODE: ${BUILD_MODE:-production}
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    environment:
+      - BUILD_MODE=${BUILD_MODE:-production}
+    networks:
+      - shared-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app.rule=Host(`app.${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.services.app.loadbalancer.server.port=8000"
+      - "traefik.http.routers.app.tls=true"
+      # - "traefik.http.routers.app.tls.certresolver=${TLS_CERT_RESOLVER:-selfsigned}"

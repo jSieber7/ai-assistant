@@ -1,16 +1,17 @@
-FROM node:20-alpine
+FROM node:18-alpine
+
+# Install curl for healthcheck
+RUN apk add --no-cache curl
 
 WORKDIR /app
 
 # Copy package files
-COPY ../frontend/package*.json ./
-RUN npm ci
+COPY package*.json ./
 
-# Copy the rest of the frontend code
-COPY ../frontend/ .
+# Install dependencies
+RUN npm install
 
-# Expose the Vite dev server port
-EXPOSE 5173
+# The rest of the code will be mounted as a volume
 
-# Start the Vite dev server with host binding to allow external access
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+# Default command for development
+CMD ["npm", "start"]

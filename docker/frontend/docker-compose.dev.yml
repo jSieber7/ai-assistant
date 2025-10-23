@@ -1,0 +1,31 @@
+name: frontend
+
+services:
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: ../docker/frontend/Dockerfile.dev
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_DEV_PORT:-3000}:3000"
+    volumes:
+      - ../../frontend:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - REACT_APP_API_URL=http://localhost:8000
+    networks:
+      - shared-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend-dev.rule=Host(`frontend.${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.services.frontend-dev.loadbalancer.server.port=3000"
+      - "traefik.http.routers.frontend-dev.tls=true"
+      # - "traefik.http.routers.frontend-dev.tls.certresolver=${TLS_CERT_RESOLVER:-selfsigned}"

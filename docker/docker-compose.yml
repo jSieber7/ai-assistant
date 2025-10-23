@@ -1,13 +1,14 @@
 include:
-  - supabase/docker-compose.supabase.yml
-  - searxng/docker-compose.searxng.yml
-  - firecrawl/docker-compose.firecrawl.yml
+  - supabase/docker-compose.yml
+  - searxng/docker-compose.yaml
+  - firecrawl/docker-compose.yaml
+  - frontend/docker-compose.${ENVIRONMENT:-dev}.yml
+  - app/docker-compose.yml
 
 name: ${COMPOSE_PROJECT_NAME:-my-stack}
 
 networks:
   shared-network:
-    name: ${COMPOSE_PROJECT_NAME:-my-stack}-shared-network
     driver: bridge
 
 volumes:
@@ -27,23 +28,31 @@ services:
     restart: unless-stopped
     ports:
       - "${TRAEFIK_HTTP_PORT:-80}:80"
+      - "${TRAEFIK_HTTPS_PORT:-443}:443"
       - "${TRAEFIK_DASHBOARD_PORT:-8080}:8080"
     volumes:
       - ./traefik/traefik.yml:/etc/traefik/traefik.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik-logs:/var/log/traefik
+      - ./traefik/certs:/certs:ro
+      - ./traefik/acme:/acme
+    networks:
+      - shared-network
     healthcheck:
       test: ["CMD", "traefik", "healthcheck", "--ping"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
-    networks:
-      - shared-network
+    environment:
+      - ACME_EMAIL=${ACME_EMAIL:-admin@example.com}
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.dashboard.rule=Host(`traefik.${BASE_DOMAIN:-localhost}`)"
       - "traefik.http.services.dashboard.loadbalancer.server.port=8080"
+      # Enable HTTPS for dashboard
+      - "traefik.http.routers.dashboard.tls=true"
+      # - "traefik.http.routers.dashboard.tls.certresolver=${TLS_CERT_RESOLVER:-selfsigned}"
 
   redis:
     image: redis:alpine
@@ -59,82 +68,9 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    networks:
-      - shared-network
     labels:
       - "traefik.enable=false"  # Don't expose Redis directly
 
   # ===========================================
   # APPLICATION SERVICES
   # ===========================================
-
-  fast-api-app:
-    build:
-      context: ../
-      dockerfile: docker/fast-api-app/Dockerfile
-      args:
-        # This build argument controls the build process (e.g., which dependencies to install)
-        BUILD_MODE: ${BUILD_MODE:-production}
-    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-fast-api-app
-    restart: unless-stopped
-    environment:
-      # This runtime variable controls the startup command (e.g., hot reload vs. production)
-      BUILD_MODE: ${BUILD_MODE:-production}
-      # Add any other required environment variables for your FastAPI app here
-      # Example: DATABASE_URL=${DATABASE_URL}
-      # Example: REDIS_URL=${REDIS_URL}
-      # CORS configuration for frontend
-      CORS_ORIGINS: http://frontend.${BASE_DOMAIN:-localhost},http://${BASE_DOMAIN:-localhost}
-    volumes:
-      # Mount the local app directory into the container for hot-reloading in development
-      - ../app:/app/app
-      # Mount utility scripts for development
-      - ../utility:/app/utility
-      # Mount .env file if it exists in the root directory
-      - ../.env:/app/.env
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    networks:
-      - shared-network
-    labels:
-      # Traefik configuration for routing
-      - "traefik.enable=true"
-      - "traefik.http.routers.fastapi.rule=Host(`fastapi.${BASE_DOMAIN:-localhost}`)"
-      - "traefik.http.services.fastapi.loadbalancer.server.port=8000"
-      # CORS headers for frontend
-      - "traefik.http.middlewares.cors-headers.headers.accesscontrolalloworiginlist=http://frontend.${BASE_DOMAIN:-localhost},http://${BASE_DOMAIN:-localhost}"
-      - "traefik.http.middlewares.cors-headers.headers.accesscontrolallowcredentials=true"
-      - "traefik.http.middlewares.cors-headers.headers.accesscontrolallowmethods=GET,POST,PUT,DELETE,OPTIONS"
-      - "traefik.http.middlewares.cors-headers.headers.accesscontrolallowheaders=Content-Type,Authorization"
-      - "traefik.http.routers.fastapi.middlewares=cors-headers"
-
-  frontend:
-    build:
-      context: ../
-      dockerfile: docker/frontend/Dockerfile.${BUILD_MODE:-prod}
-    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-frontend
-    restart: unless-stopped
-    environment:
-      # Pass the API URL to the frontend
-      - VITE_API_BASE_URL=http://fastapi.${BASE_DOMAIN:-localhost}
-    volumes:
-      # Mount the local frontend directory for hot-reloading in development
-      - ../frontend:/app
-      - /app/node_modules  # Prevent overwriting node_modules
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5173"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    networks:
-      - shared-network
-    labels:
-      # Traefik configuration for routing
-      - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`frontend.${BASE_DOMAIN:-localhost}`,`${BASE_DOMAIN:-localhost}`)"
-      - "traefik.http.services.frontend.loadbalancer.server.port=5173"
