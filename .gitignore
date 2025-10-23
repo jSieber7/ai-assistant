@@ -140,3 +140,10 @@ notebooks
 docker/supabase/volumes/db/data/
 docker/supabase/volumes/storage/
 docker/supabase/volumes/logs/*.log
+
+
+
+# Supabase runtime data
+app/core/docker/supabase/volumes/db/data/
+app/core/docker/supabase/volumes/storage/
+app/core/docker/supabase/volumes/logs/*.log

@@ -14,4 +14,4 @@ RUN npm install
 # The rest of the code will be mounted as a volume
 
 # Default command for development
-CMD ["npm", "start"]
+CMD ["npm", "run", "dev"]

@@ -1,0 +1,38 @@
+# Traefik configuration file with TLS/SSL support
+
+# API and dashboard configuration
+api:
+  dashboard: true
+  insecure: true  # Disable insecure dashboard for production
+
+# Ping configuration for health checks
+ping:
+  entryPoint: "web"
+
+# Entry points configuration
+entryPoints:
+  web:
+    address: ":80"
+  websecure:
+    address: ":443"
+
+# Providers configuration
+providers:
+  docker:
+    exposedByDefault: false
+    # Use Docker labels for configuration
+    allowEmptyServices: true
+  # file:
+  #   directory: /etc/traefik/dynamic
+  #   watch: true
+
+# Logging configuration
+log:
+  level: INFO
+
+accessLog: {}
+
+# Global configuration
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false

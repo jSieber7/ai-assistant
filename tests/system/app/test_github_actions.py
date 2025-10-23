@@ -60,7 +60,7 @@ def test_workflow_configuration():
             checks.append(("  YAML syntax", yaml_status, valid))
 
     # Check documentation files
-    doc_files = [".github/branch-protection.md", "readme.md"]
+    doc_files = [".github/branch-protection.md", "README.md"]
 
     for doc_file in doc_files:
         status, exists = check_file_exists(doc_file)
