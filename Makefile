@@ -141,7 +141,7 @@ dev-docker: ## Run development with Docker (includes all tool dockers)
 	@echo "Starting main development services..."
 	$(DOCKER_COMPOSE) --env-file .env --profile $(DEV_PROFILE) up -d
 	@echo "Starting Firecrawl services..."
-	$(DOCKER_COMPOSE) -f docker-compose.firecrawl.yml --env-file .env.firecrawl up -d
+	$(DOCKER_COMPOSE) -f docker-compose.firecrawl.yml --env-file .env up -d
 	@echo "Waiting for services to be ready..."
 	@sleep 10
 	@echo "Development environment with all tools is ready!"

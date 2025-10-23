@@ -19,6 +19,7 @@ CREATE SCHEMA IF NOT EXISTS public;
 CREATE ROLE anon NOINHERIT LOGIN PASSWORD 'dev-password';
 CREATE ROLE service_role NOINHERIT LOGIN PASSWORD 'dev-password';
 CREATE ROLE authenticator NOINHERIT LOGIN PASSWORD 'dev-password';
+CREATE ROLE authenticated NOINHERIT LOGIN PASSWORD 'dev-password';
 
 -- Grant permissions for Supabase roles
 GRANT USAGE ON SCHEMA auth TO anon, service_role;
@@ -36,13 +37,24 @@ GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, service_role;
 -- The authenticator role is used by PostgREST
 GRANT USAGE ON SCHEMA auth TO authenticator;
 GRANT ALL ON ALL TABLES IN SCHEMA auth TO authenticator;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA auth TO authenticator;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA auth TO authenticator;
 
 GRANT USAGE ON SCHEMA storage TO authenticator;
 GRANT ALL ON ALL TABLES IN SCHEMA storage TO authenticator;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA storage TO authenticator;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA storage TO authenticator;
 
 GRANT USAGE ON SCHEMA public TO authenticator;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO authenticator;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticator;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticator;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO authenticator;
 
+-- Also grant permissions on multi_writer schema
+GRANT USAGE ON SCHEMA multi_writer TO authenticator;
+GRANT ALL ON ALL TABLES IN SCHEMA multi_writer TO authenticator;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA multi_writer TO authenticator;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA multi_writer TO authenticator;
 
 -- =============================================================================
 -- Application-specific Schemas and Roles
@@ -51,6 +63,7 @@ GRANT SELECT ON ALL TABLES IN SCHEMA public TO authenticator;
 CREATE SCHEMA IF NOT EXISTS firecrawl;
 CREATE SCHEMA IF NOT EXISTS app_data;
 CREATE SCHEMA IF NOT EXISTS agent_memory;
+CREATE SCHEMA IF NOT EXISTS multi_writer;
 
 -- Create basic role for your app
 CREATE ROLE app_user NOLOGIN NOINHERIT;
@@ -80,7 +93,29 @@ CREATE TABLE IF NOT EXISTS firecrawl.crawls (
   metadata JSONB DEFAULT '{}'::jsonb
 );
 
--- Agent memory table for conversation history
+-- Chat conversations table for managing conversation sessions
+CREATE TABLE IF NOT EXISTS agent_memory.chat_conversations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  title TEXT,
+  user_id TEXT, -- Optional user ID for multi-user support
+  model_id TEXT, -- The model used for this conversation
+  agent_name TEXT, -- The agent used for this conversation
+  metadata JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Chat messages table for storing individual messages
+CREATE TABLE IF NOT EXISTS agent_memory.chat_messages (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  conversation_id UUID NOT NULL REFERENCES agent_memory.chat_conversations(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('user', 'assistant', 'system')),
+  content TEXT NOT NULL,
+  metadata JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Keep the old conversations table for backward compatibility
 CREATE TABLE IF NOT EXISTS agent_memory.conversations (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   session_id TEXT NOT NULL,
@@ -105,6 +140,15 @@ CREATE INDEX IF NOT EXISTS crawls_status_idx ON firecrawl.crawls(status);
 CREATE INDEX IF NOT EXISTS conversations_session_idx ON agent_memory.conversations(session_id);
 CREATE INDEX IF NOT EXISTS conversations_created_idx ON agent_memory.conversations(created_at);
 CREATE INDEX IF NOT EXISTS settings_key_idx ON app_data.settings(key);
+
+-- Indexes for chat conversations
+CREATE INDEX IF NOT EXISTS chat_conversations_user_id_idx ON agent_memory.chat_conversations(user_id);
+CREATE INDEX IF NOT EXISTS chat_conversations_created_at_idx ON agent_memory.chat_conversations(created_at);
+CREATE INDEX IF NOT EXISTS chat_conversations_updated_at_idx ON agent_memory.chat_conversations(updated_at);
+
+-- Indexes for chat messages
+CREATE INDEX IF NOT EXISTS chat_messages_conversation_id_idx ON agent_memory.chat_messages(conversation_id);
+CREATE INDEX IF NOT EXISTS chat_messages_created_at_idx ON agent_memory.chat_messages(created_at);
 
 -- Multi-writer workflow table
 CREATE TABLE IF NOT EXISTS multi_writer.workflows (
@@ -158,153 +202,3 @@ CREATE INDEX IF NOT EXISTS content_created_at_idx ON multi_writer.content(create
 CREATE INDEX IF NOT EXISTS check_results_workflow_id_idx ON multi_writer.check_results(workflow_id);
 CREATE INDEX IF NOT EXISTS check_results_checker_id_idx ON multi_writer.check_results(checker_id);
 CREATE INDEX IF NOT EXISTS check_results_created_at_idx ON multi_writer.check_results(created_at);
-
--- =============================================================================
--- Chainlit Schema for Chat Lifecycle Management
--- =============================================================================
--- This schema creates the necessary tables for Chainlit's data persistence
--- and chat lifecycle management
-
--- Create chainlit schema if it doesn't exist
-CREATE SCHEMA IF NOT EXISTS chainlit;
-
--- =============================================================================
--- Chainlit Tables
--- =============================================================================
-
--- Users table
-CREATE TABLE IF NOT EXISTS chainlit.users (
-    "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    "identifier" TEXT NOT NULL UNIQUE,
-    "metadata" JSONB NOT NULL DEFAULT '{}'::jsonb,
-    "createdAt" TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
-    "createdAtTimestamp" TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Threads table (chat sessions)
-CREATE TABLE IF NOT EXISTS chainlit.threads (
-    "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    "createdAt" TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
-    "createdAtTimestamp" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    "name" TEXT,
-    "userId" UUID,
-    "userIdentifier" TEXT,
-    "tags" TEXT[] DEFAULT '{}',
-    "metadata" JSONB DEFAULT '{}'::jsonb,
-    FOREIGN KEY ("userId") REFERENCES chainlit.users("id") ON DELETE CASCADE
-);
-
--- Steps table (messages and actions)
-CREATE TABLE IF NOT EXISTS chainlit.steps (
-    "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    "name" TEXT NOT NULL,
-    "type" TEXT NOT NULL,
-    "threadId" UUID NOT NULL,
-    "parentId" UUID,
-    "streaming" BOOLEAN NOT NULL DEFAULT FALSE,
-    "waitForAnswer" BOOLEAN DEFAULT FALSE,
-    "isError" BOOLEAN DEFAULT FALSE,
-    "metadata" JSONB DEFAULT '{}'::jsonb,
-    "tags" TEXT[] DEFAULT '{}',
-    "input" TEXT,
-    "output" TEXT,
-    "createdAt" TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
-    "createdAtTimestamp" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    "command" TEXT,
-    "start" TEXT,
-    "end" TEXT,
-    "generation" JSONB,
-    "showInput" TEXT,
-    "language" TEXT,
-    "indent" INTEGER DEFAULT 0,
-    "defaultOpen" BOOLEAN DEFAULT FALSE,
-    FOREIGN KEY ("threadId") REFERENCES chainlit.threads("id") ON DELETE CASCADE,
-    FOREIGN KEY ("parentId") REFERENCES chainlit.steps("id") ON DELETE CASCADE
-);
-
--- Elements table (files, images, etc.)
-CREATE TABLE IF NOT EXISTS chainlit.elements (
-    "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    "threadId" UUID,
-    "type" TEXT,
-    "url" TEXT,
-    "chainlitKey" TEXT,
-    "name" TEXT NOT NULL,
-    "display" TEXT,
-    "objectKey" TEXT,
-    "size" TEXT,
-    "page" INTEGER,
-    "language" TEXT,
-    "forId" UUID,
-    "mime" TEXT,
-    "props" JSONB DEFAULT '{}'::jsonb,
-    "createdAt" TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
-    "createdAtTimestamp" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    FOREIGN KEY ("threadId") REFERENCES chainlit.threads("id") ON DELETE CASCADE,
-    FOREIGN KEY ("forId") REFERENCES chainlit.steps("id") ON DELETE CASCADE
-);
-
--- Feedbacks table (user feedback on messages)
-CREATE TABLE IF NOT EXISTS chainlit.feedbacks (
-    "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    "forId" UUID NOT NULL,
-    "threadId" UUID NOT NULL,
-    "value" INTEGER NOT NULL CHECK ("value" >= -1 AND "value" <= 1),
-    "comment" TEXT,
-    "createdAt" TEXT NOT NULL DEFAULT (NOW() AT TIME ZONE 'UTC'),
-    "createdAtTimestamp" TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    FOREIGN KEY ("threadId") REFERENCES chainlit.threads("id") ON DELETE CASCADE,
-    FOREIGN KEY ("forId") REFERENCES chainlit.steps("id") ON DELETE CASCADE
-);
-
--- =============================================================================
--- Indexes for Performance
--- =============================================================================
-
--- Users indexes
-CREATE INDEX IF NOT EXISTS users_identifier_idx ON chainlit.users("identifier");
-CREATE INDEX IF NOT EXISTS users_created_idx ON chainlit.users("createdAtTimestamp");
-
--- Threads indexes
-CREATE INDEX IF NOT EXISTS threads_user_id_idx ON chainlit.threads("userId");
-CREATE INDEX IF NOT EXISTS threads_user_identifier_idx ON chainlit.threads("userIdentifier");
-CREATE INDEX IF NOT EXISTS threads_created_idx ON chainlit.threads("createdAtTimestamp");
-CREATE INDEX IF NOT EXISTS threads_name_idx ON chainlit.threads("name");
-CREATE INDEX IF NOT EXISTS threads_tags_idx ON chainlit.threads USING GIN("tags");
-
--- Steps indexes
-CREATE INDEX IF NOT EXISTS steps_thread_id_idx ON chainlit.steps("threadId");
-CREATE INDEX IF NOT EXISTS steps_parent_id_idx ON chainlit.steps("parentId");
-CREATE INDEX IF NOT EXISTS steps_created_idx ON chainlit.steps("createdAtTimestamp");
-CREATE INDEX IF NOT EXISTS steps_type_idx ON chainlit.steps("type");
-CREATE INDEX IF NOT EXISTS steps_name_idx ON chainlit.steps("name");
-CREATE INDEX IF NOT EXISTS steps_tags_idx ON chainlit.steps USING GIN("tags");
-
--- Elements indexes
-CREATE INDEX IF NOT EXISTS elements_thread_id_idx ON chainlit.elements("threadId");
-CREATE INDEX IF NOT EXISTS elements_for_id_idx ON chainlit.elements("forId");
-CREATE INDEX IF NOT EXISTS elements_type_idx ON chainlit.elements("type");
-CREATE INDEX IF NOT EXISTS elements_created_idx ON chainlit.elements("createdAtTimestamp");
-
--- Feedbacks indexes
-CREATE INDEX IF NOT EXISTS feedbacks_thread_id_idx ON chainlit.feedbacks("threadId");
-CREATE INDEX IF NOT EXISTS feedbacks_for_id_idx ON chainlit.feedbacks("forId");
-CREATE INDEX IF NOT EXISTS feedbacks_created_idx ON chainlit.feedbacks("createdAtTimestamp");
-
--- =============================================================================
--- Permissions
--- =============================================================================
-
--- Grant permissions to authenticated users
-GRANT USAGE ON SCHEMA chainlit TO authenticated;
-GRANT ALL ON ALL TABLES IN SCHEMA chainlit TO authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA chainlit TO authenticated;
-
--- Grant permissions to service role
-GRANT USAGE ON SCHEMA chainlit TO service_role;
-GRANT ALL ON ALL TABLES IN SCHEMA chainlit TO service_role;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA chainlit TO service_role;
-
--- Grant read permissions to anon role (if needed for public access)
-GRANT USAGE ON SCHEMA chainlit TO anon;
-GRANT SELECT ON ALL TABLES IN SCHEMA chainlit TO anon;

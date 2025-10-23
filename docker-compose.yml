@@ -602,7 +602,7 @@ services:
       POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./config/postgres/init-supabase-fixed.sql:/docker-entrypoint-initdb.d/00-init-supabase.sql:ro
+      - ./config/postgres/init-supabase.sql:/docker-entrypoint-initdb.d/00-init-supabase.sql:ro
     networks:
       - ai-assistant-network
     command:
