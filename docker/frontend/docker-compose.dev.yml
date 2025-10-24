@@ -7,8 +7,9 @@ services:
       dockerfile: ../docker/frontend/Dockerfile.dev
     container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-frontend-dev
     restart: unless-stopped
-    ports:
-      - "${FRONTEND_DEV_PORT:-3000}:3000"
+    # Removed port mapping to avoid conflicts - frontend is accessible only through Traefik
+    # ports:
+    #   - "${FRONTEND_DEV_PORT:-3000}:3000"
     volumes:
       - ../../frontend:/app
       - /app/node_modules

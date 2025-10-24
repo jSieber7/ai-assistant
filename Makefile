@@ -18,7 +18,6 @@ PROD_PROFILE := production
 
 # Port Configuration
 APP_PORT := 8000
-CHAINLIT_PORT := 8001
 REDIS_PORT := 6379
 SEARXNG_PORT := 8080
 PROMETHEUS_PORT := 9090
@@ -138,10 +137,7 @@ dev: ## Run development server
 
 dev-docker: ## Run development with Docker (includes all tool dockers)
 	@echo "Starting development environment with Docker and all tools..."
-	@echo "Starting main development services..."
-	$(DOCKER_COMPOSE) --env-file .env --profile $(DEV_PROFILE) up -d
-	@echo "Starting Firecrawl services..."
-	$(DOCKER_COMPOSE) -f docker-compose.firecrawl.yml --env-file .env up -d
+	uv run docker/run_dockers.py all dev up
 	@echo "Waiting for services to be ready..."
 	@sleep 10
 	@echo "Development environment with all tools is ready!"
@@ -151,7 +147,7 @@ dev-docker: ## Run development with Docker (includes all tool dockers)
 dev-quick: ## Quick development setup (install + start services)
 	@echo "Quick development setup..."
 	$(MAKE) setup-dev
-	$(MAKE) dev-docker
+	uv run docker/run_dockers.py all dev up
 	@echo "Development environment is ready!"
 	@echo "App: http://localhost:$(APP_PORT)"
 
@@ -329,23 +325,24 @@ security-check: test-results-dir ## Run security checks
 
 docker: ## Start all Docker services
 	@echo "Starting all Docker services..."
-	$(DOCKER_COMPOSE) up -d
+	uv run docker/run_dockers.py all dev up
 
 docker-down: ## Stop all Docker services
 	@echo "Stopping all Docker services..."
-	$(DOCKER_COMPOSE) down -v
+	uv run docker/run_dockers.py all dev down
 
 docker-logs: ## Show Docker logs
 	@echo "Showing Docker logs..."
-	$(DOCKER_COMPOSE) logs -f
+	uv run docker/run_dockers.py all dev logs
 
 docker-restart: ## Restart Docker services
 	@echo "Restarting Docker services..."
-	$(DOCKER_COMPOSE) restart
+	uv run docker/run_dockers.py all dev down
+	uv run docker/run_dockers.py all dev up
 
 docker-status: ## Show Docker service status
 	@echo "Docker service status:"
-	$(DOCKER_COMPOSE) ps
+	uv run docker/run_dockers.py all dev status
 
 # =============================================================================
 # Milvus Docker Commands
@@ -353,35 +350,36 @@ docker-status: ## Show Docker service status
 
 milvus: ## Start Milvus Docker services
 	@echo "Starting Milvus Docker services..."
-	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) up -d
+	uv run docker/run_dockers.py milvus prod up
 	@echo "Waiting for services to be ready..."
 	@sleep 30
 	$(MAKE) milvus-health
 
 milvus-down: ## Stop Milvus Docker services
 	@echo "Stopping Milvus Docker services..."
-	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) down -v
+	uv run docker/run_dockers.py milvus prod down
 
 milvus-logs: ## Show Milvus Docker logs
 	@echo "Showing Milvus Docker logs..."
-	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) logs -f
+	uv run docker/run_dockers.py milvus prod logs
 
 milvus-restart: ## Restart Milvus Docker services
 	@echo "Restarting Milvus Docker services..."
-	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) restart
+	uv run docker/run_dockers.py milvus prod down
+	uv run docker/run_dockers.py milvus prod up
 
 milvus-status: ## Show Milvus service status
 	@echo "Milvus service status:"
-	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) ps
+	uv run docker/run_dockers.py milvus prod status
 
 milvus-health: ## Check Milvus health
 	@echo "Checking Milvus health..."
 	@echo "Checking Etcd..."
-	$(DOCKER_COMPOSE) exec milvus-etcd etcdctl endpoint health || echo "Etcd not healthy"
+	cd docker && $(DOCKER_COMPOSE) exec milvus-etcd etcdctl endpoint health || echo "Etcd not healthy"
 	@echo "Checking MinIO..."
-	$(DOCKER_COMPOSE) exec milvus-minio curl -f http://localhost:9000/minio/health/live || echo "MinIO not healthy"
+	cd docker && $(DOCKER_COMPOSE) exec milvus-minio curl -f http://localhost:9000/minio/health/live || echo "MinIO not healthy"
 	@echo "Checking Milvus..."
-	$(DOCKER_COMPOSE) exec milvus-standalone curl -f http://localhost:9091/healthz || echo "Milvus not healthy"
+	cd docker && $(DOCKER_COMPOSE) exec milvus-standalone curl -f http://localhost:9091/healthz || echo "Milvus not healthy"
 
 # =============================================================================
 # Firecrawl Docker Commands
@@ -389,34 +387,35 @@ milvus-health: ## Check Milvus health
 
 firecrawl: ## Start Firecrawl Docker services
 	@echo "Starting Firecrawl Docker services..."
-	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) up -d
+	uv run docker/run_dockers.py firecrawl prod up
 	@echo "Waiting for services to be ready..."
 	@sleep 10
 	$(MAKE) firecrawl-health
 
 firecrawl-down: ## Stop Firecrawl Docker services
 	@echo "Stopping Firecrawl Docker services..."
-	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) down -v
+	uv run docker/run_dockers.py firecrawl prod down
 
 firecrawl-logs: ## Show Firecrawl Docker logs
 	@echo "Showing Firecrawl Docker logs..."
-	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) logs -f
+	uv run docker/run_dockers.py firecrawl prod logs
 
 firecrawl-restart: ## Restart Firecrawl Docker services
 	@echo "Restarting Firecrawl Docker services..."
-	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) restart
+	uv run docker/run_dockers.py firecrawl prod down
+	uv run docker/run_dockers.py firecrawl prod up
 
 firecrawl-dev: ## Start development with Firecrawl
 	@echo "Starting development environment with Firecrawl..."
-	$(DOCKER_COMPOSE) --profile $(DEV_PROFILE) up -d
+	uv run docker/run_dockers.py firecrawl dev up
 
 firecrawl-production: ## Start production with Firecrawl
 	@echo "Starting production environment with Firecrawl..."
-	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) up -d
+	uv run docker/run_dockers.py firecrawl prod up
 
 firecrawl-status: ## Show Firecrawl service status
 	@echo "Firecrawl service status:"
-	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) ps
+	uv run docker/run_dockers.py firecrawl prod status
 
 firecrawl-health: ## Check Firecrawl health
 	@echo "Checking Firecrawl health..."
@@ -433,7 +432,7 @@ firecrawl-test: ## Test Firecrawl with example URL
 migrate-to-docker: ## Migrate from API to Docker mode
 	@echo "Migrating to Firecrawl Docker mode..."
 	@echo "1. Starting Firecrawl Docker services..."
-	$(MAKE) firecrawl
+	uv run docker/run_dockers.py firecrawl prod up
 	@echo "2. Waiting for services to be ready..."
 	@sleep 15
 	@echo "3. Verifying installation..."
@@ -448,7 +447,7 @@ migrate-to-docker: ## Migrate from API to Docker mode
 migrate-to-api: ## Migrate from Docker to API mode
 	@echo "Migrating to Firecrawl API mode..."
 	@echo "1. Stopping Firecrawl Docker services..."
-	$(MAKE) firecrawl-down
+	uv run docker/run_dockers.py firecrawl prod down
 	@echo ""
 	@echo "Migration complete! Update your .env file:"
 	@echo "FIRECRAWL_DEPLOYMENT_MODE=api"
@@ -462,10 +461,10 @@ migrate-to-api: ## Migrate from Docker to API mode
 health-check: ## Run comprehensive health check
 	@echo "Running comprehensive health check..."
 	@echo "=== Docker Services ==="
-	$(DOCKER_COMPOSE) ps || echo "Docker services not running"
+	uv run docker/run_dockers.py all dev status || echo "Docker services not running"
 	@echo ""
 	@echo "=== Firecrawl Services ==="
-	$(MAKE) firecrawl-status || echo "Firecrawl services not running"
+	uv run docker/run_dockers.py firecrawl prod status || echo "Firecrawl services not running"
 	@echo ""
 	@echo "=== Firecrawl Health ==="
 	$(MAKE) firecrawl-health || echo "Firecrawl health check failed"
@@ -473,7 +472,7 @@ health-check: ## Run comprehensive health check
 status-all: ## Show status of all services
 	@echo "=== All Service Status ==="
 	@echo "Docker Services:"
-	$(DOCKER_COMPOSE) ps || echo "No Docker services running"
+	uv run docker/run_dockers.py all dev status || echo "No Docker services running"
 	@echo ""
 	@echo "Application Containers:"
 	@docker ps --filter "name=$(PROJECT_NAME)" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" || echo "No application containers running"
@@ -520,7 +519,7 @@ clean: ## Clean up temporary files
 
 clean-docker: ## Clean up Docker resources
 	@echo "Cleaning up Docker resources..."
-	$(DOCKER_COMPOSE) down -v --remove-orphans
+	uv run docker/run_dockers.py all dev down
 	docker system prune -f
 	docker volume prune -f
 
@@ -533,13 +532,14 @@ clean-all: clean clean-docker ## Clean up everything
 shutdown-everything: ## SHUT DOWN ALL DOCKER SERVICES ACROSS ALL PROFILES
 	@echo "🚨 EMERGENCY SHUTDOWN INITIATED - STOPPING ALL SERVICES 🚨"
 	@echo "Stopping all Docker services across all profiles..."
-	@echo "Phase 1: Stopping main profiles..."
-	$(DOCKER_COMPOSE) --profile $(DEV_PROFILE) down --remove-orphans || true
-	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) down --remove-orphans || true
+	@echo "Phase 1: Stopping dev services..."
+	uv run docker/run_dockers.py all dev down || true
+	@echo "Phase 2: Stopping prod services..."
+	uv run docker/run_dockers.py all prod down || true
 	@echo "Phase 3: Stopping any remaining services..."
-	$(DOCKER_COMPOSE) down --remove-orphans || true
+	cd docker && $(DOCKER_COMPOSE) down --remove-orphans || true
 	@echo "Phase 4: Force stopping any stubborn containers from this project..."
-	$(DOCKER_COMPOSE) ps -q | xargs -r docker stop 2>/dev/null || true
+	cd docker && $(DOCKER_COMPOSE) ps -q | xargs -r docker stop 2>/dev/null || true
 	@echo "✅ ALL SERVICES SHUT DOWN SUCCESSFULLY!"
 
 nuke: ## NUCLEAR OPTION - COMPLETE DOCKER SYSTEM RESET
@@ -566,16 +566,16 @@ nuke: ## NUCLEAR OPTION - COMPLETE DOCKER SYSTEM RESET
 
 production: ## Start production environment
 	@echo "Starting production environment..."
-	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) up -d
+	uv run docker/run_dockers.py all prod up
 
 
 production-down: ## Stop production environment
 	@echo "Stopping production environment..."
-	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) down -v
+	uv run docker/run_dockers.py all prod down
 
 production-logs: ## Show production logs
 	@echo "Showing production logs..."
-	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) logs -f
+	uv run docker/run_dockers.py all prod logs
 
 # =============================================================================
 # Utilities
@@ -583,28 +583,28 @@ production-logs: ## Show production logs
 
 shell: ## Open shell in application container
 	@echo "Opening shell in application container..."
-	$(DOCKER_COMPOSE) exec $(APP_CONTAINER) bash
+	cd docker && $(DOCKER_COMPOSE) exec $(APP_CONTAINER) bash
 
 shell-dev: ## Open shell in development container
 	@echo "Opening shell in development container..."
-	$(DOCKER_COMPOSE) exec $(APP_DEV_CONTAINER) bash
+	cd docker && $(DOCKER_COMPOSE) exec $(APP_DEV_CONTAINER) bash
 
 firecrawl-shell: ## Open shell in Firecrawl API container
 	@echo "Opening shell in Firecrawl API container..."
-	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) exec firecrawl-api bash
+	cd docker && $(DOCKER_COMPOSE) --profile $(PROD_PROFILE) exec firecrawl-api bash
 
 logs-app: ## Show application logs
 	@echo "Showing application logs..."
-	$(DOCKER_COMPOSE) logs -f $(APP_CONTAINER) || $(DOCKER_COMPOSE) logs -f $(APP_DEV_CONTAINER)
+	cd docker && $(DOCKER_COMPOSE) logs -f $(APP_CONTAINER) || cd docker && $(DOCKER_COMPOSE) logs -f $(APP_DEV_CONTAINER)
 
 logs-all: ## Show all service logs
 	@echo "Showing all service logs..."
-	$(DOCKER_COMPOSE) logs -f
+	uv run docker/run_dockers.py all dev logs
 
 backup-firecrawl: ## Backup Firecrawl data
 	@echo "Backing up Firecrawl data..."
 	mkdir -p backups
-	$(DOCKER_COMPOSE) --profile $(PROD_PROFILE) exec firecrawl-postgres pg_dump -U firecrawl firecrawl > backups/firecrawl_$(shell date +%Y%m%d_%H%M%S).sql
+	cd docker && $(DOCKER_COMPOSE) --profile $(PROD_PROFILE) exec firecrawl-postgres pg_dump -U firecrawl firecrawl > backups/firecrawl_$(shell date +%Y%m%d_%H%M%S).sql
 
 # =============================================================================
 # Database Commands
@@ -678,29 +678,26 @@ profile: ## Run application with profiling
 dev-jupyter: ## Start Jupyter notebook for interactive development
 	@echo "Starting Jupyter notebook for interactive development..."
 	@echo "Checking if development environment is running..."
-	@if ! $(DOCKER_COMPOSE) ps --filter "name=ai-assistant-dev" --format "table {{.Names}}" | grep -q "ai-assistant-dev"; then \
-		echo "Development environment not running. Starting it first..."; \
-		$(DOCKER_COMPOSE) --env-file .env --profile $(DEV_PROFILE) up -d; \
-		echo "Waiting for services to be ready..."; \
-		sleep 10; \
+	@if ! cd docker && $(DOCKER_COMPOSE) ps app --format "table {{.Names}}" | grep -q "ai-assistant-app"; then \
+		echo "Development environment not running. Please start it first with:"; \
+		echo "  uv run docker/run_dockers.py app dev up"; \
+		exit 1; \
 	fi
 	@echo "Stopping any existing Jupyter instances..."
-	@$(DOCKER_COMPOSE) exec ai-assistant-dev pkill -f jupyter || echo "No existing Jupyter instances found"
+	@cd docker && $(DOCKER_COMPOSE) exec app pkill -f jupyter || echo "No existing Jupyter instances found"
 	@echo "Starting Jupyter notebook in development container..."
-	@$(DOCKER_COMPOSE) exec -d ai-assistant-dev uv run jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root
+	@cd docker && $(DOCKER_COMPOSE) exec -d app uv run jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''
 	@echo "Waiting for Jupyter to start..."
 	@sleep 5
-	@echo "Getting Jupyter access token..."
-	@$(eval TOKEN := $(shell $(DOCKER_COMPOSE) exec ai-assistant-dev uv run jupyter notebook list | grep ":8888/" | grep -o 'token=[a-zA-Z0-9]*' | cut -d'=' -f2))
 	@echo "Jupyter is ready!"
-	@echo "Access it at: http://localhost:8888/?token=$(TOKEN)"
-	@echo "To get the token again, run: docker exec ai-assistant-dev uv run jupyter notebook list"
-	@echo "To stop Jupyter, run: docker exec ai-assistant-dev pkill -f jupyter"
+	@echo "Access it at: http://localhost:8888/"
+	@echo "No token required - access is open for development"
+	@echo "To stop Jupyter, run: make jupyter-stop"
 
 jupyter-logs: ## Show Jupyter logs
 	@echo "Showing Jupyter logs..."
-	$(DOCKER_COMPOSE) logs -f ai-assistant-dev | grep jupyter || $(DOCKER_COMPOSE) logs -f ai-assistant-dev
+	@cd docker && $(DOCKER_COMPOSE) logs -f app | grep jupyter || cd docker && $(DOCKER_COMPOSE) logs -f app
 
 jupyter-stop: ## Stop Jupyter notebook
 	@echo "Stopping Jupyter notebook..."
-	$(DOCKER_COMPOSE) exec ai-assistant-dev pkill -f jupyter || echo "Jupyter not running"
+	@cd docker && $(DOCKER_COMPOSE) exec app pkill -f jupyter || echo "Jupyter not running"

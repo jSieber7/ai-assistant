@@ -87,8 +87,9 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: postgres
-    ports:
-      - "5432:5432"
+    # Removed port mapping to avoid conflicts - postgres is internal only
+    # ports:
+    #   - "5432:5432"
     networks:
       - shared-network
 

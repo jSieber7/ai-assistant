@@ -300,7 +300,7 @@ def get_service_info(service, environment="dev"):
                 "FastAPI App: http://localhost:8000"
             ],
             "traefik": [
-                "Dashboard: http://localhost:8080"
+                "Dashboard: http://localhost:8881"
             ]
         }
     return service_urls.get(service, ["Service running on default ports"])
@@ -436,6 +436,11 @@ def start_all_services(environment, foreground):
             compose_cmd += f" --env-file {service}/env/{environment}.env"
     
     compose_cmd += " -f docker-compose.yml"
+    
+    # Load main .env file if it exists
+    main_env_file = Path(__file__).parent.parent / ".env"
+    if main_env_file.is_file():
+        compose_cmd += f" --env-file {main_env_file}"
     
     if foreground:
         run_command(f"{compose_cmd} up", foreground=True)

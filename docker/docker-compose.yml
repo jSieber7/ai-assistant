@@ -48,7 +48,8 @@ services:
       - ACME_EMAIL=${ACME_EMAIL:-admin@example.com}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.dashboard.rule=Host(`traefik.${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.localhost`)"
+      - "traefik.http.routers.dashboard.entrypoints=web"
       - "traefik.http.services.dashboard.loadbalancer.server.port=8080"
       # Enable HTTPS for dashboard
       - "traefik.http.routers.dashboard.tls=true"
@@ -58,8 +59,9 @@ services:
     image: redis:alpine
     container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
+    # Removed port mapping to avoid conflicts - Redis is internal only
+    # ports:
+    #   - "6379:6379"
     volumes:
       - redis-data:/data
     command: redis-server --appendonly yes
