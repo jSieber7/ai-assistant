@@ -78,9 +78,9 @@ services:
     image: redis:alpine
     container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-redis
     restart: unless-stopped
-    # Removed port mapping to avoid conflicts - Redis is internal only
-    ports:
-      - "6379:6379"
+    # Redis is internal only - no port mapping to avoid conflicts
+    # ports:
+    #   - "6379:6379"  # Commented out to avoid conflicts
     volumes:
       - redis-data:/data
     command: redis-server --appendonly yes
