@@ -600,8 +600,9 @@ async def health_check():
             "openai_compatible": bool(settings.openai_settings.api_key),
             "openrouter": bool(settings.openrouter_api_key),
             "custom_reranker": settings.custom_reranker_enabled,
+            "ollama_reranker": settings.ollama_reranker_enabled,
             "jina_reranker": bool(settings.jina_reranker_api_key),
-        }
+        },
     }
 
 

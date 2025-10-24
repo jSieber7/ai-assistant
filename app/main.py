@@ -146,6 +146,19 @@ if settings.custom_reranker_enabled:
         print(f"Warning: Failed to initialize Custom Reranker system: {str(e)}")
         print("Custom Reranker system will be disabled until properly configured")
 
+# Initialize Ollama Reranker system
+if settings.ollama_reranker_enabled:
+    try:
+        from .core.tools.content.ollama_reranker_tool import OllamaRerankerTool
+
+        ollama_reranker_tool = OllamaRerankerTool()
+        tool_registry.register(ollama_reranker_tool, category="reranking")
+        print("Ollama Reranker tool registered successfully")
+        print("Ollama Reranker system initialized successfully")
+    except Exception as e:
+        print(f"Warning: Failed to initialize Ollama Reranker system: {str(e)}")
+        print("Ollama Reranker system will be disabled until properly configured")
+
 # Initialize Jina Reranker system (legacy, kept for backward compatibility)
 if settings.jina_reranker_enabled:
     try:

@@ -390,7 +390,7 @@ def test_configuration(service, environment, compose_file):
         sys.exit(1)
     os.chdir(original_cwd)
 
-def build_service(service, environment, compose_file, no_cache=False):
+def build_service(service, environment, compose_file, no_cache=False, progress="auto"):
     log_info(f"Building {service} services in {environment} mode...")
     original_cwd = os.getcwd()
     os.chdir(SCRIPT_DIR)
@@ -399,6 +399,8 @@ def build_service(service, environment, compose_file, no_cache=False):
     compose_cmd = f"docker compose --env-file {service}/env/{environment}.env -f docker-compose.yml build"
     if no_cache:
         compose_cmd += " --no-cache"
+    if progress != "auto":
+        compose_cmd += f" --progress={progress}"
     compose_cmd += f" {service}"
     
     run_command(compose_cmd)
@@ -560,7 +562,7 @@ def test_all_configuration(environment):
     
     os.chdir(original_cwd)
 
-def build_all_services(environment, no_cache=False):
+def build_all_services(environment, no_cache=False, progress="auto"):
     services = get_all_services()
     log_info(f"Building all services in {environment} mode...")
     
@@ -577,6 +579,8 @@ def build_all_services(environment, no_cache=False):
     compose_cmd += " -f docker-compose.yml build"
     if no_cache:
         compose_cmd += " --no-cache"
+    if progress != "auto":
+        compose_cmd += f" --progress={progress}"
     
     run_command(compose_cmd)
     log_success("All services built successfully!")
@@ -620,6 +624,7 @@ def show_help():
     print("  --dev, -d                 Use development environment (default: production)")
     print("  -f, --foreground    Run in foreground mode (default is detached)")
     print("  --no-cache          Build without using cache (for build command only)")
+    print("  --progress MODE      Set build progress output mode (auto, plain, tty)")
     print("  --help, -h          Show this help message")
     print("")
     print(f"{Colors.YELLOW}EXAMPLES:{Colors.NC}")
@@ -659,6 +664,8 @@ def main():
                        help="Run in foreground mode (default is detached)")
     parser.add_argument('--no-cache', action='store_true',
                        help="Build without using cache (for build command only)")
+    parser.add_argument('--progress', type=str, default='auto', choices=['auto', 'plain', 'tty'],
+                       help="Set build progress output mode (default: auto)")
     parser.add_argument('--help', '-h', action='store_true',
                        help="Show this help message")
     
@@ -691,7 +698,7 @@ def main():
         elif args.command == "test":
             test_all_configuration(environment)
         elif args.command == "build":
-            build_all_services(environment, args.no_cache)
+            build_all_services(environment, args.no_cache, args.progress)
     else:
         if args.command == "up":
             start_services(args.service, environment, compose_file, args.foreground)
@@ -706,7 +713,7 @@ def main():
         elif args.command == "test":
             test_configuration(args.service, environment, compose_file)
         elif args.command == "build":
-            build_service(args.service, environment, compose_file, args.no_cache)
+            build_service(args.service, environment, compose_file, args.no_cache, args.progress)
 
 if __name__ == "__main__":
     main()

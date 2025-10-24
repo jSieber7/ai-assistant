@@ -52,8 +52,8 @@ class RetrievalService:
 
         # Determine if reranking should be enabled
         if enable_reranking is None:
-            # Prefer custom reranker, fall back to Jina reranker for backward compatibility
-            self.enable_reranking = settings.custom_reranker_enabled or settings.jina_reranker_enabled
+            # Prefer custom reranker, fall back to Ollama reranker, then Jina reranker for backward compatibility
+            self.enable_reranking = settings.custom_reranker_enabled or settings.ollama_reranker_enabled or settings.jina_reranker_enabled
         else:
             self.enable_reranking = enable_reranking
 
@@ -208,16 +208,27 @@ class RetrievalService:
             # Extract content for reranking
             doc_contents = [doc.page_content for doc in documents]
 
+            # Determine which reranker to use
+            if settings.custom_reranker_enabled:
+                required_tool = "custom_reranker"
+                model = settings.custom_reranker_model
+            elif settings.ollama_reranker_enabled:
+                required_tool = "ollama_reranker"
+                model = getattr(settings, 'ollama_reranker_model', 'nomic-embed-text')
+            else:
+                required_tool = "jina_reranker"
+                model = settings.jina_reranker_model
+            
             # Create rerank task request
             rerank_request = TaskRequest(
                 task_type=TaskType.RERANK,
                 query=query,
                 context={"documents": doc_contents},
-                required_tools=["jina_reranker"],
+                required_tools=[required_tool],
                 parameters={
                     "documents": doc_contents,
                     "top_n": top_n,
-                    "model": settings.jina_reranker_model,
+                    "model": model,
                 },
                 max_tools=1,
             )
@@ -294,7 +305,14 @@ class RetrievalService:
                     doc.metadata["rerank_score"] = relevance_score
                     doc.metadata["rerank_index"] = len(reranked_docs)
                     doc.metadata["reranked_at"] = time.time()
-                    doc.metadata["reranking_method"] = "custom_reranker" if settings.custom_reranker_enabled else "jina_reranker"
+                    if settings.custom_reranker_enabled:
+                        reranking_method = "custom_reranker"
+                    elif settings.ollama_reranker_enabled:
+                        reranking_method = "ollama_reranker"
+                    else:
+                        reranking_method = "jina_reranker"
+                    
+                    doc.metadata["reranking_method"] = reranking_method
 
                     reranked_docs.append(doc)
 
@@ -389,6 +407,7 @@ class RetrievalService:
                 "rerank_top_n": self.rerank_top_n,
                 "enable_reranking": self.enable_reranking,
                 "custom_reranker_enabled": settings.custom_reranker_enabled,
+                "ollama_reranker_enabled": settings.ollama_reranker_enabled,
                 "jina_reranker_enabled": settings.jina_reranker_enabled,
             },
         }

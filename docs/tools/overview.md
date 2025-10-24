@@ -151,6 +151,61 @@ FIRECRAWL_SCRAPING_ENABLED=true
 FIRECRAWL_SCRAPE_TIMEOUT=60
 ```
 
+### Custom Reranker Tool
+
+**Purpose**: Improve search results by reranking them based on semantic relevance using local sentence-transformers.
+
+**Function Name**: `custom_rerank`
+
+**Description**: Rerank search results or documents using sentence-transformers models.
+
+**Usage Examples**:
+```
+User: "Find the most relevant documents about machine learning"
+AI: [Uses web search, then custom reranker] I've searched and reranked the results to find the most relevant documents...
+```
+
+**Features**:
+- Local embedding generation
+- Semantic similarity scoring
+- Multiple embedding models
+- Batch processing support
+- Fallback keyword matching
+
+**Configuration**:
+```bash
+CUSTOM_RERANKER_ENABLED=true
+CUSTOM_RERANKER_MODEL=all-MiniLM-L6-v2
+```
+
+### Ollama Reranker Tool
+
+**Purpose**: Improve search results by reranking them based on semantic relevance using Ollama embeddings.
+
+**Function Name**: `ollama_rerank`
+
+**Description**: Rerank search results or documents using Ollama's embedding models.
+
+**Usage Examples**:
+```
+User: "Find the most relevant documents about machine learning"
+AI: [Uses web search, then ollama reranker] I've searched and reranked the results to find the most relevant documents...
+```
+
+**Features**:
+- Local embedding generation via Ollama
+- No CUDA dependency
+- Semantic similarity scoring
+- Multiple embedding models
+- Batch processing support
+- Fallback keyword matching
+
+**Configuration**:
+```bash
+OLLAMA_RERANKER_ENABLED=false
+OLLAMA_RERANKER_MODEL=nomic-embed-text
+```
+
 ### Jina Reranker Tool
 
 **Purpose**: Improve search results by reranking them based on relevance.
@@ -187,7 +242,9 @@ JINA_RERANKER_MODEL=jina-reranker-v1-base-en
 
 ### Search Tools
 - **SearXNG Search**: Privacy-focused web search
-- **Jina Reranker**: Search result reranking
+- **Custom Reranker**: Local sentence-transformers reranking
+- **Ollama Reranker**: Local Ollama embeddings reranking
+- **Jina Reranker**: External API reranking
 - **Future**: RAG knowledge base search
 - **Future**: Document search
 

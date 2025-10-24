@@ -35,6 +35,7 @@ COPY app/ ./app/
 # Create virtual environment and install dependencies
 # Environment variable controls whether to install dev dependencies
 ARG BUILD_MODE=production
+ENV BUILD_MODE=${BUILD_MODE}
 RUN if [ "$BUILD_MODE" = "development" ]; then \
         uv venv /opt/venv && \
         uv sync --frozen --group dev --no-cache; \

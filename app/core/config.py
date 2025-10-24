@@ -354,6 +354,10 @@ class Settings(BaseSettings):
     # Custom Reranker settings (replaces Jina Reranker)
     custom_reranker_enabled: bool = True
     custom_reranker_model: str = "all-MiniLM-L6-v2"
+    
+    # Ollama Reranker settings
+    ollama_reranker_enabled: bool = False
+    ollama_reranker_model: str = "nomic-embed-text"
     custom_reranker_timeout: int = 30
     custom_reranker_cache_ttl: int = 3600
     custom_reranker_max_retries: int = 3
