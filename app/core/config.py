@@ -29,7 +29,7 @@ class CacheSettings(BaseSettings):
     memory_cache_cleanup_interval: int = 60
 
     # Redis cache settings
-    redis_host: str = "localhost"
+    redis_host: str = "my-stack-redis"
     redis_port: int = 6379
     redis_db: int = 0
     redis_password: Optional[str] = None
@@ -66,7 +66,7 @@ class OllamaSettings(BaseSettings):
 
     # Ollama server settings
     enabled: bool = True
-    base_url: str = "http://localhost:11434"
+    base_url: str = "http://host.docker.internal:11434"
     default_model: str = "llama2"
 
     # Connection settings
@@ -172,7 +172,7 @@ class FirecrawlSettings(BaseSettings):
     deployment_mode: str = "docker"  # Docker-only mode
 
     # Docker Configuration
-    docker_url: str = "http://firecrawl:3002"
+    docker_url: str = "http://firecrawl.localhost"
     bull_auth_key: Optional[str] = None
 
     # Web scraping specific settings
@@ -351,7 +351,14 @@ class Settings(BaseSettings):
     visual_screenshot_quality: int = 85
     visual_browser_control_enabled: bool = True
 
-    # Jina Reranker settings
+    # Custom Reranker settings (replaces Jina Reranker)
+    custom_reranker_enabled: bool = True
+    custom_reranker_model: str = "all-MiniLM-L6-v2"
+    custom_reranker_timeout: int = 30
+    custom_reranker_cache_ttl: int = 3600
+    custom_reranker_max_retries: int = 3
+    
+    # Legacy Jina Reranker settings (kept for backward compatibility)
     jina_reranker_enabled: bool = False
     jina_reranker_url: str = "http://jina-reranker:8080"
     jina_reranker_model: str = "jina-reranker-v2-base-multilingual"
@@ -370,7 +377,7 @@ class Settings(BaseSettings):
     openai_api_key: Optional[str] = None
     secret_key: Optional[str] = None
     # SearXNG URL is hardcoded since it's an internal service
-    searxng_url: str = "http://searxng:8080"
+    searxng_url: str = "http://searxng.localhost"
 
     def __init__(self, **data):
         super().__init__(**data)

@@ -71,7 +71,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.firecrawl.rule=Host(`firecrawl.${BASE_DOMAIN:-localhost}`)"
       - "traefik.http.services.firecrawl.loadbalancer.server.port=${INTERNAL_PORT:-3002}"
-      - "traefik.http.routers.firecrawl.tls=true"
+      # - "traefik.http.routers.firecrawl.tls=true"
       # - "traefik.http.routers.firecrawl.tls.certresolver=${TLS_CERT_RESOLVER:-selfsigned}"
 
   # Redis service disabled - using shared redis from main docker-compose.yml

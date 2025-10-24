@@ -147,3 +147,4 @@ docker/supabase/volumes/logs/*.log
 app/core/docker/supabase/volumes/db/data/
 app/core/docker/supabase/volumes/storage/
 app/core/docker/supabase/volumes/logs/*.log
+.devcontainer/

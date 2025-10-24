@@ -4,13 +4,12 @@
 # Docker Services Runner Script
 # =============================================================================
 # This script starts Docker services with simplified command structure.
-# Usage: uv run run_dockers.py [service] [environment] [command] [options]
-#   - Service: all (default), supabase, firecrawl, searxng, frontend, app
-#   - Environment: dev (default) or prod
+# Usage: uv run run_dockers.py [command] [options]
 #   - Command: up (default), down, logs, status, reset, test, build
-#   - Options: -f to run in foreground mode (default is detached), --no-cache to build without cache
+#   - Options: --service SERVICE (target specific service), --dev (dev mode, default is prod)
+#              -f, --foreground (run in foreground mode, default is detached)
+#              --no-cache (build without cache)
 # =============================================================================
-
 import os
 import sys
 import subprocess
@@ -340,7 +339,7 @@ def start_services(service, environment, compose_file, foreground):
         run_command(f"{compose_cmd} up -d {service}")
         log_success(f"{service} services started in detached mode!")
         display_service_urls(service, environment)
-        log_info(f"Use 'uv run run_dockers.py {service} {environment} logs' to view logs")
+        log_info(f"Use 'uv run run_dockers.py -s {service} logs' to view logs")
     os.chdir(original_cwd)
 
 def stop_services(service, environment, compose_file):
@@ -448,7 +447,7 @@ def start_all_services(environment, foreground):
         run_command(f"{compose_cmd} up -d")
         log_success("All services started in detached mode!")
         display_all_service_urls(environment)
-        log_info(f"Use 'uv run run_dockers.py all {environment} logs' to view logs")
+        log_info(f"Use 'uv run run_dockers.py logs' to view logs")
     
     os.chdir(original_cwd)
 
@@ -475,7 +474,7 @@ def stop_all_services(environment):
 def show_all_logs(environment, foreground):
     if foreground:
         log_error("Cannot follow logs for all services at once. Please specify a single service.")
-        log_info("Example: uv run run_dockers.py supabase dev logs")
+        log_info("Example: uv run run_dockers.py -s supabase logs")
         sys.exit(1)
 
     services = get_all_services()
@@ -604,28 +603,34 @@ def show_help():
     print(f"{Colors.BLUE}Docker Services Management Script{Colors.NC}")
     print("")
     print(f"{Colors.YELLOW}USAGE:{Colors.NC}")
-    print("  uv run run_dockers.py [service] [environment] [command] [options]")
+    print("  uv run run_dockers.py [command] [options]")
     print("  uv run run_dockers.py --help | -h")
     print("")
-    print(f"{Colors.YELLOW}PARAMETERS:{Colors.NC}")
-    print("  service      Service name (all, supabase, firecrawl, searxng, frontend, app)")
-    print("  environment  Environment name (dev, prod)")
-    print("  command      Command to execute (up, down, logs, status, reset, test, build)")
+    print(f"{Colors.YELLOW}COMMANDS:{Colors.NC}")
+    print("  up           Start services (default)")
+    print("  down         Stop services")
+    print("  logs         Show service logs")
+    print("  status       Show service status")
+    print("  reset        Reset service data")
+    print("  test         Test service configuration")
+    print("  build        Build services")
     print("")
     print(f"{Colors.YELLOW}OPTIONS:{Colors.NC}")
-    print("  -f           Run in foreground mode (default is detached)")
-    print("  --no-cache   Build without using cache (for build command only)")
-    print("  --help, -h   Show this help message")
+    print("  --service, -s SERVICE    Target specific service (default: all)")
+    print("  --dev, -d                 Use development environment (default: production)")
+    print("  -f, --foreground    Run in foreground mode (default is detached)")
+    print("  --no-cache          Build without using cache (for build command only)")
+    print("  --help, -h          Show this help message")
     print("")
     print(f"{Colors.YELLOW}EXAMPLES:{Colors.NC}")
-    print("  uv run run_dockers.py                    # Start all services in dev mode (detached)")
-    print("  uv run run_dockers.py firecrawl prod up  # Start firecrawl in prod mode (detached)")
-    print("  uv run run_dockers.py supabase dev down  # Stop supabase in dev mode")
-    print("  uv run run_dockers.py firecrawl up -f    # Start firecrawl in foreground mode")
-    print("  uv run run_dockers.py firecrawl logs     # Show firecrawl logs")
-    print("  uv run run_dockers.py all prod down      # Stop all services in prod mode")
-    print("  uv run run_dockers.py firecrawl build    # Build firecrawl service")
-    print("  uv run run_dockers.py all build --no-cache  # Build all services without cache")
+    print("  uv run run_dockers.py                    # Start all services in prod mode (detached)")
+    print("  uv run run_dockers.py -s firecrawl -d up  # Start firecrawl in dev mode (detached)")
+    print("  uv run run_dockers.py -s supabase down    # Stop supabase in prod mode")
+    print("  uv run run_dockers.py -s firecrawl -f up   # Start firecrawl in foreground mode")
+    print("  uv run run_dockers.py -s firecrawl logs    # Show firecrawl logs")
+    print("  uv run run_dockers.py -d down              # Stop all services in dev mode")
+    print("  uv run run_dockers.py -s firecrawl build   # Build firecrawl service")
+    print("  uv run run_dockers.py build --no-cache              # Build all services without cache")
     print("")
     print(f"{Colors.YELLOW}AVAILABLE SERVICES:{Colors.NC}")
     services = get_all_services()
@@ -634,72 +639,74 @@ def show_help():
 
 def main():
     """Main function to parse arguments and execute commands."""
-    # Check for help flag first
-    if "--help" in sys.argv or "-h" in sys.argv:
+    # Parse arguments
+    parser = argparse.ArgumentParser(
+        description="Docker Services Management Script",
+        add_help=False  # We'll handle help manually to show our custom help
+    )
+    
+    # Command argument (positional, with default)
+    parser.add_argument('command', nargs='?', default='up', 
+                       choices=['up', 'down', 'logs', 'status', 'reset', 'test', 'build'],
+                       help="Command to execute (default: up)")
+    
+    # Optional flags
+    parser.add_argument('--service', '-s', type=str, default='all',
+                       help="Target specific service (default: all)")
+    parser.add_argument('--dev', '-d', action='store_true',
+                       help="Use development environment (default: production)")
+    parser.add_argument('-f', '--foreground', action='store_true',
+                       help="Run in foreground mode (default is detached)")
+    parser.add_argument('--no-cache', action='store_true',
+                       help="Build without using cache (for build command only)")
+    parser.add_argument('--help', '-h', action='store_true',
+                       help="Show this help message")
+    
+    args = parser.parse_args()
+    
+    # Show help if requested
+    if args.help:
         show_help()
         sys.exit(0)
-
-    # Parse arguments
-    parser = argparse.ArgumentParser(description="Docker Services Management Script", add_help=False)
-    parser.add_argument('service', nargs='?', default='all', help="Service name (all, supabase, firecrawl, searxng, frontend, app)")
-    parser.add_argument('environment', nargs='?', default='dev', help="Environment name (dev, prod)")
-    parser.add_argument('command', nargs='?', default='up', help="Command to execute (up, down, logs, status, reset, test, build)")
     
-    # We parse known args to handle the positional ones, then scan for -f and --no-cache
-    # This mimics the shell script's flexible argument handling.
-    args, unknown = parser.parse_known_args()
+    # Determine environment based on --dev flag
+    environment = "dev" if args.dev else "prod"
     
-    # Check for flags in any remaining argument
-    foreground = "-f" in unknown
-    no_cache = "--no-cache" in unknown
-
     # Run checks and setup
     check_docker()
-    compose_file = validate_inputs(args.service, args.environment)
+    compose_file = validate_inputs(args.service, environment)
 
     # Execute command
     if args.service == "all":
         if args.command == "up":
-            start_all_services(args.environment, foreground)
+            start_all_services(environment, args.foreground)
         elif args.command == "down":
-            stop_all_services(args.environment)
+            stop_all_services(environment)
         elif args.command == "logs":
-            show_all_logs(args.environment, foreground)
+            show_all_logs(environment, args.foreground)
         elif args.command == "status":
-            show_all_status(args.environment)
+            show_all_status(environment)
         elif args.command == "reset":
-            reset_all_services(args.environment)
+            reset_all_services(environment)
         elif args.command == "test":
-            test_all_configuration(args.environment)
+            test_all_configuration(environment)
         elif args.command == "build":
-            build_all_services(args.environment, no_cache)
-        else:
-            log_error(f"Unknown command: '{args.command}'")
-            log_info("Available commands: up, down, logs, status, reset, test, build")
-            log_info(f"Example: uv run run_dockers.py {args.service} {args.environment} up")
-            log_info("Use 'uv run run_dockers.py --help' for more information.")
-            sys.exit(1)
+            build_all_services(environment, args.no_cache)
     else:
         if args.command == "up":
-            start_services(args.service, args.environment, compose_file, foreground)
+            start_services(args.service, environment, compose_file, args.foreground)
         elif args.command == "down":
-            stop_services(args.service, args.environment, compose_file)
+            stop_services(args.service, environment, compose_file)
         elif args.command == "logs":
-            show_logs(args.service, args.environment, compose_file)
+            show_logs(args.service, environment, compose_file)
         elif args.command == "status":
-            show_status(args.service, args.environment, compose_file)
+            show_status(args.service, environment, compose_file)
         elif args.command == "reset":
-            reset_services(args.service, args.environment, compose_file)
+            reset_services(args.service, environment, compose_file)
         elif args.command == "test":
-            test_configuration(args.service, args.environment, compose_file)
+            test_configuration(args.service, environment, compose_file)
         elif args.command == "build":
-            build_service(args.service, args.environment, compose_file, no_cache)
-        else:
-            log_error(f"Unknown command: '{args.command}'")
-            log_info("Available commands: up, down, logs, status, reset, test, build")
-            log_info(f"Example: uv run run_dockers.py {args.service} {args.environment} up")
-            log_info("Use 'uv run run_dockers.py --help' for more information.")
-            sys.exit(1)
+            build_service(args.service, environment, compose_file, args.no_cache)
 
 if __name__ == "__main__":
     main()

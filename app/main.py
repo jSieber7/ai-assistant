@@ -133,7 +133,20 @@ if settings.playwright_settings.enabled:
         else:
             print("Playwright system will be disabled until properly configured")
 
-# Initialize Jina Reranker system
+# Initialize Custom Reranker system
+if settings.custom_reranker_enabled:
+    try:
+        from .core.tools.content.custom_reranker_tool import CustomRerankerTool
+
+        custom_reranker_tool = CustomRerankerTool()
+        tool_registry.register(custom_reranker_tool, category="reranking")
+        print("Custom Reranker tool registered successfully")
+        print("Custom Reranker system initialized successfully")
+    except Exception as e:
+        print(f"Warning: Failed to initialize Custom Reranker system: {str(e)}")
+        print("Custom Reranker system will be disabled until properly configured")
+
+# Initialize Jina Reranker system (legacy, kept for backward compatibility)
 if settings.jina_reranker_enabled:
     try:
         from .core.tools.content.jina_reranker_tool import JinaRerankerTool

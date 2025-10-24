@@ -52,7 +52,8 @@ class RetrievalService:
 
         # Determine if reranking should be enabled
         if enable_reranking is None:
-            self.enable_reranking = settings.jina_reranker_enabled
+            # Prefer custom reranker, fall back to Jina reranker for backward compatibility
+            self.enable_reranking = settings.custom_reranker_enabled or settings.jina_reranker_enabled
         else:
             self.enable_reranking = enable_reranking
 
@@ -293,7 +294,7 @@ class RetrievalService:
                     doc.metadata["rerank_score"] = relevance_score
                     doc.metadata["rerank_index"] = len(reranked_docs)
                     doc.metadata["reranked_at"] = time.time()
-                    doc.metadata["reranking_method"] = "jina_reranker"
+                    doc.metadata["reranking_method"] = "custom_reranker" if settings.custom_reranker_enabled else "jina_reranker"
 
                     reranked_docs.append(doc)
 
@@ -387,6 +388,7 @@ class RetrievalService:
                 "retrieval_k": self.retrieval_k,
                 "rerank_top_n": self.rerank_top_n,
                 "enable_reranking": self.enable_reranking,
+                "custom_reranker_enabled": settings.custom_reranker_enabled,
                 "jina_reranker_enabled": settings.jina_reranker_enabled,
             },
         }

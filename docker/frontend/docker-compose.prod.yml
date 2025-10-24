@@ -4,7 +4,7 @@ services:
   frontend:
     build:
       context: ../../frontend
-      dockerfile: Dockerfile
+      dockerfile: ../docker/frontend/Dockerfile.prod
     container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-frontend-prod
     restart: unless-stopped
     expose:

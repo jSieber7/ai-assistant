@@ -6,4 +6,25 @@ server:
   limiter: false  # enable this when running the instance for a public usage on the internet
   image_proxy: true
 redis:
-  url: redis://my-stack-redis:6379/0
+  url: redis://redis:6379/0
+# Disable external engines that require network access
+search:
+  formats:
+    - html
+  engines:
+    - name: google
+      disabled: false
+    - name: bing
+      disabled: false
+    - name: duckduckgo
+      disabled: false
+    - name: wikipedia
+      disabled: false
+    - name: wikidata
+      disabled: true
+    - name: ahmia
+      disabled: true
+    - name: yacy
+      disabled: true
+    - name: torch
+      disabled: true

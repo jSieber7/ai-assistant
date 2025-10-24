@@ -111,6 +111,12 @@ class HealthMonitor:
         )
 
         self.register_health_check(
+            "custom_reranker",
+            HealthCheckType.INTERNAL_SERVICE,
+            self._check_custom_reranker,
+        )
+        
+        self.register_health_check(
             "jina_reranker",
             HealthCheckType.EXTERNAL_SERVICE,
             self._check_jina_reranker,

@@ -44,7 +44,7 @@ PYTEST_UNIT_OPTIONS := --cov=app --cov-report=html:$(COVERAGE_DIR) --cov-report=
 # Default Target
 # =============================================================================
 
-.PHONY: help install dev test lint format clean production production-down production-logs firecrawl firecrawl-down firecrawl-logs health-check docs shutdown-everything nuke quality-check ci-test test-results-dir dev-jupyter
+.PHONY: help install dev test lint format clean production production-down production-logs firecrawl firecrawl-down firecrawl-logs health-check docs shutdown-everything nuke quality-check ci-test test-results-dir dev-jupyter links links-int
 
 .DEFAULT_GOAL := help
 
@@ -102,6 +102,10 @@ help: ## Show this help message
 	@echo "  shutdown-everything  Shut down all Docker services"
 	@echo "  nuke                 Nuclear option - complete Docker reset"
 	@echo ""
+	@echo "Links:"
+	@echo "  links            Show all accessible service URLs"
+	@echo "  links-int        Show internal service URLs only"
+	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 # =============================================================================
@@ -133,11 +137,11 @@ setup-dev: ## Set up development environment
 
 dev: ## Run development server
 	@echo "Starting development server..."
-	uv run uvicorn app.main:app --host 0.0.0.0 --port $(APP_PORT) --reload
+	uv run docker/run_dockers.py up -d
 
 dev-docker: ## Run development with Docker (includes all tool dockers)
 	@echo "Starting development environment with Docker and all tools..."
-	uv run docker/run_dockers.py all dev up
+	uv run docker/run_dockers.py up --service all --dev
 	@echo "Waiting for services to be ready..."
 	@sleep 10
 	@echo "Development environment with all tools is ready!"
@@ -147,7 +151,7 @@ dev-docker: ## Run development with Docker (includes all tool dockers)
 dev-quick: ## Quick development setup (install + start services)
 	@echo "Quick development setup..."
 	$(MAKE) setup-dev
-	uv run docker/run_dockers.py all dev up
+	uv run docker/run_dockers.py up --service all --dev
 	@echo "Development environment is ready!"
 	@echo "App: http://localhost:$(APP_PORT)"
 
@@ -325,24 +329,24 @@ security-check: test-results-dir ## Run security checks
 
 docker: ## Start all Docker services
 	@echo "Starting all Docker services..."
-	uv run docker/run_dockers.py all dev up
+	uv run docker/run_dockers.py up --service all --dev
 
 docker-down: ## Stop all Docker services
 	@echo "Stopping all Docker services..."
-	uv run docker/run_dockers.py all dev down
+	uv run docker/run_dockers.py down --service all --dev
 
 docker-logs: ## Show Docker logs
 	@echo "Showing Docker logs..."
-	uv run docker/run_dockers.py all dev logs
+	uv run docker/run_dockers.py logs --service all --dev
 
 docker-restart: ## Restart Docker services
 	@echo "Restarting Docker services..."
-	uv run docker/run_dockers.py all dev down
-	uv run docker/run_dockers.py all dev up
+	uv run docker/run_dockers.py down --service all --dev
+	uv run docker/run_dockers.py up --service all --dev
 
 docker-status: ## Show Docker service status
 	@echo "Docker service status:"
-	uv run docker/run_dockers.py all dev status
+	uv run docker/run_dockers.py status --service all --dev
 
 # =============================================================================
 # Milvus Docker Commands
@@ -350,27 +354,27 @@ docker-status: ## Show Docker service status
 
 milvus: ## Start Milvus Docker services
 	@echo "Starting Milvus Docker services..."
-	uv run docker/run_dockers.py milvus prod up
+	uv run docker/run_dockers.py up --service milvus
 	@echo "Waiting for services to be ready..."
 	@sleep 30
 	$(MAKE) milvus-health
 
 milvus-down: ## Stop Milvus Docker services
 	@echo "Stopping Milvus Docker services..."
-	uv run docker/run_dockers.py milvus prod down
+	uv run docker/run_dockers.py down --service milvus
 
 milvus-logs: ## Show Milvus Docker logs
 	@echo "Showing Milvus Docker logs..."
-	uv run docker/run_dockers.py milvus prod logs
+	uv run docker/run_dockers.py logs --service milvus
 
 milvus-restart: ## Restart Milvus Docker services
 	@echo "Restarting Milvus Docker services..."
-	uv run docker/run_dockers.py milvus prod down
-	uv run docker/run_dockers.py milvus prod up
+	uv run docker/run_dockers.py down --service milvus
+	uv run docker/run_dockers.py up --service milvus
 
 milvus-status: ## Show Milvus service status
 	@echo "Milvus service status:"
-	uv run docker/run_dockers.py milvus prod status
+	uv run docker/run_dockers.py status --service milvus
 
 milvus-health: ## Check Milvus health
 	@echo "Checking Milvus health..."
@@ -387,35 +391,35 @@ milvus-health: ## Check Milvus health
 
 firecrawl: ## Start Firecrawl Docker services
 	@echo "Starting Firecrawl Docker services..."
-	uv run docker/run_dockers.py firecrawl prod up
+	uv run docker/run_dockers.py up --service firecrawl
 	@echo "Waiting for services to be ready..."
 	@sleep 10
 	$(MAKE) firecrawl-health
 
 firecrawl-down: ## Stop Firecrawl Docker services
 	@echo "Stopping Firecrawl Docker services..."
-	uv run docker/run_dockers.py firecrawl prod down
+	uv run docker/run_dockers.py down --service firecrawl
 
 firecrawl-logs: ## Show Firecrawl Docker logs
 	@echo "Showing Firecrawl Docker logs..."
-	uv run docker/run_dockers.py firecrawl prod logs
+	uv run docker/run_dockers.py logs --service firecrawl
 
 firecrawl-restart: ## Restart Firecrawl Docker services
 	@echo "Restarting Firecrawl Docker services..."
-	uv run docker/run_dockers.py firecrawl prod down
-	uv run docker/run_dockers.py firecrawl prod up
+	uv run docker/run_dockers.py down --service firecrawl
+	uv run docker/run_dockers.py up --service firecrawl
 
 firecrawl-dev: ## Start development with Firecrawl
 	@echo "Starting development environment with Firecrawl..."
-	uv run docker/run_dockers.py firecrawl dev up
+	uv run docker/run_dockers.py up --service firecrawl --dev
 
 firecrawl-production: ## Start production with Firecrawl
 	@echo "Starting production environment with Firecrawl..."
-	uv run docker/run_dockers.py firecrawl prod up
+	uv run docker/run_dockers.py up --service firecrawl
 
 firecrawl-status: ## Show Firecrawl service status
 	@echo "Firecrawl service status:"
-	uv run docker/run_dockers.py firecrawl prod status
+	uv run docker/run_dockers.py status --service firecrawl
 
 firecrawl-health: ## Check Firecrawl health
 	@echo "Checking Firecrawl health..."
@@ -432,7 +436,7 @@ firecrawl-test: ## Test Firecrawl with example URL
 migrate-to-docker: ## Migrate from API to Docker mode
 	@echo "Migrating to Firecrawl Docker mode..."
 	@echo "1. Starting Firecrawl Docker services..."
-	uv run docker/run_dockers.py firecrawl prod up
+	uv run docker/run_dockers.py up --service firecrawl
 	@echo "2. Waiting for services to be ready..."
 	@sleep 15
 	@echo "3. Verifying installation..."
@@ -447,7 +451,7 @@ migrate-to-docker: ## Migrate from API to Docker mode
 migrate-to-api: ## Migrate from Docker to API mode
 	@echo "Migrating to Firecrawl API mode..."
 	@echo "1. Stopping Firecrawl Docker services..."
-	uv run docker/run_dockers.py firecrawl prod down
+	uv run docker/run_dockers.py down --service firecrawl
 	@echo ""
 	@echo "Migration complete! Update your .env file:"
 	@echo "FIRECRAWL_DEPLOYMENT_MODE=api"
@@ -461,10 +465,10 @@ migrate-to-api: ## Migrate from Docker to API mode
 health-check: ## Run comprehensive health check
 	@echo "Running comprehensive health check..."
 	@echo "=== Docker Services ==="
-	uv run docker/run_dockers.py all dev status || echo "Docker services not running"
+	uv run docker/run_dockers.py status --service all --dev || echo "Docker services not running"
 	@echo ""
 	@echo "=== Firecrawl Services ==="
-	uv run docker/run_dockers.py firecrawl prod status || echo "Firecrawl services not running"
+	uv run docker/run_dockers.py status --service firecrawl || echo "Firecrawl services not running"
 	@echo ""
 	@echo "=== Firecrawl Health ==="
 	$(MAKE) firecrawl-health || echo "Firecrawl health check failed"
@@ -472,7 +476,7 @@ health-check: ## Run comprehensive health check
 status-all: ## Show status of all services
 	@echo "=== All Service Status ==="
 	@echo "Docker Services:"
-	uv run docker/run_dockers.py all dev status || echo "No Docker services running"
+	uv run docker/run_dockers.py status --service all --dev || echo "No Docker services running"
 	@echo ""
 	@echo "Application Containers:"
 	@docker ps --filter "name=$(PROJECT_NAME)" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" || echo "No application containers running"
@@ -519,7 +523,7 @@ clean: ## Clean up temporary files
 
 clean-docker: ## Clean up Docker resources
 	@echo "Cleaning up Docker resources..."
-	uv run docker/run_dockers.py all dev down
+	uv run docker/run_dockers.py down --service all --dev
 	docker system prune -f
 	docker volume prune -f
 
@@ -533,9 +537,9 @@ shutdown-everything: ## SHUT DOWN ALL DOCKER SERVICES ACROSS ALL PROFILES
 	@echo "🚨 EMERGENCY SHUTDOWN INITIATED - STOPPING ALL SERVICES 🚨"
 	@echo "Stopping all Docker services across all profiles..."
 	@echo "Phase 1: Stopping dev services..."
-	uv run docker/run_dockers.py all dev down || true
+	uv run docker/run_dockers.py down --service all --dev || true
 	@echo "Phase 2: Stopping prod services..."
-	uv run docker/run_dockers.py all prod down || true
+	uv run docker/run_dockers.py down --service all || true
 	@echo "Phase 3: Stopping any remaining services..."
 	cd docker && $(DOCKER_COMPOSE) down --remove-orphans || true
 	@echo "Phase 4: Force stopping any stubborn containers from this project..."
@@ -566,16 +570,16 @@ nuke: ## NUCLEAR OPTION - COMPLETE DOCKER SYSTEM RESET
 
 production: ## Start production environment
 	@echo "Starting production environment..."
-	uv run docker/run_dockers.py all prod up
+	uv run docker/run_dockers.py up --service all
 
 
 production-down: ## Stop production environment
 	@echo "Stopping production environment..."
-	uv run docker/run_dockers.py all prod down
+	uv run docker/run_dockers.py down --service all
 
 production-logs: ## Show production logs
 	@echo "Showing production logs..."
-	uv run docker/run_dockers.py all prod logs
+	uv run docker/run_dockers.py logs --service all
 
 # =============================================================================
 # Utilities
@@ -599,7 +603,7 @@ logs-app: ## Show application logs
 
 logs-all: ## Show all service logs
 	@echo "Showing all service logs..."
-	uv run docker/run_dockers.py all dev logs
+	uv run docker/run_dockers.py logs --service all --dev
 
 backup-firecrawl: ## Backup Firecrawl data
 	@echo "Backing up Firecrawl data..."
@@ -675,18 +679,18 @@ profile: ## Run application with profiling
 # Jupyter Development
 # =============================================================================
 
-dev-jupyter: ## Start Jupyter notebook for interactive development
+jupyter: ## Start Jupyter notebook for interactive development
 	@echo "Starting Jupyter notebook for interactive development..."
 	@echo "Checking if development environment is running..."
-	@if ! cd docker && $(DOCKER_COMPOSE) ps app --format "table {{.Names}}" | grep -q "ai-assistant-app"; then \
+	@if ! cd docker && $(DOCKER_COMPOSE) --env-file ../.env ps app --format "table {{.Names}}" | grep -q "my-stack-app"; then \
 		echo "Development environment not running. Please start it first with:"; \
 		echo "  uv run docker/run_dockers.py app dev up"; \
 		exit 1; \
 	fi
 	@echo "Stopping any existing Jupyter instances..."
-	@cd docker && $(DOCKER_COMPOSE) exec app pkill -f jupyter || echo "No existing Jupyter instances found"
+	@cd docker && $(DOCKER_COMPOSE) --env-file ../.env exec app pkill -f jupyter || echo "No existing Jupyter instances found"
 	@echo "Starting Jupyter notebook in development container..."
-	@cd docker && $(DOCKER_COMPOSE) exec -d app uv run jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''
+	@cd docker && $(DOCKER_COMPOSE) --env-file ../.env exec -d app uv run jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''
 	@echo "Waiting for Jupyter to start..."
 	@sleep 5
 	@echo "Jupyter is ready!"
@@ -696,8 +700,63 @@ dev-jupyter: ## Start Jupyter notebook for interactive development
 
 jupyter-logs: ## Show Jupyter logs
 	@echo "Showing Jupyter logs..."
-	@cd docker && $(DOCKER_COMPOSE) logs -f app | grep jupyter || cd docker && $(DOCKER_COMPOSE) logs -f app
+	@cd docker && $(DOCKER_COMPOSE) --env-file ../.env logs -f app | grep jupyter || cd docker && $(DOCKER_COMPOSE) --env-file ../.env logs -f app
 
 jupyter-stop: ## Stop Jupyter notebook
 	@echo "Stopping Jupyter notebook..."
-	@cd docker && $(DOCKER_COMPOSE) exec app pkill -f jupyter || echo "Jupyter not running"
+	@cd docker && $(DOCKER_COMPOSE) --env-file ../.env exec app pkill -f jupyter || echo "Jupyter not running"
+
+# =============================================================================
+# Service Links
+# =============================================================================
+
+links: ## Show all accessible service URLs
+	@echo "=========================================="
+	@echo "🔗 AI Assistant Service URLs"
+	@echo "=========================================="
+	@echo ""
+	@echo "📱 Main Applications:"
+	@echo "  App (API):           http://localhost:$(APP_PORT) or http://app.localhost"
+	@echo "  Frontend (Dev):      http://frontend.localhost"
+	@echo ""
+	@echo "🔍 Search & Crawling:"
+	@echo "  SearXNG:             http://searxng.localhost"
+	@echo "  Firecrawl API:       http://firecrawl.localhost or http://localhost:3002"
+	@echo ""
+	@echo "📊 Monitoring & Management:"
+	@echo "  Traefik Dashboard:   http://localhost:8080 or http://traefik.localhost"
+	@echo "  Jupyter Notebook:    http://localhost:8888"
+	@echo "  Prometheus:          http://localhost:$(PROMETHEUS_PORT)"
+	@echo "  Grafana:             http://localhost:$(GRAFANA_PORT)"
+	@echo ""
+	@echo "💡 Tips:"
+	@echo "  - Use localhost URLs for direct port access"
+	@echo "  - Use subdomain URLs (app.localhost) for Traefik routing"
+	@echo "  - Some services may require authentication"
+	@echo "  - Make sure services are running before accessing URLs"
+	@echo ""
+
+links-int: ## Show internal Docker network service URLs (not accessible from outside)
+	@echo "=========================================="
+	@echo "🔗 AI Assistant Internal Docker Network URLs"
+	@echo "=========================================="
+	@echo ""
+	@echo "🗄️  Database Services:"
+	@echo "  Redis:               my-stack-redis:6379"
+	@echo "  Supabase DB:         my-stack-supabase-db:5432"
+	@echo "  Firecrawl PostgreSQL: nuq-postgres:5432"
+	@echo ""
+	@echo "🔍 Search & Crawling:"
+	@echo "  SearXNG:             my-stack-searxng:8080"
+	@echo "  Firecrawl API:       firecrawl-api:3002"
+	@echo "  Playwright Service:  playwright-service:3000"
+	@echo ""
+	@echo "📊 Logging & Analytics:"
+	@echo "  Supabase Vector:     my-stack-supabase-vector:9001"
+	@echo ""
+	@echo "💡 Tips:"
+	@echo "  - These URLs are only accessible within the Docker network"
+	@echo "  - Use these URLs for inter-service communication"
+	@echo "  - Services must be running before accessing these URLs"
+	@echo "  - Container names may vary based on COMPOSE_PROJECT_NAME"
+	@echo ""
