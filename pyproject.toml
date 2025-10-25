@@ -15,11 +15,10 @@ dependencies = [
     "langchain[community,openai]>=1.0.0", # MongoDB async driver
     "langchain-ollama>=0.1.0", # For Ollama embeddings
     "langchain-openai>=0.1.0", # Enhanced OpenAI integration
-    "langchain-chroma>=0.1.0", # ChromaDB integration
     "langgraph>=1.0.0",
     "deepagents>=0.1.0",
     "nest-asyncio>=1.6.0",
-    "numpy>=1.21.0", # Required for sentence-transformers
+    "numpy>=1.21.0", # Required for numerical operations
     "orjson>=3.11.3",
     "pip-audit>=2.9.0",
     "playwright>=1.40.0",
@@ -27,7 +26,7 @@ dependencies = [
     "psutil>=7.1.0", # For system monitoring
     "pymilvus>=2.4.0",
     "pydantic>=2.11.9",
-    "pydantic-settings>=2.0.0", # Required for sentence-transformers
+    "pydantic-settings>=2.0.0", # Required for settings management
     "uvicorn>=0.35.0",
     "mkdocs>=1.6.1",
     "mkdocs-material>=9.6.21",
@@ -59,8 +58,6 @@ dependencies = [
     
     # Vector Stores and Embeddings (for semantic search and similarity)
     "faiss-cpu>=1.7.0",
-    "chromadb>=0.4.0",
-    "sentence-transformers>=2.2.0",
     
     # Image Processing (for screenshots in webdriver_agent)
     "pillow>=10.0.0",

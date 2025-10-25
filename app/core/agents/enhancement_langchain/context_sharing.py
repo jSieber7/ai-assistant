@@ -15,10 +15,13 @@ from enum import Enum
 from collections import defaultdict
 
 from langgraph.graph import StateGraph, END
-from langgraph.graph.graph import CompiledGraph
+try:
+    from langgraph.graph import CompiledGraph
+except ImportError:
+    CompiledGraph = None
 from pydantic import BaseModel
 
-from app.core.langchain.integration import get_langchain_integration
+# Legacy integration layer removed - direct LLM provider access
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +128,7 @@ class LangGraphContextSharingSystem:
         
         # Initialize the workflow
         self.workflow = self._create_workflow()
-        self.compiled_workflow: Optional[CompiledGraph] = None
+        self.compiled_workflow = None
         
         # Storage for context data
         self.shared_context: Dict[str, SharedContext] = {}
@@ -816,7 +819,12 @@ class LangGraphContextSharingSystem:
         """Process a context sharing request"""
         # Compile workflow if not already done
         if self.compiled_workflow is None:
-            self.compiled_workflow = self.workflow.compile()
+            try:
+                self.compiled_workflow = self.workflow.compile()
+            except Exception as e:
+                logger.error(f"Failed to compile workflow: {str(e)}")
+                # Fallback to direct execution without compilation
+                return await self._fallback_execution(state)
         
         # Update internal state from workflow state
         self.shared_context = state.shared_context
@@ -836,6 +844,32 @@ class LangGraphContextSharingSystem:
         self.subscriptions = result_state.get("subscriptions", {})
         
         return ContextSharingState(**result_state)
+    
+    async def _fallback_execution(self, state: ContextSharingState) -> ContextSharingState:
+        """Fallback execution when workflow compilation fails"""
+        try:
+            # Simple direct execution based on action
+            if state.action == "share":
+                return await self._share_context(state)
+            elif state.action == "retrieve":
+                return await self._retrieve_context(state)
+            elif state.action == "build_on":
+                return await self._build_on_context(state)
+            elif state.action == "verify":
+                return await self._verify_context(state)
+            elif state.action == "subscribe":
+                return await self._subscribe_to_context(state)
+            elif state.action == "graph":
+                return await self._get_context_graph(state)
+            else:
+                state.error = f"Unknown action: {state.action}"
+                state.success = False
+                return state
+        except Exception as e:
+            logger.error(f"Fallback execution failed: {str(e)}")
+            state.error = str(e)
+            state.success = False
+            return state
     
     def get_statistics(self) -> Dict[str, Any]:
         """Get statistics about shared context"""

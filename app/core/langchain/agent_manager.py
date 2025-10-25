@@ -16,15 +16,39 @@ import asyncio
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
-from langchain_core.agents import AgentExecutor
-from langgraph import StateGraph, END
-from langgraph.checkpoint.memory import MemorySaver
-from langgraph.prebuilt import create_agent_executor
+# Make AgentExecutor import optional as it might be in different locations
+try:
+    from langchain.agents import AgentExecutor
+except ImportError:
+    try:
+        from langchain_core.agents import AgentExecutor
+    except ImportError:
+        AgentExecutor = None
+try:
+    from langgraph.graph import StateGraph, END
+except ImportError:
+    try:
+        from langgraph import StateGraph, END
+    except ImportError:
+        StateGraph = None
+        END = None
+
+# Make checkpoint imports optional
+try:
+    from langgraph.checkpoint.memory import MemorySaver
+except ImportError:
+    MemorySaver = None
+
+# Make prebuilt imports optional
+try:
+    from langgraph.prebuilt import create_agent_executor
+except ImportError:
+    create_agent_executor = None
 
 from .llm_manager import llm_manager
 from .tool_registry import tool_registry
 from .memory_manager import LangChainMemoryManager
-from .monitoring import LangChainMonitoring
+from .monitoring import LangChainMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -101,13 +125,13 @@ class LangGraphAgentManager:
     
     def __init__(self):
         self._agents: Dict[str, Any] = {}
-        self._workflows: Dict[str, StateGraph] = {}
+        self._workflows: Dict[str, Any] = {}
         self._agent_configs: Dict[str, AgentConfig] = {}
         self._agent_states: Dict[str, Dict[str, Any]] = {}
         self._memory_manager: Optional[LangChainMemoryManager] = None
-        self._checkpoint_saver = MemorySaver()
+        self._checkpoint_saver = MemorySaver() if MemorySaver else None
         self._initialized = False
-        self._monitoring = LangChainMonitoring()
+        self._monitoring = LangChainMonitor()
         
     async def initialize(self):
         """Initialize agent manager"""
@@ -116,6 +140,11 @@ class LangGraphAgentManager:
             
         logger.info("Initializing LangGraph Agent Manager...")
         
+        # Check for required dependencies
+        if StateGraph is None or END is None:
+            logger.error("StateGraph or END not available - langgraph may not be properly installed")
+            return
+            
         # Initialize monitoring
         await self._monitoring.initialize()
         
@@ -134,6 +163,10 @@ class LangGraphAgentManager:
         
     async def _create_default_workflows(self):
         """Create default LangGraph workflows"""
+        if StateGraph is None or END is None:
+            logger.error("Cannot create workflows - StateGraph or END not available")
+            return
+            
         try:
             # Conversational workflow
             self._workflows[AgentType.CONVERSATIONAL.value] = await self._create_conversational_workflow()
@@ -308,6 +341,10 @@ class LangGraphAgentManager:
                 return None
                 
             # Create agent with workflow
+            if workflow is None:
+                logger.error(f"Workflow is None for agent type '{config.agent_type.value}'")
+                return None
+                
             if config.agent_type == AgentType.MULTI_AGENT:
                 # Multi-agent workflow is special
                 agent = workflow.compile(checkpointer=self._checkpoint_saver)
@@ -694,38 +731,56 @@ class LangGraphAgentManager:
         }
         
     # Workflow creation methods (to be implemented in separate workflow modules)
-    async def _create_conversational_workflow(self) -> StateGraph:
+    async def _create_conversational_workflow(self):
         """Create conversational agent workflow"""
+        if StateGraph is None:
+            logger.error("Cannot create conversational workflow - StateGraph not available")
+            return None
         # This will be implemented in workflows/conversational.py
         from .workflows.conversational import create_conversational_workflow
         return await create_conversational_workflow()
         
-    async def _create_tool_heavy_workflow(self) -> StateGraph:
+    async def _create_tool_heavy_workflow(self):
         """Create tool-heavy agent workflow"""
+        if StateGraph is None:
+            logger.error("Cannot create tool-heavy workflow - StateGraph not available")
+            return None
         # This will be implemented in workflows/tool_heavy.py
         from .workflows.tool_heavy import create_tool_heavy_workflow
         return await create_tool_heavy_workflow()
         
-    async def _create_multi_agent_workflow(self) -> StateGraph:
+    async def _create_multi_agent_workflow(self):
         """Create multi-agent collaboration workflow"""
+        if StateGraph is None:
+            logger.error("Cannot create multi-agent workflow - StateGraph not available")
+            return None
         # This will be implemented in workflows/multi_agent.py
         from .workflows.multi_agent import create_multi_agent_workflow
         return await create_multi_agent_workflow()
         
-    async def _create_researcher_workflow(self) -> StateGraph:
+    async def _create_researcher_workflow(self):
         """Create researcher agent workflow"""
+        if StateGraph is None:
+            logger.error("Cannot create researcher workflow - StateGraph not available")
+            return None
         # This will be implemented in workflows/researcher.py
         from .workflows.researcher import create_researcher_workflow
         return await create_researcher_workflow()
         
-    async def _create_analyst_workflow(self) -> StateGraph:
+    async def _create_analyst_workflow(self):
         """Create analyst agent workflow"""
+        if StateGraph is None:
+            logger.error("Cannot create analyst workflow - StateGraph not available")
+            return None
         # This will be implemented in workflows/analyst.py
         from .workflows.analyst import create_analyst_workflow
         return await create_analyst_workflow()
         
-    async def _create_synthesizer_workflow(self) -> StateGraph:
+    async def _create_synthesizer_workflow(self):
         """Create synthesizer agent workflow"""
+        if StateGraph is None:
+            logger.error("Cannot create synthesizer workflow - StateGraph not available")
+            return None
         # This will be implemented in workflows/synthesizer.py
         from .workflows.synthesizer import create_synthesizer_workflow
         return await create_synthesizer_workflow()

@@ -22,8 +22,6 @@ class ProviderType(Enum):
     OPENAI_COMPATIBLE = "openai_compatible"
     OLLAMA = "ollama"
 
-    # Backward compatibility aliases
-    OPENROUTER = "openrouter"  # Maps to OPENAI_COMPATIBLE for backward compatibility
 
 
 @dataclass
@@ -337,13 +335,6 @@ class OpenAICompatibleProvider(LLMProvider):
             return False
 
 
-class OpenRouterProvider(OpenAICompatibleProvider):
-    """OpenRouter LLM provider - backward compatibility wrapper"""
-
-    def __init__(self, api_key: str, base_url: str = "https://openrouter.ai/api/v1"):
-        super().__init__(api_key=api_key, base_url=base_url, provider_name="OpenRouter")
-        # Override provider type for backward compatibility
-        self.provider_type = ProviderType.OPENROUTER
 
 
 class OllamaProvider(LLMProvider):
@@ -564,3 +555,27 @@ class LLMProviderRegistry:
 
 # Global provider registry
 provider_registry = LLMProviderRegistry()
+
+
+
+async def get_llm(model_name: Optional[str] = None, **kwargs):
+    """
+    Factory function to create LLM instances with multi-provider support
+
+    Args:
+        model_name: Model name (supports format "provider:model" or just "model")
+        **kwargs: Additional LLM parameters (temperature, max_tokens, etc.)
+    
+    Returns:
+        LLM instance configured with specified provider and model
+    """
+    # Get default provider
+    default_provider = provider_registry.get_default_provider()
+    if not default_provider:
+        raise ValueError("No LLM providers configured")
+    
+    # Resolve model to provider
+    provider, actual_model = await provider_registry.resolve_model(model_name or "gpt-4")
+    
+    # Create and return LLM instance
+    return await provider.create_llm(actual_model, **kwargs)

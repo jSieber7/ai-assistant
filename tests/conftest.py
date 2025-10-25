@@ -176,26 +176,6 @@ def mock_redis_client():
     return client
 
 
-@pytest.fixture
-def mock_langchain_integration():
-    """Mock LangChain integration for testing"""
-    integration = Mock()
-    integration.initialize = AsyncMock()
-    integration.shutdown = AsyncMock()
-    integration.health_check = AsyncMock(return_value={
-        "overall_status": "healthy",
-        "components": {
-            "llm_manager": {"status": "healthy"},
-            "tool_registry": {"status": "healthy"},
-            "agent_manager": {"status": "healthy"},
-            "memory_manager": {"status": "healthy"},
-            "monitoring": {"status": "healthy"}
-        }
-    })
-    integration.get_integration_mode = Mock(return_value="langchain")
-    integration.is_component_enabled = Mock(return_value=True)
-    return integration
-
 
 @pytest.fixture
 def sample_chat_request():

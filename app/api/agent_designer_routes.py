@@ -550,25 +550,13 @@ async def activate_saved_agent(agent_id: str):
     Note: This is a placeholder implementation.
     """
     try:
-        # Check if LangChain integration is enabled for agents
-        use_langchain_agents = secure_settings.get_setting("langchain_integration", "use_langchain_agents", False)
+        # TODO: Implement agent activation logic
+        # This would involve:
+        # 1. Loading agent class from the file
+        # 2. Registering it with agent_registry
+        # 3. Making it available for use
         
-        if use_langchain_agents:
-            # TODO: Implement agent activation logic for LangGraph agents
-            # This would involve:
-            # 1. Loading the agent class from the file
-            # 2. Registering it with the LangGraph agent manager
-            # 3. Making it available for use
-            
-            return {"message": f"LangGraph agent activation not yet implemented for ID {agent_id}"}
-        else:
-            # TODO: Implement agent activation logic for legacy agents
-            # This would involve:
-            # 1. Loading the agent class from the file
-            # 2. Registering it with the agent_registry
-            # 3. Making it available for use
-            
-            return {"message": f"Legacy agent activation not yet implemented for ID {agent_id}"}
+        return {"message": f"Agent activation not yet implemented for ID {agent_id}"}
         
     except Exception as e:
         logger.error(f"Error activating saved agent: {str(e)}")
@@ -582,54 +570,24 @@ async def get_available_tools_for_designer():
     Returns a list of tools that custom agents can use.
     """
     try:
-        # Check if LangChain integration is enabled for tools
-        use_langchain_tools = secure_settings.get_setting("langchain_integration", "use_langchain_tools", False)
+        # Use tool registry
+        available_tools = tool_registry.list_tools(enabled_only=True)
         
-        if use_langchain_tools:
-            # Use LangChain tool registry
-            from ..core.langchain.integration import langchain_integration
-            
-            # Initialize the integration layer if needed
-            if not langchain_integration.is_initialized:
-                await langchain_integration.initialize()
-            
-            # Get tools from LangChain integration
-            tools = await langchain_integration.list_tools()
-            
-            tools_info = []
-            for tool_name, tool_info in tools.items():
-                tools_info.append({
-                    "name": tool_name,
-                    "description": tool_info.get("description", ""),
-                    "categories": tool_info.get("categories", []),
-                    "keywords": tool_info.get("keywords", []),
-                    "enabled": tool_info.get("enabled", True)
-                })
-            
-            return {
-                "tools": tools_info,
-                "total_count": len(tools_info),
-                "system": "langchain"
-            }
-        else:
-            # Use legacy tool registry
-            available_tools = tool_registry.list_tools(enabled_only=True)
-            
-            tools_info = []
-            for tool in available_tools:
-                tools_info.append({
-                    "name": tool.name,
-                    "description": tool.description,
-                    "categories": tool.categories,
-                    "keywords": tool.keywords,
-                    "enabled": tool.enabled
-                })
-            
-            return {
-                "tools": tools_info,
-                "total_count": len(tools_info),
-                "system": "legacy"
-            }
+        tools_info = []
+        for tool in available_tools:
+            tools_info.append({
+                "name": tool.name,
+                "description": tool.description,
+                "categories": tool.categories,
+                "keywords": tool.keywords,
+                "enabled": tool.enabled
+            })
+        
+        return {
+            "tools": tools_info,
+            "total_count": len(tools_info),
+            "system": "standard"
+        }
         
     except Exception as e:
         logger.error(f"Error getting available tools: {str(e)}")

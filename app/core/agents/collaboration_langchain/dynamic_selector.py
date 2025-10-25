@@ -15,9 +15,9 @@ from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from pydantic import BaseModel
 
-from app.core.langchain.integration import get_integration
+from app.core.config import get_llm
 from app.core.agents.content_langchain.writer_agent import WriterAgent
-from app.core.agents.validation_langchain.checker_agent import CheckerAgent
+from app.core.agents.validation_langchain.checker_agent import LangGraphCheckerAgent
 
 logger = logging.getLogger(__name__)
 
@@ -210,10 +210,8 @@ class LangGraphDynamicSelector:
             # Create analysis prompt
             analysis_prompt = self._create_task_analysis_prompt(state.prompt, state.context)
             
-            # Get integration for LLM access
-            integration = get_integration()
-            llm_manager = integration.get_llm_manager()
-            llm = await llm_manager.get_llm(state.analysis_model)
+            # Get LLM directly
+            llm = await get_llm(state.analysis_model)
             
             # Generate analysis
             messages = [
@@ -669,7 +667,7 @@ Consider the complexity, content type, and quality needs to provide accurate ana
         self,
         prompt: str,
         available_writers: Dict[str, WriterAgent],
-        available_checkers: Dict[str, CheckerAgent],
+        available_checkers: Dict[str, LangGraphCheckerAgent],
         context: Dict[str, Any] = None,
         thread_id: Optional[str] = None,
     ) -> SelectionResult:
@@ -746,7 +744,7 @@ Consider the complexity, content type, and quality needs to provide accurate ana
         task_id: str,
         prompt: str,
         available_writers: Dict[str, WriterAgent],
-        available_checkers: Dict[str, CheckerAgent],
+        available_checkers: Dict[str, LangGraphCheckerAgent],
     ) -> SelectionResult:
         """Fallback selection when analysis fails"""
         # Default task analysis

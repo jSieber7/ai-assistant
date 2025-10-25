@@ -11,8 +11,7 @@ import json
 import re
 from typing import Dict, List, Optional, Any, AsyncGenerator, Tuple
 from pydantic import BaseModel, Field
-from langchain.schema import HumanMessage, AIMessage, SystemMessage
-from langchain.schema.messages import BaseMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 

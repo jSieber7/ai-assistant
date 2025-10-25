@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from .checker_agent import LangGraphCheckerAgent
 from .collaborative_checker import CheckerAssessment, CheckerDispute, ConsensusLevel, ConsensusResult
-from app.core.langchain.integration import get_integration
+from app.core.llm_providers import get_llm
 
 logger = logging.getLogger(__name__)
 
@@ -371,9 +371,7 @@ Provide a resolution as JSON:
 """
 
         try:
-            integration = get_integration()
-            llm_manager = integration.get_llm_manager()
-            llm = await llm_manager.get_llm(self.model)
+            llm = await get_llm(self.model)
             
             response = await llm.ainvoke([
                 {
@@ -560,9 +558,7 @@ Provide evidence-based resolution as JSON:
 """
 
         try:
-            integration = get_integration()
-            llm_manager = integration.get_llm_manager()
-            llm = await llm_manager.get_llm(self.model)
+            llm = await get_llm(self.model)
             
             response = await llm.ainvoke([
                 {
@@ -628,9 +624,7 @@ Provide your authoritative assessment as JSON:
 """
 
             try:
-                integration = get_integration()
-                llm_manager = integration.get_llm_manager()
-                llm = await llm_manager.get_llm(self.model)
+                llm = await get_llm(self.model)
                 
                 response = await llm.ainvoke([
                     {
@@ -736,9 +730,7 @@ Provide comprehensive analysis as JSON:
 """
 
         try:
-            integration = get_integration()
-            llm_manager = integration.get_llm_manager()
-            llm = await llm_manager.get_llm(self.model)
+            llm = await get_llm(self.model)
             
             response = await llm.ainvoke([
                 {"role": "system", "content": self._get_analysis_system_prompt()},

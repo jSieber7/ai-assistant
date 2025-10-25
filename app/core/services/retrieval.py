@@ -52,8 +52,8 @@ class RetrievalService:
 
         # Determine if reranking should be enabled
         if enable_reranking is None:
-            # Prefer custom reranker, fall back to Ollama reranker, then Jina reranker for backward compatibility
-            self.enable_reranking = settings.custom_reranker_enabled or settings.ollama_reranker_enabled or settings.jina_reranker_enabled
+            # Prefer custom reranker, fall back to Ollama reranker
+            self.enable_reranking = settings.custom_reranker_enabled or settings.ollama_reranker_enabled
         else:
             self.enable_reranking = enable_reranking
 
@@ -216,8 +216,9 @@ class RetrievalService:
                 required_tool = "ollama_reranker"
                 model = getattr(settings, 'ollama_reranker_model', 'nomic-embed-text')
             else:
-                required_tool = "jina_reranker"
-                model = settings.jina_reranker_model
+                # No reranker available, disable reranking
+                logger.warning("No reranker is enabled, skipping reranking")
+                return documents[:top_n]
             
             # Create rerank task request
             rerank_request = TaskRequest(
@@ -310,7 +311,7 @@ class RetrievalService:
                     elif settings.ollama_reranker_enabled:
                         reranking_method = "ollama_reranker"
                     else:
-                        reranking_method = "jina_reranker"
+                        reranking_method = "unknown"
                     
                     doc.metadata["reranking_method"] = reranking_method
 
@@ -408,7 +409,6 @@ class RetrievalService:
                 "enable_reranking": self.enable_reranking,
                 "custom_reranker_enabled": settings.custom_reranker_enabled,
                 "ollama_reranker_enabled": settings.ollama_reranker_enabled,
-                "jina_reranker_enabled": settings.jina_reranker_enabled,
             },
         }
 

@@ -1,6 +1,6 @@
 """
 Custom Reranker Tool
-A tool for reranking documents using a custom implementation based on sentence transformers
+A tool for reranking documents using a dummy keyword-based implementation
 """
 
 import logging
@@ -35,11 +35,11 @@ class RerankResponse(BaseModel):
 
 
 class CustomRerankerTool(BaseTool):
-    """Tool for reranking documents using custom implementation"""
+    """Tool for reranking documents using dummy keyword-based implementation"""
 
     name = "custom_reranker"
     description = (
-        "Rerank documents based on semantic relevance to a query using custom implementation"
+        "Rerank documents based on keyword relevance to a query using dummy implementation"
     )
 
     def __init__(self):
@@ -49,36 +49,10 @@ class CustomRerankerTool(BaseTool):
         self._initialized = False
 
     async def _initialize_model(self):
-        """Initialize the sentence transformer model"""
-        if self._initialized:
-            return
-
-        try:
-            # Import sentence transformers
-            from sentence_transformers import SentenceTransformer
-            
-            # Use a multilingual model that works well for reranking
-            model_name = "all-MiniLM-L6-v2"  # Lightweight and effective
-            logger.info(f"Loading sentence transformer model: {model_name}")
-            
-            # Load model in a thread to avoid blocking
-            loop = asyncio.get_event_loop()
-            self._model = await loop.run_in_executor(
-                None, lambda: SentenceTransformer(model_name)
-            )
-            
-            self._initialized = True
-            logger.info("Custom reranker model loaded successfully")
-            
-        except ImportError:
-            logger.error(
-                "sentence-transformers package not found. Install with: "
-                "pip install sentence-transformers"
-            )
-            self._initialized = False
-        except Exception as e:
-            logger.error(f"Failed to load reranker model: {str(e)}")
-            self._initialized = False
+        """Initialize the dummy reranker model"""
+        # Always use dummy implementation
+        self._initialized = False
+        logger.info("Using dummy reranker implementation")
 
     async def execute(self, **kwargs) -> ToolResult:
         """Execute reranking tool"""
@@ -117,16 +91,9 @@ class CustomRerankerTool(BaseTool):
                     execution_time=0.0,
                 )
 
-            # Initialize model if needed
-            await self._initialize_model()
-            
-            if not self._initialized:
-                # Fallback to simple keyword-based reranking
-                logger.warning("Model not initialized, using fallback keyword reranking")
-                return await self._fallback_rerank(query, documents, top_n, model)
-
-            # Perform semantic reranking
-            response = await self._semantic_rerank(query, documents, top_n, model)
+            # Always use dummy implementation
+            logger.info("Using dummy reranking implementation")
+            return await self._fallback_rerank(query, documents, top_n, model)
 
             if response:
                 return ToolResult(
@@ -154,55 +121,6 @@ class CustomRerankerTool(BaseTool):
                 execution_time=0.0,
             )
 
-    async def _semantic_rerank(
-        self, query: str, documents: List[str], top_n: Optional[int], model: str
-    ) -> Optional[Dict[str, Any]]:
-        """Perform semantic reranking using sentence transformers"""
-        try:
-            # Encode query and documents
-            loop = asyncio.get_event_loop()
-            
-            # Encode query
-            query_embedding = await loop.run_in_executor(
-                None, lambda: self._model.encode([query], convert_to_tensor=True)
-            )
-            
-            # Encode documents
-            doc_embeddings = await loop.run_in_executor(
-                None, lambda: self._model.encode(documents, convert_to_tensor=True)
-            )
-            
-            # Compute cosine similarity
-            from sentence_transformers import util
-            cosine_scores = util.cos_sim(query_embedding, doc_embeddings)[0]
-            
-            # Create results with scores
-            results = []
-            for idx, score in enumerate(cosine_scores):
-                results.append({
-                    "index": idx,
-                    "document": documents[idx],
-                    "relevance_score": float(score)
-                })
-            
-            # Sort by relevance score (descending)
-            results.sort(key=lambda x: x["relevance_score"], reverse=True)
-            
-            # Apply top_n limit if specified
-            if top_n is not None and top_n > 0:
-                results = results[:top_n]
-            
-            return {
-                "results": results,
-                "model": model,
-                "query": query,
-                "total_documents": len(documents),
-                "cached": False
-            }
-            
-        except Exception as e:
-            logger.error(f"Error in semantic reranking: {str(e)}")
-            return None
 
     async def _fallback_rerank(
         self, query: str, documents: List[str], top_n: Optional[int], model: str

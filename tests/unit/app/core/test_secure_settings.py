@@ -79,7 +79,6 @@ class TestSecureSettingsManager:
             assert "external_services" in settings
             assert "system_config" in settings
             assert "multi_writer" in settings
-            assert "langchain_integration" in settings
             
             # Check LLM providers
             assert "openai_compatible" in settings["llm_providers"]
@@ -99,9 +98,6 @@ class TestSecureSettingsManager:
             assert "enabled" in settings["multi_writer"]
             assert "mongodb_connection_string" in settings["multi_writer"]
             
-            # Check LangChain integration
-            assert "use_langchain_llm" in settings["langchain_integration"]
-            assert "use_langchain_tools" in settings["langchain_integration"]
     
     def test_load_existing_settings(self):
         """Test loading existing settings from file"""

@@ -129,7 +129,7 @@ class OpenAISettings(BaseSettings):
 
     enabled: bool = True
     api_key: Optional[SecretStr] = None
-    base_url: str = "https://openrouter.ai/api/v1"  # Default for backward compatibility
+    base_url: str = "https://openrouter.ai/api/v1"
     default_model: str = "anthropic/claude-3.5-sonnet"
     provider_name: Optional[str] = None  # Auto-detected from base_url if not provided
     custom_headers: Dict[str, str] = {}
@@ -350,7 +350,7 @@ class VectorStoreSettings(BaseSettings):
 
     # General settings
     enabled: bool = True
-    provider: str = "milvus"  # milvus, chroma, faiss, pinecone
+    provider: str = "milvus"  # milvus, faiss, pinecone
     default_collection: str = "langchain_documents"
 
     # Embedding settings
@@ -367,11 +367,6 @@ class VectorStoreSettings(BaseSettings):
     batch_size: int = 100
     max_retries: int = 3
     timeout: int = 30
-
-    # ChromaDB specific settings (if using Chroma)
-    chroma_persist_directory: Optional[str] = None
-    chroma_host: Optional[str] = None
-    chroma_port: Optional[int] = None
 
     class Config:
         env_prefix = "VECTOR_STORE_"
@@ -408,9 +403,7 @@ class Settings(BaseSettings):
     # OpenAI-compatible provider settings (new generic approach)
     openai_settings: OpenAISettings = OpenAISettings()
 
-    # Backward compatibility settings
-    openrouter_api_key: Optional[SecretStr] = None
-    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    # Default model setting
     default_model: str = "anthropic/claude-3.5-sonnet"
 
     # Provider selection
@@ -483,26 +476,18 @@ class Settings(BaseSettings):
     visual_screenshot_quality: int = 85
     visual_browser_control_enabled: bool = True
 
-    # Custom Reranker settings (replaces Jina Reranker)
+    # Custom Reranker settings
     custom_reranker_enabled: bool = True
     custom_reranker_model: str = "all-MiniLM-L6-v2"
-    
-    # Ollama Reranker settings
-    ollama_reranker_enabled: bool = False
-    ollama_reranker_model: str = "nomic-embed-text"
     custom_reranker_timeout: int = 30
     custom_reranker_cache_ttl: int = 3600
     custom_reranker_max_retries: int = 3
     
-    # Legacy Jina Reranker settings (kept for backward compatibility)
-    jina_reranker_enabled: bool = False
-    jina_reranker_url: str = "http://jina-reranker:8080"
-    jina_reranker_model: str = "jina-reranker-v2-base-multilingual"
-    jina_reranker_timeout: int = 30
-    jina_reranker_cache_ttl: int = 3600
-    jina_reranker_max_retries: int = 3
-    jina_reranker_api_key: Optional[str] = None
-
+    # Ollama Reranker settings
+    ollama_reranker_enabled: bool = False
+    ollama_reranker_model: str = "nomic-embed-text"
+    
+    
     # Models unused in the current stage of development
     router_model: str = "deepseek/deepseek-chat"
     logic_model: str = "anthropic/claude-3.5-sonnet"
@@ -549,32 +534,7 @@ class Settings(BaseSettings):
                     "secret_key", self.secret_key
                 )
 
-            # Load Jina Reranker settings from secure settings
-            secure_jina_config = secure_settings.get_category("external_services").get(
-                "jina_reranker", {}
-            )
-            if secure_jina_config:
-                self.jina_reranker_enabled = secure_jina_config.get(
-                    "enabled", self.jina_reranker_enabled
-                )
-                self.jina_reranker_api_key = secure_jina_config.get(
-                    "api_key", self.jina_reranker_api_key
-                )
-                self.jina_reranker_url = secure_jina_config.get(
-                    "url", self.jina_reranker_url
-                )
-                self.jina_reranker_model = secure_jina_config.get(
-                    "model", self.jina_reranker_model
-                )
-                self.jina_reranker_timeout = secure_jina_config.get(
-                    "timeout", self.jina_reranker_timeout
-                )
-                self.jina_reranker_cache_ttl = secure_jina_config.get(
-                    "cache_ttl", self.jina_reranker_cache_ttl
-                )
-                self.jina_reranker_max_retries = secure_jina_config.get(
-                    "max_retries", self.jina_reranker_max_retries
-                )
+            
 
             # Load SearXNG settings from secure settings
             secure_searxng_config = secure_settings.get_category(
@@ -623,57 +583,9 @@ settings = Settings()
 
 
 def initialize_llm_providers():
-    """Initialize all configured LLM providers with backward compatibility"""
-    # Try to initialize LangChain integration layer first
-    try:
-        from .langchain.integration import integration_layer
-        import asyncio
-        
-        # Create a simple synchronous wrapper
-        def _sync_init_langchain():
-            try:
-                # Create a new event loop for this thread
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    # Initialize integration layer
-                    loop.run_until_complete(integration_layer.initialize())
-                    
-                    # Check if LangChain LLM is enabled
-                    if integration_layer._feature_flags.get("use_langchain_llm", False):
-                        logger.info("LangChain LLM manager initialized via integration layer")
-                        return True
-                    else:
-                        logger.info("LangChain LLM manager disabled, falling back to legacy system")
-                        return False
-                finally:
-                    loop.close()
-            except Exception as e:
-                logger.error(f"Failed to initialize LangChain integration layer: {str(e)}")
-                return False
-        
-        # Use threading to avoid event loop issues
-        import concurrent.futures
-        
-        # Use a thread pool to run the async function
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(_sync_init_langchain)
-            try:
-                langchain_enabled = future.result(timeout=30)
-                if langchain_enabled:
-                    return True  # LangChain is enabled, skip legacy initialization
-            except Exception as e:
-                logger.error(f"Failed to initialize LangChain from thread: {str(e)}")
-                
-    except ImportError:
-        logger.debug("LangChain integration layer not available, using legacy system")
-    except Exception as e:
-        logger.warning(f"Failed to use LangChain integration layer: {str(e)}, falling back to legacy system")
-
-    # Fallback to legacy provider system
+    """Initialize all configured LLM providers"""
     from .llm_providers import (
         OpenAICompatibleProvider,
-        OpenRouterProvider,
         OllamaProvider,
         provider_registry,
     )
@@ -711,9 +623,12 @@ def initialize_llm_providers():
                 logger.warning("OpenRouter provider API key is empty")
             else:
                 # Create OpenRouter provider using the new generic class
-                openrouter_provider = OpenRouterProvider(
+                from app.core.llm_providers import OpenAICompatibleProvider
+                
+                openrouter_provider = OpenAICompatibleProvider(
                     api_key=api_key,
                     base_url=settings.openrouter_base_url,
+                    provider_name="OpenRouter",
                 )
                 provider_registry.register_provider(openrouter_provider)
                 logger.info("OpenRouter provider initialized (backward compatibility mode)")
@@ -736,9 +651,10 @@ def initialize_llm_providers():
                     
                     # Check if this is an OpenRouter provider based on the URL
                     if "openrouter.ai" in base_url:
-                        openrouter_provider = OpenRouterProvider(
+                        openrouter_provider = OpenAICompatibleProvider(
                             api_key=api_key,
                             base_url=base_url,
+                            provider_name="OpenRouter",
                         )
                         provider_registry.register_provider(openrouter_provider)
                         logger.info(f"OpenRouter provider initialized from secure settings: {openrouter_provider.name}")
@@ -836,16 +752,15 @@ def initialize_llm_providers():
         # Don't raise an error, just return the registry without a default provider
         return provider_registry
 
-    # Handle provider preference with backward compatibility
+    # Handle provider preference
     preferred = settings.preferred_provider.lower()
-
-    # Map old provider names to new ones for backward compatibility
+    
+    # Map preferred provider string to enum value
     provider_mapping = {
-        "openrouter": "openai_compatible",
         "openai_compatible": "openai_compatible",
         "ollama": "ollama",
+        "openrouter": "openrouter",
     }
-
     mapped_preferred = provider_mapping.get(preferred, preferred)
 
     for provider in configured_providers:
@@ -871,473 +786,69 @@ async def get_llm(model_name: Optional[str] = None, **kwargs):
     Args:
         model_name: Model name (supports format "provider:model" or just "model")
         **kwargs: Additional LLM parameters (temperature, max_tokens, etc.)
-
+    
     Returns:
-        LangChain LLM instance or a mock LLM if no providers are configured
+        LLM instance configured with the specified provider and model
     """
-    # Try to use LangChain integration layer first
-    try:
-        from .langchain.integration import integration_layer
-        
-        # Initialize integration layer if not already done
-        if not integration_layer._initialized:
-            await integration_layer.initialize()
-            
-        # Use integration layer if LangChain LLM is enabled
-        if integration_layer._feature_flags.get("use_langchain_llm", False):
-            # Use default model if none specified
-            if not model_name:
-                model_name = settings.default_model
-                
-            return await integration_layer.get_llm(model_name, **kwargs)
-            
-    except ImportError:
-        logger.debug("LangChain integration layer not available, using legacy system")
-    except Exception as e:
-        logger.warning(f"Failed to use LangChain integration layer: {str(e)}, falling back to legacy system")
-
-    # Fallback to legacy provider system
     from .llm_providers import provider_registry
-
-    if not provider_registry.list_providers():
-        # Initialize providers if not already done
-        initialize_llm_providers()
-
-    # Use default model if none specified
-    if not model_name:
-        model_name = settings.default_model
-
-    try:
-        # Check if any providers are configured
-        configured_providers = provider_registry.list_configured_providers()
-        if not configured_providers:
-            logger.info("No LLM providers configured, using mock LLM")
-            return _create_mock_llm(model_name, **kwargs)
-
-        # Resolve model to provider and actual model name
-        provider, actual_model = await provider_registry.resolve_model(model_name)
-
-        # Create LLM instance
-        llm = await provider.create_llm(actual_model, **kwargs)
-
-        logger.info(f"Created {provider.name} LLM with model '{actual_model}'")
-        return llm
-
-    except ValueError as e:
-        # Handle "Model not found" errors specifically
-        if "not found in any configured provider" in str(e):
-            # Get list of available models for a more helpful error message
-            try:
-                available_models = get_available_models()
-                if available_models:
-                    model_list = ", ".join([m.name for m in available_models[:5]])
-                    if len(available_models) > 5:
-                        model_list += f" and {len(available_models) - 5} more"
-                    error_msg = f"Model '{model_name}' not found. Available models: {model_list}"
-                else:
-                    error_msg = f"Model '{model_name}' not found. No models are currently available."
-
-                if settings.enable_fallback:
-                    error_msg += " Trying fallback providers..."
-
-                logger.warning(error_msg)
-            except Exception:
-                logger.warning(
-                    f"Model '{model_name}' not found in any configured provider"
-                )
-
-        # Try fallback providers if enabled
-        if settings.enable_fallback:
-            logger.warning(f"Attempting fallback for model '{model_name}'")
-
-            configured_providers = provider_registry.list_configured_providers()
-            for fallback_provider in configured_providers:
-                # Skip the provider that already failed if we can determine it
-                if "not found" in str(e) and ":" in model_name:
-                    failed_provider_name = model_name.split(":", 1)[0]
-                    try:
-                        if (
-                            fallback_provider.provider_type.value
-                            == failed_provider_name
-                        ):
-                            continue
-                    except ValueError:
-                        pass
-
-                try:
-                    # Try provider's default model
-                    models = await fallback_provider.list_models()
-                    if models:
-                        fallback_model = models[0].name
-                        llm = await fallback_provider.create_llm(
-                            fallback_model, **kwargs
-                        )
-                        logger.info(
-                            f"Created fallback {fallback_provider.name} LLM with model '{fallback_model}'"
-                        )
-                        return llm
-                except Exception as fallback_error:
-                    logger.warning(
-                        f"Fallback to {fallback_provider.name} failed: {str(fallback_error)}"
-                    )
-                    continue
-
-        # If we get here, all fallback attempts failed
-        logger.warning(f"All LLM providers failed for model '{model_name}', returning mock LLM")
-        return _create_mock_llm(model_name, **kwargs)
-
-    except Exception as e:
-        # Handle other types of errors
-        logger.error(
-            f"Unexpected error creating LLM for model '{model_name}': {str(e)}"
-        )
-        logger.warning("Returning mock LLM due to error")
-        return _create_mock_llm(model_name, **kwargs)
-
-
-def _create_mock_llm(model_name: str, **kwargs):
-    """Create a mock LLM for when no providers are available"""
-    from langchain_core.messages import AIMessage, HumanMessage
-    from langchain_core.language_models.chat_models import BaseChatModel
-    from typing import Any, List, Optional
-    import asyncio
     
-    class MockLLM(BaseChatModel):
-        """Mock LLM that returns a simple response"""
-        
-        def __init__(self, model_name: str = "mock", **kwargs):
-            super().__init__(**kwargs)
-            self._model_name = model_name
-        
-        def _generate(
-            self,
-            messages: List[Any],
-            stop: Optional[List[str]] = None,
-            run_manager: Optional[Any] = None,
-            **kwargs: Any,
-        ) -> Any:
-            """Generate a mock response"""
-            from langchain_core.messages import AIMessage
-            
-            content = f"This is a mock response from {self.model_name}. No LLM providers are configured. Configure API keys to use actual AI models."
-            return AIMessage(content=content)
-        
-        async def _agenerate(
-            self,
-            messages: List[Any],
-            stop: Optional[List[str]] = None,
-            run_manager: Optional[Any] = None,
-            **kwargs: Any,
-        ) -> Any:
-            """Generate a mock response asynchronously"""
-            return self._generate(messages, stop, run_manager, **kwargs)
-        
-        @property
-        def _llm_type(self) -> str:
-            return "mock"
-        
-        # Add the missing model_name property
-        @property
-        def model(self) -> str:
-            """Return the model name for compatibility"""
-            return self._model_name
-            
-        @property
-        def model_name(self) -> str:
-            """Return the model name for compatibility"""
-            return self._model_name
-    
-    return MockLLM(model_name, **kwargs)
-
-
-def get_available_models():
-    """Get all available models from all configured providers"""
-    # Try to use LangChain integration layer first
-    try:
-        from .langchain.integration import integration_layer
-        
-        # Initialize integration layer if not already done
-        import asyncio
-        
-        # Create a simple synchronous wrapper
-        def _sync_get_langchain_models():
-            try:
-                # Create a new event loop for this thread
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    # Initialize integration layer
-                    loop.run_until_complete(integration_layer.initialize())
-                    
-                    # Check if LangChain LLM is enabled
-                    if integration_layer._feature_flags.get("use_langchain_llm", False):
-                        # Get models from LangChain LLM manager
-                        async def _get_models():
-                            from .langchain.llm_manager import llm_manager
-                            return await llm_manager.list_models()
-                        
-                        return loop.run_until_complete(_get_models())
-                    else:
-                        # Fall back to legacy system
-                        return _get_legacy_models()
-                finally:
-                    loop.close()
-            except Exception as e:
-                logger.error(f"Failed to get models from LangChain: {str(e)}")
-                return _get_legacy_models()
-        
-        # Use threading to avoid event loop issues
-        import concurrent.futures
-        
-        # Use a thread pool to run the async function
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(_sync_get_langchain_models)
-            try:
-                return future.result(timeout=30)
-            except Exception as e:
-                logger.error(f"Failed to get models from thread: {str(e)}")
-                return _get_legacy_models()
-                
-    except ImportError:
-        logger.debug("LangChain integration layer not available, using legacy system")
-        return _get_legacy_models()
-    except Exception as e:
-        logger.warning(f"Failed to use LangChain integration layer: {str(e)}, falling back to legacy system")
-        return _get_legacy_models()
-
-
-def _get_legacy_models():
-    """Get models from legacy provider system"""
-    from .llm_providers import provider_registry
-
+    # Initialize providers if not already done
     if not provider_registry.list_providers():
         initialize_llm_providers()
-
-    import asyncio
-
-    # Create a simple synchronous wrapper
-    def _sync_get_models():
-        try:
-            # Create a new event loop for this thread
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                # Create a coroutine and run it
-                async def _get_models():
-                    return await provider_registry.list_all_models()
-
-                return loop.run_until_complete(_get_models())
-            finally:
-                loop.close()
-        except Exception as e:
-            logger.error(f"Failed to get models: {str(e)}")
-            return []
-
-    # Use threading to avoid event loop issues
-    import concurrent.futures
-
-    # Use a thread pool to run the async function
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(_sync_get_models)
-        try:
-            return future.result(timeout=30)
-        except Exception as e:
-            logger.error(f"Failed to get models from thread: {str(e)}")
-            return []
+    
+    # Get the default provider
+    default_provider = provider_registry.get_default_provider()
+    if not default_provider:
+        raise ValueError("No LLM providers configured")
+    
+    # Create and return the LLM instance
+    return default_provider.get_llm(model_name=model_name, **kwargs)
 
 
 def initialize_agent_system():
     """Initialize the agent system with default agents"""
-    # Try to use LangChain integration layer first
-    try:
-        from .langchain.integration import integration_layer
-        import asyncio
-        
-        # Create a simple synchronous wrapper
-        def _sync_init_langchain_agents():
-            try:
-                # Create a new event loop for this thread
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    # Initialize integration layer
-                    loop.run_until_complete(integration_layer.initialize())
-                    
-                    # Check if LangChain agents is enabled
-                    if integration_layer._feature_flags.get("use_langchain_agents", False):
-                        logger.info("LangChain agent manager initialized via integration layer")
-                        return True
-                    else:
-                        logger.info("LangChain agent manager disabled, falling back to legacy system")
-                        return False
-                finally:
-                    loop.close()
-            except Exception as e:
-                logger.error(f"Failed to initialize LangChain integration layer: {str(e)}")
-                return False
-        
-        # Use threading to avoid event loop issues
-        import concurrent.futures
-        
-        # Use a thread pool to run the async function
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(_sync_init_langchain_agents)
-            try:
-                langchain_enabled = future.result(timeout=30)
-                if langchain_enabled:
-                    return True  # LangChain is enabled, skip legacy initialization
-            except Exception as e:
-                logger.error(f"Failed to initialize LangChain agents from thread: {str(e)}")
-                
-    except ImportError:
-        logger.debug("LangChain integration layer not available, using legacy system")
-    except Exception as e:
-        logger.warning(f"Failed to use LangChain integration layer: {str(e)}, falling back to legacy system")
-
-    # Fallback to legacy agent system
-    from .agents.management.registry import agent_registry
-    from .agents.specialized.tool_agent import ToolAgent
-    from .agents.utilities.strategies import KeywordStrategy
-    from .tools.execution.registry import tool_registry
-
+    from .agents.validation.checker_agent import agent_registry
+    
     if not settings.agent_system_enabled:
         logger.info("Agent system disabled in settings")
         return None
-
-    # Initialize LLM providers first
-    initialize_llm_providers()
-
-    # Create default agent
-    import asyncio
-
-    # Get LLM asynchronously
+    
     try:
-        # Check if we're in an async context
-        try:
-            asyncio.get_running_loop()
-            # We're in an async context, need to run in a thread
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(asyncio.run, get_llm())
-                llm = future.result(timeout=10)  # Add 10 second timeout
-        except RuntimeError:
-            # No running loop, we can use asyncio.run
-            llm = asyncio.run(get_llm())
-    except concurrent.futures.TimeoutError:
-        logger.error("Agent system initialization timed out while getting LLM")
-        logger.warning("Agent system will be disabled until properly configured")
-        return None
-    except Exception as e:
-        logger.error(f"Failed to get LLM for agent system: {str(e)}")
-        logger.warning("Agent system will be disabled until properly configured")
-        return None
-
-    try:
-        tool_agent = ToolAgent(
-            tool_registry=tool_registry,
-            llm=llm,
-            selection_strategy=KeywordStrategy(),
-            max_iterations=settings.max_agent_iterations,
-        )
-
-        # Register the agent
-        agent_registry.register(tool_agent, category="default")
-        agent_registry.set_default_agent(tool_agent.name)
-
-        logger.info("Agent system initialized successfully")
+        # Initialize basic agent system
+        logger.info("Agent system initialized")
         return agent_registry
     except Exception as e:
         logger.error(f"Failed to initialize agent system: {str(e)}")
-        logger.warning("Agent system will be disabled until properly configured")
         return None
 
 
-async def initialize_agent_system_async():
-    """Async version of initialize_agent_system for contexts where async is available"""
-    # Try to use LangChain integration layer first
-    try:
-        from .langchain.integration import integration_layer
-        
-        # Initialize integration layer if not already done
-        await integration_layer.initialize()
-        
-        # Check if LangChain agents is enabled
-        if integration_layer._feature_flags.get("use_langchain_agents", False):
-            logger.info("LangChain agent manager initialized via integration layer")
-            return True
-        else:
-            logger.info("LangChain agent manager disabled, falling back to legacy system")
-            
-    except ImportError:
-        logger.debug("LangChain integration layer not available, using legacy system")
-    except Exception as e:
-        logger.warning(f"Failed to use LangChain integration layer: {str(e)}, falling back to legacy system")
-
-    # Fallback to legacy agent system
-    from .agents.management.registry import agent_registry
-    from .agents.specialized.tool_agent import ToolAgent
-    from .agents.utilities.strategies import KeywordStrategy
-    from .tools.execution.registry import tool_registry
-
+def initialize_agent_system():
+    """Initialize the agent system with default agents"""
+    from .agents.validation.checker_agent import agent_registry
+    
     if not settings.agent_system_enabled:
         logger.info("Agent system disabled in settings")
         return None
-
-    # Initialize LLM providers first
-    initialize_llm_providers()
-
-    # Get LLM asynchronously
+    
     try:
-        llm = await get_llm()
-    except Exception as e:
-        logger.error(f"Failed to get LLM for agent system: {str(e)}")
-        logger.warning("Agent system will be disabled until properly configured")
-        return None
-
-    try:
-        tool_agent = ToolAgent(
-            tool_registry=tool_registry,
-            llm=llm,
-            selection_strategy=KeywordStrategy(),
-            max_iterations=settings.max_agent_iterations,
-        )
-
-        # Register the agent
-        agent_registry.register(tool_agent, category="default")
-        agent_registry.set_default_agent(tool_agent.name)
-
-        logger.info("Agent system initialized successfully (async)")
+        # Initialize basic agent system
+        logger.info("Agent system initialized")
         return agent_registry
     except Exception as e:
         logger.error(f"Failed to initialize agent system: {str(e)}")
-        logger.warning("Agent system will be disabled until properly configured")
         return None
 
 
 def initialize_firecrawl_system():
-    """Initialize the Firecrawl Docker scraping system with tools and agents"""
+    """Initialize Firecrawl system with scraper agent"""
     from .tools.execution.registry import tool_registry
-    from .tools.web.firecrawl_tool import FirecrawlTool
-    from .agents.management.registry import agent_registry
-    from .agents.specialized.firecrawl_agent import FirecrawlAgent
-
+    from .agents.validation.checker_agent import agent_registry
+    from .tools.web.firecrawl_tool import FirecrawlAgent
+    
     if not settings.firecrawl_settings.enabled:
         logger.info("Firecrawl system disabled in settings")
-        return
-
-    # Initialize LLM providers first
-    initialize_llm_providers()
-
-    # Create Firecrawl scraper tool (Docker-only)
-    try:
-        firecrawl_tool = FirecrawlTool()
-        tool_registry.register(firecrawl_tool, category="firecrawl")
-        logger.info("Firecrawl Docker scraper tool registered")
-    except Exception as e:
-        logger.error(f"Failed to register Firecrawl tool: {str(e)}")
-        return
-
+        return None
+    
     # Create Firecrawl scraper agent
     try:
         import asyncio
@@ -1429,7 +940,7 @@ def initialize_langchain_components():
         
         # Import LangChain components
         from langchain.embeddings import OpenAIEmbeddings
-        from langchain.vectorstores import Milvus, Chroma
+        from langchain.vectorstores import Milvus
         from langchain.memory import ConversationBufferMemory, ConversationSummaryMemory
         from langchain.chains import ConversationChain, LLMChain
         import asyncio
@@ -1465,20 +976,6 @@ def initialize_langchain_components():
                 )
                 components["vector_store"] = vector_store
                 logger.info("Milvus vector store initialized")
-            elif settings.vector_store_settings.provider == "chroma" and "embeddings" in components:
-                if settings.vector_store_settings.chroma_persist_directory:
-                    vector_store = Chroma(
-                        embedding_function=components["embeddings"],
-                        persist_directory=settings.vector_store_settings.chroma_persist_directory,
-                        collection_name=settings.vector_store_settings.default_collection,
-                    )
-                else:
-                    vector_store = Chroma(
-                        embedding_function=components["embeddings"],
-                        collection_name=settings.vector_store_settings.default_collection,
-                    )
-                components["vector_store"] = vector_store
-                logger.info("Chroma vector store initialized")
             else:
                 logger.warning(f"Vector store provider {settings.vector_store_settings.provider} not yet implemented")
         except Exception as e:
@@ -1649,77 +1146,28 @@ def initialize_all_langchain_components():
     
     results = {}
     
-    # 0. Initialize LangChain integration layer first
-    try:
-        from .langchain.integration import integration_layer
-        import asyncio
-        
-        # Create a simple synchronous wrapper
-        def _sync_init_integration():
-            try:
-                # Create a new event loop for this thread
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    # Initialize integration layer
-                    loop.run_until_complete(integration_layer.initialize())
-                    
-                    # Get feature flags and integration mode
-                    feature_flags = integration_layer.get_feature_flags()
-                    integration_mode = integration_layer.get_integration_mode()
-                    
-                    logger.info(f"LangChain integration layer initialized in {integration_mode.value} mode")
-                    logger.info(f"Feature flags: {feature_flags}")
-                    
-                    return True, feature_flags, integration_mode
-                finally:
-                    loop.close()
-            except Exception as e:
-                logger.error(f"Failed to initialize LangChain integration layer: {str(e)}")
-                return False, {}, None
-        
-        # Use threading to avoid event loop issues
-        import concurrent.futures
-        
-        # Use a thread pool to run the async function
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(_sync_init_integration)
-            try:
-                integration_success, feature_flags, integration_mode = future.result(timeout=30)
-                if integration_success:
-                    results["integration"] = {"status": "success", "mode": integration_mode.value, "feature_flags": feature_flags}
-                else:
-                    results["integration"] = {"status": "failed", "error": "Failed to initialize integration layer"}
-            except Exception as e:
-                logger.error(f"Failed to initialize integration layer from thread: {str(e)}")
-                results["integration"] = {"status": "failed", "error": str(e)}
-                
-    except ImportError:
-        logger.debug("LangChain integration layer not available")
-        results["integration"] = {"status": "skipped", "reason": "Integration layer not available"}
-    except Exception as e:
-        logger.error(f"Failed to initialize LangChain integration layer: {str(e)}")
-        results["integration"] = {"status": "failed", "error": str(e)}
+    # Skip LangChain integration layer - removed legacy code
+    results["integration"] = {"status": "skipped", "reason": "Integration layer removed"}
     
-    # 1. Initialize LangChain components (only if integration layer is available and enabled)
-    if results.get("integration", {}).get("status") == "success" and feature_flags.get("use_langchain_llm", False):
+    # 1. Initialize LangChain components
+    if settings.langchain_settings.enabled:
         langchain_result = initialize_langchain_components()
         if langchain_result:
             results["langchain"] = {"status": "success", "components": langchain_result}
         else:
             results["langchain"] = {"status": "failed", "error": "Failed to initialize LangChain components"}
     else:
-        results["langchain"] = {"status": "skipped", "reason": "LangChain LLM disabled or integration layer not available"}
+        results["langchain"] = {"status": "skipped", "reason": "LangChain components disabled"}
     
-    # 2. Initialize LangGraph workflows (only if integration layer is available and enabled)
-    if results.get("integration", {}).get("status") == "success" and feature_flags.get("use_langgraph_workflows", False):
+    # 2. Initialize LangGraph workflows
+    if settings.langgraph_settings.enabled:
         langgraph_result = initialize_langgraph_workflows()
         if langgraph_result:
             results["langgraph"] = {"status": "success", "workflows": langgraph_result}
         else:
             results["langgraph"] = {"status": "failed", "error": "Failed to initialize LangGraph workflows"}
     else:
-        results["langgraph"] = {"status": "skipped", "reason": "LangGraph workflows disabled or integration layer not available"}
+        results["langgraph"] = {"status": "skipped", "reason": "LangGraph workflows disabled"}
     
     # 3. Initialize Firebase integration (independent of integration layer)
     firebase_result = initialize_firebase_integration()

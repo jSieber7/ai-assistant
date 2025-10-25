@@ -16,7 +16,7 @@ from langchain_core.tools import tool as langchain_tool_decorator
 
 from app.core.tools.base.base import BaseTool
 from app.core.tools.execution.registry import tool_registry as legacy_tool_registry
-from app.core.langchain.monitoring import LangChainMonitoring
+from app.core.langchain.monitoring import LangChainMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class LangChainToolRegistry:
         self._enabled_tools: Set[str] = set()
         self._tool_metadata: Dict[str, Dict[str, Any]] = {}
         self._initialized = False
-        self._monitoring = LangChainMonitoring()
+        self._monitoring = LangChainMonitor()
         
     async def initialize(self):
         """Initialize the tool registry with existing tools"""
@@ -307,7 +307,7 @@ class LangChainToolRegistry:
                 monitoring = getattr(self, '_monitoring', None)
                 if not monitoring:
                     # Fallback to creating new instance
-                    monitoring = LangChainMonitoring()
+                    monitoring = LangChainMonitor()
                     asyncio.run(monitoring.initialize())
                 
                 # Track tool execution
@@ -362,7 +362,7 @@ class LangChainToolRegistry:
                 monitoring = getattr(self, '_monitoring', None)
                 if not monitoring:
                     # Fallback to creating new instance
-                    monitoring = LangChainMonitoring()
+                    monitoring = LangChainMonitor()
                     await monitoring.initialize()
                 
                 # Track tool execution
@@ -375,7 +375,7 @@ class LangChainToolRegistry:
                         tool_name=tool.name,
                         tool_type="custom_wrapped",
                         parameters=kwargs
-                    ))
+                    )
                     
                     # Execute tool
                     result = await tool.execute_with_timeout(**kwargs)

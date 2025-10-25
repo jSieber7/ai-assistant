@@ -8,7 +8,7 @@ can discuss, reconcile differences, and build consensus on content quality.
 import asyncio
 import logging
 import time
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Tuple, Optional, TypedDict
 from dataclasses import dataclass, field
 from enum import Enum
 import json
@@ -18,7 +18,7 @@ from langchain_core.messages import HumanMessage, AIMessage
 from pydantic import BaseModel, Field
 
 from .checker_agent import LangGraphCheckerAgent
-from app.core.langchain.integration import get_integration
+from app.core.langchain.llm_manager import llm_manager
 
 logger = logging.getLogger(__name__)
 
@@ -388,8 +388,6 @@ class LangGraphCollaborativeChecker:
         )
 
         try:
-            integration = get_integration()
-            llm_manager = integration.get_llm_manager()
             llm = await llm_manager.get_llm(self.reconciliation_model)
             
             response = await llm.ainvoke([
@@ -626,8 +624,6 @@ Provide a brief explanation of your reasoning (50-100 words):
 """
 
         try:
-            integration = get_integration()
-            llm_manager = integration.get_llm_manager()
             llm = await llm_manager.get_llm(self.reconciliation_model)
             
             response = await llm.ainvoke(reasoning_prompt)

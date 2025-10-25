@@ -54,9 +54,8 @@ class MultiContentOrchestrator:
             return
 
         if not self.llm:
-            from app.core.langchain.integration import langchain_integration
-            await langchain_integration.initialize()
-            self.llm = await langchain_integration.get_llm()
+            from app.core.langchain.llm_manager import get_llm
+            self.llm = await get_llm()
 
         # Initialize sub-components
         from .writer_agent import MultiWriterOrchestrator

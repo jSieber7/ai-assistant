@@ -9,8 +9,8 @@ import logging
 import asyncio
 from typing import Dict, List, Optional, Any, AsyncGenerator
 from pydantic import BaseModel, Field
-from langchain.schema import HumanMessage, AIMessage, SystemMessage
-from langchain.schema.messages import BaseMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import BaseMessage
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 

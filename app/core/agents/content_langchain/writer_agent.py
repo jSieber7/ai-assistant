@@ -47,9 +47,8 @@ class WriterAgent:
             return
 
         if not self.llm:
-            from app.core.langchain.integration import langchain_integration
-            await langchain_integration.initialize()
-            self.llm = await langchain_integration.get_llm(self.model)
+            from app.core.config import get_llm
+            self.llm = await get_llm(self.model)
 
         self.workflow = self._create_workflow()
         self._initialized = True

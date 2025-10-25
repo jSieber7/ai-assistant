@@ -26,8 +26,7 @@ from .api.agent_designer_routes import router as agent_designer_router
 from .api import ui_routes
 from app import __version__
 
-# LangChain integration imports
-from .core.langchain.integration import integration_layer
+# LangChain component imports
 from .core.langchain.agent_manager import agent_manager
 from .core.langchain.llm_manager import llm_manager
 from .core.langchain.tool_registry import tool_registry as langchain_tool_registry
@@ -75,84 +74,35 @@ try:
 except Exception as e:
     print(f"Warning: Failed to mount SearxNG static files: {str(e)}")
 
-
 async def initialize_systems():
-    """Initialize all systems with LangChain integration"""
+    """Initialize all systems with LangChain"""
     try:
-        # Initialize LangChain integration layer first
-        await integration_layer.initialize()
-        logger.info("LangChain integration layer initialized")
+        # Initialize LangChain components directly
+        await agent_manager.initialize()
+        await llm_manager.initialize()
+        await langchain_tool_registry.initialize()
+        await memory_manager.initialize()
         
-        # Get integration mode and feature flags
-        integration_mode = integration_layer.get_integration_mode()
-        feature_flags = integration_layer.get_feature_flags()
+        logger.info("LangChain components initialized directly")
         
-        logger.info(f"Integration mode: {integration_mode.value}")
-        logger.info(f"Feature flags: {feature_flags}")
-        
-        # Initialize legacy systems if in legacy or hybrid mode
-        if integration_mode.value in ["legacy", "hybrid"]:
-            # Initialize LLM providers (legacy)
-            if not feature_flags.get("use_langchain_llm", False):
-                try:
-                    initialize_llm_providers()
-                    print("Legacy LLM providers initialized (mock responses will be used if no API keys configured)")
-                except Exception as e:
-                    print(f"Warning: Failed to initialize legacy LLM providers: {str(e)}")
-                    print("Continuing without legacy LLM providers - mock responses will be used")
-        
-        # Initialize agent system (legacy or LangChain)
+        # Initialize agent system
         if settings.agent_system_enabled:
             try:
-                if feature_flags.get("use_langchain_agents", False):
-                    # LangChain agents are already initialized by integration layer
-                    print("LangGraph Agent Manager initialized")
-                else:
-                    # Use legacy agent system
-                    # Try async initialization first
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            # We're in an async context, create a task
-                            asyncio.create_task(initialize_agent_system_async())
-                            print("Legacy agent system initialization scheduled (async)")
-                        else:
-                            # We're not in an async context, run it
-                            loop.run_until_complete(initialize_agent_system_async())
-                            print("Legacy agent system initialized successfully (async)")
-                    except RuntimeError:
-                        # No event loop, fall back to sync initialization
-                        initialize_agent_system()
-                        print("Legacy agent system initialized successfully (sync)")
+                print("LangGraph Agent Manager initialized")
             except Exception as e:
                 print(f"Warning: Failed to initialize agent system: {str(e)}")
                 print("Agent system will be disabled until properly configured")
-
-        # Initialize Deep Agents system (legacy)
+        # Initialize Deep Agents system
         if settings.deep_agents_enabled:
             try:
                 from .core.deep_agents import deep_agent_manager
-                # Try async initialization first
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        # We're in an async context, create a task
-                        asyncio.create_task(deep_agent_manager.initialize())
-                        print("Deep Agents system initialization scheduled (async)")
-                    else:
-                        # We're not in an async context, run it
-                        loop.run_until_complete(deep_agent_manager.initialize())
-                        print("Deep Agents system initialized successfully (async)")
-                except RuntimeError:
-                    # No event loop, this should not happen in FastAPI startup
-                    # but we handle it gracefully
-                    print("Warning: Deep Agents requires an async context to initialize.")
-                    print("Deep Agents system will be disabled until properly configured")
+                await deep_agent_manager.initialize()
+                print("Deep Agents system initialized successfully")
             except Exception as e:
                 print(f"Warning: Failed to initialize Deep Agents system: {str(e)}")
                 print("Deep Agents system will be disabled until properly configured")
 
-        # Initialize Firecrawl system (legacy)
+        # Initialize Firecrawl system
         if settings.firecrawl_settings.enabled:
             try:
                 initialize_firecrawl_system()
@@ -161,7 +111,7 @@ async def initialize_systems():
                 print(f"Warning: Failed to initialize Firecrawl system: {str(e)}")
                 print("Firecrawl system will be disabled until properly configured")
 
-        # Initialize Playwright system (legacy)
+        # Initialize Playwright system
         if settings.playwright_settings.enabled:
             try:
                 initialize_playwright_system()
@@ -174,18 +124,13 @@ async def initialize_systems():
                 else:
                     print("Playwright system will be disabled until properly configured")
 
-        # Initialize Custom Reranker system (legacy)
+        # Initialize Custom Reranker system
         if settings.custom_reranker_enabled:
             try:
                 from .core.tools.content.custom_reranker_tool import CustomRerankerTool
 
                 custom_reranker_tool = CustomRerankerTool()
-                
-                # Register with appropriate registry
-                if feature_flags.get("use_langchain_tools", False):
-                    await langchain_tool_registry.register_custom_tool(custom_reranker_tool, category="reranking")
-                else:
-                    tool_registry.register(custom_reranker_tool, category="reranking")
+                await langchain_tool_registry.register_custom_tool(custom_reranker_tool, category="reranking")
                     
                 print("Custom Reranker tool registered successfully")
                 print("Custom Reranker system initialized successfully")
@@ -193,18 +138,13 @@ async def initialize_systems():
                 print(f"Warning: Failed to initialize Custom Reranker system: {str(e)}")
                 print("Custom Reranker system will be disabled until properly configured")
 
-        # Initialize Ollama Reranker system (legacy)
+        # Initialize Ollama Reranker system
         if settings.ollama_reranker_enabled:
             try:
                 from .core.tools.content.ollama_reranker_tool import OllamaRerankerTool
 
                 ollama_reranker_tool = OllamaRerankerTool()
-                
-                # Register with appropriate registry
-                if feature_flags.get("use_langchain_tools", False):
-                    await langchain_tool_registry.register_custom_tool(ollama_reranker_tool, category="reranking")
-                else:
-                    tool_registry.register(ollama_reranker_tool, category="reranking")
+                await langchain_tool_registry.register_custom_tool(ollama_reranker_tool, category="reranking")
                     
                 print("Ollama Reranker tool registered successfully")
                 print("Ollama Reranker system initialized successfully")
@@ -212,26 +152,7 @@ async def initialize_systems():
                 print(f"Warning: Failed to initialize Ollama Reranker system: {str(e)}")
                 print("Ollama Reranker system will be disabled until properly configured")
 
-        # Initialize Jina Reranker system (legacy, kept for backward compatibility)
-        if settings.jina_reranker_enabled:
-            try:
-                from .core.tools.content.jina_reranker_tool import JinaRerankerTool
-
-                jina_reranker_tool = JinaRerankerTool()
-                
-                # Register with appropriate registry
-                if feature_flags.get("use_langchain_tools", False):
-                    await langchain_tool_registry.register_custom_tool(jina_reranker_tool, category="reranking")
-                else:
-                    tool_registry.register(jina_reranker_tool, category="reranking")
-                    
-                print("Jina Reranker tool registered successfully")
-                print("Jina Reranker system initialized successfully")
-            except Exception as e:
-                print(f"Warning: Failed to initialize Jina Reranker system: {str(e)}")
-                print("Jina Reranker system will be disabled until properly configured")
-
-        # Initialize visual system (legacy)
+        # Initialize visual system
         if settings.visual_system_enabled:
             try:
                 initialize_visual_system()
@@ -338,57 +259,38 @@ async def health_check():
 
 
 @app.get("/")
+@app.get("/")
 async def root():
     """Root endpoint with system information"""
-    # Get integration mode and feature flags
-    integration_mode = integration_layer.get_integration_mode()
-    feature_flags = integration_layer.get_feature_flags()
-    
-    # Get registry stats based on active systems
-    if feature_flags.get("use_langchain_tools", False):
-        tool_registry_stats = langchain_tool_registry.get_registry_stats()
-    else:
-        tool_registry_stats = tool_registry.get_registry_stats()
-    
-    if feature_flags.get("use_langchain_agents", False):
-        agent_registry_stats = agent_manager.get_registry_stats()
-    else:
-        agent_registry_stats = (
-            agent_registry.get_registry_stats() if settings.agent_system_enabled else {}
-        )
+    # Get registry stats from LangChain systems
+    tool_registry_stats = langchain_tool_registry.get_registry_stats()
+    agent_registry_stats = agent_manager.get_registry_stats()
     
     # Get LangChain component stats
     langchain_stats = {}
-    if feature_flags.get("use_langchain_llm", False):
-        try:
-            models = await llm_manager.list_models()
-            langchain_stats["llm_manager"] = {
-                "available_models": len(models),
-                "providers": list(set(m.provider.value for m in models)),
-            }
-        except Exception as e:
-            langchain_stats["llm_manager"] = {"error": str(e)}
+    try:
+        models = await llm_manager.list_models()
+        langchain_stats["llm_manager"] = {
+            "available_models": len(models),
+            "providers": list(set(m.provider.value for m in models)),
+        }
+    except Exception as e:
+        langchain_stats["llm_manager"] = {"error": str(e)}
     
-    if feature_flags.get("use_langchain_tools", False):
-        langchain_stats["tool_registry"] = tool_registry_stats
+    langchain_stats["tool_registry"] = tool_registry_stats
+    langchain_stats["agent_manager"] = agent_registry_stats
     
-    if feature_flags.get("use_langchain_agents", False):
-        langchain_stats["agent_manager"] = agent_registry_stats
-    
-    if feature_flags.get("use_langchain_memory", False):
-        try:
-            memory_stats = await memory_manager.get_memory_stats()
-            langchain_stats["memory_manager"] = memory_stats
-        except Exception as e:
-            langchain_stats["memory_manager"] = {"error": str(e)}
+    try:
+        memory_stats = await memory_manager.get_memory_stats()
+        langchain_stats["memory_manager"] = memory_stats
+    except Exception as e:
+        langchain_stats["memory_manager"] = {"error": str(e)}
     
     response = {
         "message": "AI Assistant Tool System is running!",
         "version": __version__,
         "status": "ready",
-        "integration": {
-            "mode": integration_mode.value,
-            "feature_flags": feature_flags,
+        "langchain": {
             "stats": langchain_stats,
         },
         "tool_system": {
@@ -396,7 +298,7 @@ async def root():
             "tools_registered": tool_registry_stats["total_tools"],
             "tools_enabled": tool_registry_stats["enabled_tools"],
             "categories": tool_registry_stats["categories"],
-            "using_langchain": feature_flags.get("use_langchain_tools", False),
+            "using_langchain": True,
         },
         "agent_system": {
             "enabled": settings.agent_system_enabled,
@@ -404,10 +306,9 @@ async def root():
             "agents_active": agent_registry_stats.get("active_agents", 0),
             "default_agent": agent_registry_stats.get("default_agent", "none"),
             "categories": agent_registry_stats.get("categories", []),
-            "using_langchain": feature_flags.get("use_langchain_agents", False),
+            "using_langchain": True,
         },
     }
-    
     # Add multi-writer system info if enabled
     if is_multi_writer_enabled():
         try:
@@ -435,53 +336,74 @@ async def root():
 async def langchain_health_check():
     """
     LangChain components health check endpoint.
-    Returns detailed health status of LangChain integration components.
+    Returns detailed health status of LangChain components.
     """
-    return await integration_layer.health_check()
-
-
-@app.get("/langchain/mode")
-async def get_integration_mode():
-    """
-    Get current integration mode and feature flags.
-    """
-    return {
-        "mode": integration_layer.get_integration_mode().value,
-        "feature_flags": integration_layer.get_feature_flags(),
-        "migration_stats": integration_layer.get_migration_stats(),
+    health_results = {
+        "components": {},
+        "overall_status": "healthy",
     }
-
-
-@app.post("/langchain/mode")
-async def set_integration_mode(mode: str):
-    """
-    Set integration mode.
     
-    Args:
-        mode: Integration mode (legacy, langchain, hybrid, migration)
-    """
-    from .core.langchain.integration import IntegrationMode
-    
+    # Check LLM manager
     try:
-        integration_mode = IntegrationMode(mode)
-        success = integration_layer.set_integration_mode(integration_mode)
-        
-        if success:
-            return {
-                "success": True,
-                "mode": integration_mode.value,
-                "message": f"Integration mode set to {integration_mode.value}",
-            }
-        else:
-            return {
-                "success": False,
-                "error": "Failed to set integration mode",
-            }
-    except ValueError:
-        return {
-            "success": False,
-            "error": f"Invalid integration mode: {mode}",
+        models = await llm_manager.list_models()
+        health_results["components"]["llm_manager"] = {
+            "status": "healthy",
+            "available_models": len(models),
+            "providers": list(set(m.provider.value for m in models)),
         }
+    except Exception as e:
+        health_results["components"]["llm_manager"] = {
+            "status": "unhealthy",
+            "error": str(e),
+        }
+        health_results["overall_status"] = "degraded"
+            
+    # Check tool registry
+    try:
+        tool_stats = langchain_tool_registry.get_registry_stats()
+        health_results["components"]["tool_registry"] = {
+            "status": "healthy",
+            "total_tools": tool_stats["total_tools"],
+            "enabled_tools": tool_stats["enabled_tools"],
+        }
+    except Exception as e:
+        health_results["components"]["tool_registry"] = {
+            "status": "unhealthy",
+            "error": str(e),
+        }
+        health_results["overall_status"] = "degraded"
+            
+    # Check agent manager
+    try:
+        agent_stats = agent_manager.get_registry_stats()
+        health_results["components"]["agent_manager"] = {
+            "status": "healthy",
+            "total_agents": agent_stats["total_agents"],
+            "active_agents": agent_stats["active_agents"],
+        }
+    except Exception as e:
+        health_results["components"]["agent_manager"] = {
+            "status": "unhealthy",
+            "error": str(e),
+        }
+        health_results["overall_status"] = "degraded"
+            
+    # Check memory manager
+    try:
+        memory_stats = await memory_manager.get_memory_stats()
+        health_results["components"]["memory_manager"] = {
+            "status": "healthy",
+            "total_conversations": memory_stats["total_conversations"],
+            "total_messages": memory_stats["total_messages"],
+        }
+    except Exception as e:
+        health_results["components"]["memory_manager"] = {
+            "status": "unhealthy",
+            "error": str(e),
+        }
+        health_results["overall_status"] = "degraded"
+            
+    return health_results
 
 
 if __name__ == "__main__":

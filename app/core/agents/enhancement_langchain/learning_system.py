@@ -14,10 +14,17 @@ from enum import Enum
 from collections import deque, defaultdict
 
 from langgraph.graph import StateGraph, END
-from langgraph.graph.graph import CompiledGraph
-from pydantic import BaseModel
 
-from app.core.langchain.integration import get_langchain_integration
+# Make CompiledGraph import optional to handle different langgraph versions
+try:
+    from langgraph.graph.graph import CompiledGraph
+except ImportError:
+    try:
+        from langgraph.graph import CompiledGraph
+    except ImportError:
+        CompiledGraph = None
+
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +131,7 @@ class LangGraphLearningSystem:
         
         # Initialize workflow
         self.workflow = self._create_workflow()
-        self.compiled_workflow: Optional[CompiledGraph] = None
+        self.compiled_workflow = None
         
         # Performance tracking
         self.agent_performance: Dict[str, PerformanceMetrics] = {}
@@ -935,10 +942,6 @@ class LangGraphLearningSystem:
     
     async def process_request(self, state: LearningState) -> LearningState:
         """Process a learning request"""
-        # Compile workflow if not already done
-        if self.compiled_workflow is None:
-            self.compiled_workflow = self.workflow.compile()
-        
         # Update internal state from workflow state
         self.agent_performance = state.agent_performance
         self.interaction_patterns = state.interaction_patterns
@@ -946,8 +949,22 @@ class LangGraphLearningSystem:
         self.adaptation_history = state.adaptation_history
         self.system_metrics = state.system_metrics
         
-        # Process request
-        result_state = await self.compiled_workflow.ainvoke(state.dict())
+        # Process request with fallback for when compilation fails
+        try:
+            # Compile workflow if not already done
+            if self.compiled_workflow is None:
+                if CompiledGraph is not None:
+                    self.compiled_workflow = self.workflow.compile()
+                else:
+                    # Fallback to direct execution
+                    return await self._fallback_process_request(state)
+            
+            # Process request
+            result_state = await self.compiled_workflow.ainvoke(state.dict())
+        except Exception as e:
+            logger.error(f"Error executing compiled workflow: {str(e)}")
+            # Fallback to direct execution
+            return await self._fallback_process_request(state)
         
         # Update internal state from result
         self.agent_performance = result_state.get("agent_performance", {})
@@ -957,3 +974,29 @@ class LangGraphLearningSystem:
         self.system_metrics = result_state.get("system_metrics", {})
         
         return LearningState(**result_state)
+    
+    async def _fallback_process_request(self, state: LearningState) -> LearningState:
+        """Fallback execution method when workflow compilation is not available"""
+        try:
+            # Route action
+            state = await self._route_action(state)
+            
+            # Execute based on action
+            if state.action == "learn":
+                state = await self._learn_from_workflow(state)
+            elif state.action == "insights":
+                state = await self._generate_insights(state)
+            elif state.action == "adapt":
+                state = await self._apply_adaptations(state)
+            elif state.action == "report":
+                state = await self._generate_report(state)
+            else:
+                state.error = f"Unknown action: {state.action}"
+                state.success = False
+            
+            return state
+        except Exception as e:
+            logger.error(f"Error in fallback execution: {str(e)}")
+            state.error = str(e)
+            state.success = False
+            return state

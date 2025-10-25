@@ -14,16 +14,36 @@ from datetime import datetime
 import json
 import uuid
 
-from langchain_core.memory import BaseMemory, ConversationBufferMemory, ConversationSummaryMemory
+try:
+    from langchain_core.memory import BaseMemory, ConversationBufferMemory, ConversationSummaryMemory
+    MEMORY_AVAILABLE = True
+except ImportError:
+    try:
+        from langchain.memory import BaseMemory, ConversationBufferMemory, ConversationSummaryMemory
+        MEMORY_AVAILABLE = True
+    except ImportError:
+        BaseMemory = None
+        ConversationBufferMemory = None
+        ConversationSummaryMemory = None
+        MEMORY_AVAILABLE = False
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
-from langchain_community.chat_message_histories import PostgreSQLChatMessageHistory
+try:
+    from langchain_community.chat_message_histories import PostgreSQLChatMessageHistory
+    POSTGRES_CHAT_HISTORY_AVAILABLE = True
+except ImportError:
+    try:
+        from langchain_community.chat_message_histories import PostgresChatMessageHistory as PostgreSQLChatMessageHistory
+        POSTGRES_CHAT_HISTORY_AVAILABLE = True
+    except ImportError:
+        PostgreSQLChatMessageHistory = None
+        POSTGRES_CHAT_HISTORY_AVAILABLE = False
 from langchain_community.vectorstores import PGVector
 from langchain_openai import OpenAIEmbeddings
 
 from app.core.config import settings
 from app.core.secure_settings import secure_settings
 from app.core.storage.langchain_client import get_langchain_client
-from .monitoring import LangChainMonitoring
+from .monitoring import LangChainMonitor, ComponentType, MetricType
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +109,7 @@ class LangChainMemoryManager:
         self._conversation_cache: Dict[str, ConversationInfo] = {}
         self._db_client = None
         self._initialized = False
-        self._monitoring = LangChainMonitoring()
+        self._monitoring = LangChainMonitor()
         
     async def initialize(self):
         """Initialize memory manager"""
@@ -144,6 +164,10 @@ class LangChainMemoryManager:
             
     async def _initialize_conversation_memory(self):
         """Initialize conversation memory backend"""
+        if not MEMORY_AVAILABLE or not POSTGRES_CHAT_HISTORY_AVAILABLE:
+            logger.warning("Memory classes or PostgreSQL chat history not available, conversation memory disabled")
+            return
+            
         try:
             # Get PostgreSQL connection string
             connection_string = await self._get_postgres_connection_string()
@@ -176,6 +200,10 @@ class LangChainMemoryManager:
             
     async def _initialize_summary_memory(self):
         """Initialize summary memory backend"""
+        if not MEMORY_AVAILABLE:
+            logger.warning("Memory classes not available, summary memory disabled")
+            return
+            
         try:
             # Get LLM for summarization
             from .llm_manager import llm_manager
@@ -287,7 +315,6 @@ class LangChainMemoryManager:
             logger.error(f"Failed to load conversations from database: {str(e)}")
             
     async def create_conversation(
-        async def create_conversation(
             self,
             conversation_id: str,
             agent_name: Optional[str] = None,
@@ -331,7 +358,8 @@ class LangChainMemoryManager:
                 self._conversation_cache[conversation_id] = conversation_info
                 
                 # Create chat history for this conversation
-                if MemoryType.CONVERSATION.value in self._memory_backends:
+                if (MemoryType.CONVERSATION.value in self._memory_backends and 
+                    POSTGRES_CHAT_HISTORY_AVAILABLE):
                     connection_string = await self._get_postgres_connection_string()
                     if connection_string:
                         chat_history = PostgreSQLChatMessageHistory(
@@ -355,11 +383,12 @@ class LangChainMemoryManager:
                                 )
                             
                 # Record success metric
-                await self._monitoring.record_metric(
-                    component_type="memory",
-                    component_name="conversation_creation",
-                    metric_name="success",
-                    metric_value=1,
+                await self._monitoring.track_metric(
+                    name="conversation_creation_success",
+                    component_type=ComponentType.MEMORY,
+                    component_id="memory_manager",
+                    metric_type=MetricType.COUNTER,
+                    value=1,
                     metadata={"conversation_id": conversation_id, "agent_name": agent_name}
                 )
                 
@@ -368,11 +397,12 @@ class LangChainMemoryManager:
                 
             except Exception as e:
                 # Record error metric
-                await self._monitoring.record_metric(
-                    component_type="memory",
-                    component_name="conversation_creation",
-                    metric_name="error",
-                    metric_value=1,
+                await self._monitoring.track_metric(
+                    name="conversation_creation_error",
+                    component_type=ComponentType.MEMORY,
+                    component_id="memory_manager",
+                    metric_type=MetricType.COUNTER,
+                    value=1,
                     metadata={"conversation_id": conversation_id, "error": str(e)}
                 )
                 logger.error(f"Failed to create conversation '{conversation_id}': {str(e)}")
@@ -381,11 +411,12 @@ class LangChainMemoryManager:
             finally:
                 # Record duration metric
                 duration = time.time() - start_time
-                await self._monitoring.record_metric(
-                    component_type="memory",
-                    component_name="conversation_creation",
-                    metric_name="duration",
-                    metric_value=duration,
+                await self._monitoring.track_metric(
+                    name="conversation_creation_duration",
+                    component_type=ComponentType.MEMORY,
+                    component_id="memory_manager",
+                    metric_type=MetricType.TIMER,
+                    value=duration,
                     metadata={"conversation_id": conversation_id}
                 )
     async def add_message(
@@ -460,11 +491,12 @@ class LangChainMemoryManager:
                     )
                     
             # Record success metric
-            await self._monitoring.record_metric(
-                component_type="memory",
-                component_name="message_addition",
-                metric_name="success",
-                metric_value=1,
+            await self._monitoring.track_metric(
+                name="message_addition_success",
+                component_type=ComponentType.MEMORY,
+                component_id="memory_manager",
+                metric_type=MetricType.COUNTER,
+                value=1,
                 metadata={"conversation_id": conversation_id, "role": role}
             )
             
@@ -473,11 +505,12 @@ class LangChainMemoryManager:
             
         except Exception as e:
             # Record error metric
-            await self._monitoring.record_metric(
-                component_type="memory",
-                component_name="message_addition",
-                metric_name="error",
-                metric_value=1,
+            await self._monitoring.track_metric(
+                name="message_addition_error",
+                component_type=ComponentType.MEMORY,
+                component_id="memory_manager",
+                metric_type=MetricType.COUNTER,
+                value=1,
                 metadata={"conversation_id": conversation_id, "role": role, "error": str(e)}
             )
             logger.error(f"Failed to add message to conversation '{conversation_id}': {str(e)}")
@@ -486,11 +519,12 @@ class LangChainMemoryManager:
         finally:
             # Record duration metric
             duration = time.time() - start_time
-            await self._monitoring.record_metric(
-                component_type="memory",
-                component_name="message_addition",
-                metric_name="duration",
-                metric_value=duration,
+            await self._monitoring.track_metric(
+                name="message_addition_duration",
+                component_type=ComponentType.MEMORY,
+                component_id="memory_manager",
+                metric_type=MetricType.TIMER,
+                value=duration,
                 metadata={"conversation_id": conversation_id, "role": role}
             )
             
@@ -746,6 +780,8 @@ class LangChainMemoryManager:
         Returns:
             BaseMemory instance or None if not found
         """
+        if not MEMORY_AVAILABLE:
+            return None
         return self._memory_backends.get(memory_type.value)
         
     async def get_memory_stats(self) -> Dict[str, Any]:

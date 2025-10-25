@@ -16,7 +16,14 @@ from langchain_core.language_models.llms import BaseLLM
 from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
 from langchain_anthropic import ChatAnthropic
-from langchain_google_genai import ChatGoogleGenerativeAI
+
+# Make Google GenAI import optional
+try:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    GOOGLE_GENAI_AVAILABLE = True
+except ImportError:
+    ChatGoogleGenerativeAI = None
+    GOOGLE_GENAI_AVAILABLE = False
 
 from app.core.config import settings
 from app.core.secure_settings import secure_settings
@@ -246,6 +253,10 @@ class LangChainLLMManager:
             
     async def _initialize_google_provider(self):
         """Initialize Google provider"""
+        if not GOOGLE_GENAI_AVAILABLE:
+            logger.info("langchain_google_genai not installed, skipping Google provider")
+            return
+            
         try:
             api_key = secure_settings.get_setting("llm_providers", "google", "api_key")
             if api_key:
@@ -444,6 +455,8 @@ class LangChainLLMManager:
             )
             
         elif provider == LLMProvider.GOOGLE:
+            if not GOOGLE_GENAI_AVAILABLE:
+                raise ValueError("Google provider not available - langchain_google_genai not installed")
             return ChatGoogleGenerativeAI(
                 model=model_name,
                 google_api_key=provider_config["api_key"],

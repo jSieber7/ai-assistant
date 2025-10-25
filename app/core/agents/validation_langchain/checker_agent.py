@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 import json
 import time
 
-from app.core.langchain.integration import get_integration
+# Legacy integration layer removed - direct LLM provider access
 
 
 class CheckerState(TypedDict):
@@ -140,9 +140,8 @@ class LangGraphCheckerAgent:
     async def _check_content(self, state: CheckerState) -> CheckerState:
         """Check content using LLM"""
         try:
-            integration = get_integration()
-            llm_manager = integration.get_llm_manager()
-            llm = await llm_manager.get_llm(self.model)
+            from app.core.llm_providers import get_llm
+            llm = await get_llm(self.model)
             
             # Create messages for the LLM
             messages = [

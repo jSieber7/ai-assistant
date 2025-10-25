@@ -17,7 +17,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.messages import HumanMessage, AIMessage
 from pydantic import BaseModel
 
-from app.core.langchain.integration import get_integration
+# Legacy integration layer removed - direct LLM provider access
 from app.core.agents.content_langchain.writer_agent import WriterAgent
 
 logger = logging.getLogger(__name__)
