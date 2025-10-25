@@ -39,7 +39,7 @@ DOCKER_COMPOSE := docker compose $(COMPOSE_FILES) $(ENV_FILE) -p $(PROJECT_NAME)
 # Default Target
 # =============================================================================
 
-.PHONY: help up down logs status reset test build clean links health-check
+.PHONY: help up down logs status reset test build clean links health-check jupyter
 .DEFAULT_GOAL := help
 
 # =============================================================================
@@ -78,6 +78,7 @@ help: ## Show this help message
 	@echo "  links           Show all service URLs"
 	@echo "  health-check    Run comprehensive health check"
 	@echo "  clean           Clean up Docker resources"
+	@echo "  jupyter         Launch Jupyter notebook in app container"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make up                          # Start all services in dev mode"
@@ -200,11 +201,11 @@ links: ## Show all service URLs
 	@echo "=========================================="
 	@echo "🔗 Service URLs for $(ENVIRONMENT) Environment"
 	@echo "=========================================="
-	@echo ""
 	@if [ "$(ENVIRONMENT)" = "dev" ]; then \
 		echo "📱 Main Applications:"; \
 		echo "  App (API):           http://app.localhost or http://localhost:8000"; \
 		echo "  Frontend (Dev):      http://frontend.localhost or http://localhost:3000"; \
+		echo "  Jupyter Notebook:    http://localhost:8889 (run 'make jupyter' to start)"; \
 		echo ""; \
 		echo "🔍 Search & Crawling:"; \
 		echo "  SearXNG:             http://searxng.localhost"; \
@@ -213,6 +214,7 @@ links: ## Show all service URLs
 		echo "📊 Monitoring & Management:"; \
 		echo "  Traefik Dashboard:   http://traefik.localhost or http://localhost:8080"; \
 		echo "  Redis:               redis://localhost:6379"; \
+		echo "  Supabase DB:         postgresql://postgres:password@localhost:5433/postgres"; \
 		echo "  Supabase DB:         postgresql://postgres:password@localhost:5433/postgres"; \
 	else \
 		echo "📱 Main Applications:"; \
@@ -306,6 +308,26 @@ pull: ## Pull latest images for services
 		$(DOCKER_COMPOSE) pull; \
 	fi
 
+# =============================================================================
+# =============================================================================
+# Jupyter Command (Development Only)
+# =============================================================================
+
+jupyter: ## Launch Jupyter notebook in app container (dev environment only)
+	@if [ "$(ENVIRONMENT)" != "dev" ]; then \
+		echo "❌ Jupyter is only available in development environment."; \
+		echo "Please use: make jupyter ENVIRONMENT=dev"; \
+		exit 1; \
+	fi
+	@echo "🚀 Starting Jupyter notebook in development environment..."
+	@echo "📋 Checking if app service is running..."
+	@$(DOCKER_COMPOSE) ps app | grep -q "Up" || $(MAKE) up SERVICE=app ENVIRONMENT=dev
+	@echo "🔧 Launching Jupyter notebook..."
+	@echo "📝 Jupyter will be available at: http://localhost:8889"
+	@echo "💡 Note: No token or password required for access"
+	@$(DOCKER_COMPOSE) exec -d app /bin/bash -c "cd /app && .venv/bin/python -m jupyter notebook --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''"
+	@echo "✅ Jupyter notebook started successfully!"
+	@echo "🌐 Access it at: http://localhost:8889"
 # =============================================================================
 # Migration Helpers
 # =============================================================================

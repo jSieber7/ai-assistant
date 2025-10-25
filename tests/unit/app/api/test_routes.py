@@ -1,258 +1,483 @@
+"""
+Unit tests for main API routes.
+
+Tests for the core API endpoints including model listing, chat completions,
+health checks, and provider management.
+"""
+
 import pytest
 import json
+import uuid
+from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
+from fastapi import HTTPException
+
+from app.api.routes import (
+    router,
+    ChatMessage,
+    ChatRequest,
+    ChatResponse,
+    AddProviderRequest,
+    AddProviderResponse,
+)
+from app.main import app
 
 
-@pytest.mark.unit
-class TestChatCompletions:
-    """Test chat completions endpoint functionality."""
+class TestModelsEndpoint:
+    """Test cases for the /v1/models endpoint"""
 
-    def test_chat_completion_success(
-        self, client: TestClient, chat_request_data, mock_llm
-    ):
-        """Test successful non-streaming chat completion."""
-        response = client.post("/v1/chat/completions", json=chat_request_data)
-        assert response.status_code == 200
+    @pytest.mark.asyncio
+    async def test_list_models_success(self, mock_model_info_list):
+        """Test successful model listing"""
+        with patch('app.api.routes.get_available_models', return_value=mock_model_info_list):
+            with patch('app.api.routes.provider_registry') as mock_registry:
+                # Mock provider registry
+                mock_provider = MagicMock()
+                mock_provider.provider_type.value = "openai"
+                mock_provider.name = "OpenAI"
+                mock_registry.list_providers.return_value = [mock_provider]
+                
+                client = TestClient(app)
+                response = client.get("/v1/models")
+                
+                assert response.status_code == 200
+                data = response.json()
+                assert data["object"] == "list"
+                assert len(data["data"]) > 0
+                
+                # Check first model structure
+                model = data["data"][0]
+                assert "id" in model
+                assert "object" in model
+                assert model["object"] == "model"
+                assert "owned_by" in model
+                assert "permission" in model
+                assert "root" in model
 
-        data = response.json()
-        assert data["id"].startswith("chatcmpl-")
-        assert data["object"] == "chat.completion"
-        assert data["model"] == "deepseek/deepseek-v3.1-terminus"
-        assert "choices" in data
-        assert len(data["choices"]) == 1
+    @pytest.mark.asyncio
+    async def test_list_models_fallback(self):
+        """Test model listing fallback on error"""
+        with patch('app.api.routes.get_available_models', side_effect=Exception("Test error")):
+            client = TestClient(app)
+            response = client.get("/v1/models")
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["object"] == "list"
+            assert len(data["data"]) == 1
+            assert data["data"][0]["id"] == "langchain-agent-hub"
 
-        choice = data["choices"][0]
-        assert choice["index"] == 0
-        assert choice["message"]["role"] == "assistant"
-        assert choice["message"]["content"] == "Mocked AI response"
-        assert choice["finish_reason"] == "stop"
 
-    def test_chat_completion_default_model(self, client: TestClient, mock_llm):
-        """Test chat completion with default model when not specified."""
-        request_data = {
-            "messages": [{"role": "user", "content": "Hello"}],
-            "stream": False,
-        }
-        response = client.post("/v1/chat/completions", json=request_data)
-        assert response.status_code == 200
+class TestChatCompletionsEndpoint:
+    """Test cases for the /v1/chat/completions endpoint"""
 
-        data = response.json()
-        assert data["model"] == "langchain-agent-hub"
+    @pytest.mark.asyncio
+    async def test_chat_completions_with_deep_agents(self, mock_chat_request):
+        """Test chat completions with deep agents enabled"""
+        with patch('app.api.routes.settings') as mock_settings:
+            mock_settings.deep_agents_enabled = True
+            mock_settings.agent_system_enabled = False
+            
+            with patch('app.api.routes.deep_agent_manager') as mock_deep_agent:
+                mock_deep_agent.invoke.return_value = "Test response"
+                
+                with patch('app.api.routes.get_postgresql_client') as mock_db_client:
+                    # Mock database operations
+                    mock_conn = AsyncMock()
+                    mock_conn.fetchrow.return_value = {"id": uuid.uuid4()}
+                    mock_db_client.return_value.pool.acquire.return_value.__aenter__.return_value = mock_conn
+                    
+                    client = TestClient(app)
+                    response = client.post("/v1/chat/completions", json=mock_chat_request.dict())
+                    
+                    assert response.status_code == 200
+                    data = response.json()
+                    assert data["object"] == "chat.completion"
+                    assert "choices" in data
+                    assert len(data["choices"]) > 0
+                    assert data["choices"][0]["message"]["role"] == "assistant"
+                    assert "conversation_id" in data
 
-    def test_chat_completion_different_roles(self, client: TestClient, mock_llm):
-        """Test chat completion with different message roles."""
+    @pytest.mark.asyncio
+    async def test_chat_completions_with_agent_system(self, mock_chat_request):
+        """Test chat completions with agent system enabled"""
+        with patch('app.api.routes.settings') as mock_settings:
+            mock_settings.deep_agents_enabled = False
+            mock_settings.agent_system_enabled = True
+            mock_settings.default_agent = "test-agent"
+            
+            with patch('app.api.routes.agent_registry') as mock_registry:
+                # Mock agent result
+                mock_result = MagicMock()
+                mock_result.response = "Test agent response"
+                mock_result.agent_name = "test-agent"
+                mock_result.tool_results = []
+                mock_result.conversation_id = str(uuid.uuid4())
+                mock_registry.process_message.return_value = mock_result
+                
+                with patch('app.api.routes.get_postgresql_client') as mock_db_client:
+                    # Mock database operations
+                    mock_conn = AsyncMock()
+                    mock_conn.fetchrow.return_value = {"id": uuid.uuid4()}
+                    mock_db_client.return_value.pool.acquire.return_value.__aenter__.return_value = mock_conn
+                    
+                    client = TestClient(app)
+                    response = client.post("/v1/chat/completions", json=mock_chat_request.dict())
+                    
+                    assert response.status_code == 200
+                    data = response.json()
+                    assert data["object"] == "chat.completion"
+                    assert data["agent_name"] == "test-agent"
+
+    @pytest.mark.asyncio
+    async def test_chat_completions_direct_llm(self, mock_chat_request):
+        """Test chat completions with direct LLM (no agents)"""
+        with patch('app.api.routes.settings') as mock_settings:
+            mock_settings.deep_agents_enabled = False
+            mock_settings.agent_system_enabled = False
+            
+            with patch('app.api.routes.get_llm') as mock_get_llm:
+                # Mock LLM
+                mock_llm = AsyncMock()
+                mock_response = MagicMock()
+                mock_response.content = "Test LLM response"
+                mock_llm.ainvoke.return_value = mock_response
+                mock_get_llm.return_value = mock_llm
+                
+                with patch('app.api.routes.get_postgresql_client') as mock_db_client:
+                    # Mock database operations
+                    mock_conn = AsyncMock()
+                    mock_conn.fetchrow.return_value = {"id": uuid.uuid4()}
+                    mock_db_client.return_value.pool.acquire.return_value.__aenter__.return_value = mock_conn
+                    
+                    client = TestClient(app)
+                    response = client.post("/v1/chat/completions", json=mock_chat_request.dict())
+                    
+                    assert response.status_code == 200
+                    data = response.json()
+                    assert data["object"] == "chat.completion"
+                    assert data["choices"][0]["message"]["content"] == "Test LLM response"
+
+    @pytest.mark.asyncio
+    async def test_chat_completions_streaming(self, mock_chat_request):
+        """Test streaming chat completions"""
+        mock_chat_request.stream = True
+        
+        with patch('app.api.routes.settings') as mock_settings:
+            mock_settings.deep_agents_enabled = False
+            mock_settings.agent_system_enabled = False
+            
+            with patch('app.api.routes.get_llm') as mock_get_llm:
+                # Mock streaming LLM
+                mock_llm = AsyncMock()
+                mock_llm.streaming = True
+                mock_chunk = MagicMock()
+                mock_chunk.content = "Test chunk"
+                mock_llm.astream.return_value = [mock_chunk]
+                mock_get_llm.return_value = mock_llm
+                
+                client = TestClient(app)
+                response = client.post("/v1/chat/completions", json=mock_chat_request.dict())
+                
+                assert response.status_code == 200
+                # Streaming responses should have content-type text/plain
+                assert "text/plain" in response.headers["content-type"]
+
+    @pytest.mark.asyncio
+    async def test_chat_completions_no_user_message(self):
+        """Test chat completions with no user message"""
+        # Create request with only system messages
         request_data = {
             "messages": [
-                {"role": "system", "content": "You are a helpful assistant"},
-                {"role": "user", "content": "Hello"},
-                {"role": "assistant", "content": "Hi there!"},
-                {"role": "user", "content": "How are you?"},
+                {"role": "system", "content": "You are a helpful assistant."}
             ],
-            "stream": False,
+            "model": "test-model"
         }
-        response = client.post("/v1/chat/completions", json=request_data)
-        assert response.status_code == 200
+        
+        with patch('app.api.routes.settings') as mock_settings:
+            mock_settings.deep_agents_enabled = True
+            mock_settings.agent_system_enabled = False
+            
+            client = TestClient(app)
+            response = client.post("/v1/chat/completions", json=request_data)
+            
+            assert response.status_code == 400
+            assert "No user messages found" in response.json()["detail"]
 
-        data = response.json()
-        assert data["choices"][0]["message"]["content"] == "Mocked AI response"
-
-    def test_chat_completion_with_parameters(self, client: TestClient, mock_llm):
-        """Test chat completion with temperature and max_tokens parameters."""
+    @pytest.mark.asyncio
+    async def test_chat_completions_validation_error(self):
+        """Test chat completions with invalid request"""
+        # Create invalid request
         request_data = {
-            "messages": [{"role": "user", "content": "Hello"}],
-            "model": "deepseek/deepseek-v3.1-terminus",
-            "stream": False,
-            "temperature": 0.5,
-            "max_tokens": 100,
+            "messages": "invalid",  # Should be a list
+            "model": "test-model"
         }
+        
+        client = TestClient(app)
         response = client.post("/v1/chat/completions", json=request_data)
-        assert response.status_code == 200
-
-        data = response.json()
-        assert data["model"] == "deepseek/deepseek-v3.1-terminus"
-
-
-@pytest.mark.unit
-class TestStreamingChatCompletions:
-    """Test streaming chat completions endpoint functionality."""
-
-    def test_streaming_chat_completion_success(
-        self, client: TestClient, streaming_chat_request_data, mock_streaming_llm
-    ):
-        """Test successful streaming chat completion."""
-        response = client.post("/v1/chat/completions", json=streaming_chat_request_data)
-        assert response.status_code == 200
-        assert response.headers["content-type"] == "text/plain; charset=utf-8"
-
-        # Parse streaming response
-        content = response.text
-        lines = [line for line in content.split("\n") if line.strip()]
-
-        # Should have data lines and a [DONE] line
-        assert len(lines) > 0
-        assert any("data: [DONE]" in line for line in lines)
-
-        # Check that we have proper SSE format
-        for line in lines:
-            if line.startswith("data: "):
-                if line != "data: [DONE]":
-                    chunk_data = json.loads(line[6:])  # Remove "data: " prefix
-                    assert "choices" in chunk_data
-                    assert len(chunk_data["choices"]) == 1
-
-    def test_streaming_response_content(self, client: TestClient, mock_streaming_llm):
-        """Test streaming response contains expected content chunks."""
-        request_data = {
-            "messages": [{"role": "user", "content": "Say hello world"}],
-            "stream": True,
-        }
-        response = client.post("/v1/chat/completions", json=request_data)
-        assert response.status_code == 200
-
-        content = response.text
-        lines = [
-            line
-            for line in content.split("\n")
-            if line.strip() and line.startswith("data: ")
-        ]
-
-        # Should have multiple data chunks
-        assert len(lines) > 1
-
-        # Last line should be [DONE]
-        assert lines[-1] == "data: [DONE]"
-
-        # Check content chunks
-        for line in lines[:-1]:  # Exclude [DONE] line
-            if line != "data: [DONE]":
-                chunk_data = json.loads(line[6:])
-                choice = chunk_data["choices"][0]
-                if "delta" in choice and "content" in choice["delta"]:
-                    assert isinstance(choice["delta"]["content"], str)
-
-
-@pytest.mark.unit
-class TestChatCompletionErrorHandling:
-    """Test error handling for chat completions endpoint."""
-
-    def test_chat_completion_missing_messages(self, client: TestClient):
-        """Test chat completion with missing messages field."""
-        request_data = {"model": "deepseek/deepseek-v3.1-terminus", "stream": False}
-        response = client.post("/v1/chat/completions", json=request_data)
+        
         assert response.status_code == 422  # Validation error
 
-    def test_chat_completion_empty_messages(
-        self, client: TestClient, invalid_chat_request_data
-    ):
-        """Test chat completion with empty messages array."""
-        response = client.post("/v1/chat/completions", json=invalid_chat_request_data)
-        # Empty messages might be handled gracefully or cause an error
-        assert response.status_code in [200, 500]
+    @pytest.mark.asyncio
+    async def test_chat_completions_connection_error(self, mock_chat_request):
+        """Test chat completions with connection error"""
+        with patch('app.api.routes.settings') as mock_settings:
+            mock_settings.deep_agents_enabled = False
+            mock_settings.agent_system_enabled = False
+            
+            with patch('app.api.routes.get_llm', side_effect=ConnectionError("Connection failed")):
+                client = TestClient(app)
+                response = client.post("/v1/chat/completions", json=mock_chat_request.dict())
+                
+                assert response.status_code == 503
+                assert "temporarily unavailable" in response.json()["detail"]
 
-    def test_chat_completion_invalid_model(self, client: TestClient):
-        """Test chat completion with invalid model name."""
-        request_data = {
-            "messages": [{"role": "user", "content": "Hello"}],
-            "model": "invalid-model-name",
-            "stream": False,
-        }
-        response = client.post("/v1/chat/completions", json=request_data)
-        # This might return 500 if the model is not found, or 200 if it uses default
-        # Depending on how the error is handled in the actual code
-        assert response.status_code in [200, 500]
 
-    def test_chat_completion_openrouter_error(
-        self, client: TestClient, chat_request_data, mock_openrouter_error
-    ):
-        """Test chat completion when OpenRouter API returns an error."""
-        response = client.post("/v1/chat/completions", json=chat_request_data)
-        assert response.status_code == 500
-        data = response.json()
-        assert "detail" in data
-        # The actual error message from the mock
-        assert "OpenRouter API error" in data["detail"]
+class TestHealthEndpoint:
+    """Test cases for the /health endpoint"""
 
-    def test_chat_completion_missing_api_key(
-        self, client: TestClient, chat_request_data
-    ):
-        """Test chat completion when OpenRouter API key is missing."""
-        # Mock the environment to have no API key
-        with pytest.MonkeyPatch().context() as m:
-            m.delenv("OPENROUTER_API_KEY", raising=False)
-            response = client.post("/v1/chat/completions", json=chat_request_data)
-            # Since the LLM is mocked, we get a successful response
+    def test_health_check(self):
+        """Test basic health check"""
+        with patch('app.api.routes.settings') as mock_settings:
+            mock_settings.environment = "test"
+            mock_settings.openai_settings.api_key = "test-key"
+            mock_settings.openrouter_api_key = "test-key"
+            mock_settings.custom_reranker_enabled = True
+            mock_settings.ollama_reranker_enabled = True
+            mock_settings.jina_reranker_api_key = "test-key"
+            
+            client = TestClient(app)
+            response = client.get("/health")
+            
             assert response.status_code == 200
-
-    def test_chat_completion_invalid_json(self, client: TestClient):
-        """Test chat completion with invalid JSON payload."""
-        response = client.post(
-            "/v1/chat/completions",
-            data="invalid json data",
-            headers={"Content-Type": "application/json"},
-        )
-        assert response.status_code == 422  # Unprocessable Entity
-
-    def test_chat_completion_wrong_content_type(
-        self, client: TestClient, chat_request_data
-    ):
-        """Test chat completion with wrong content type."""
-        response = client.post(
-            "/v1/chat/completions",
-            data=json.dumps(chat_request_data),
-            headers={"Content-Type": "text/plain"},
-        )
-        # FastAPI might still parse it as JSON, but let's see what happens
-        assert response.status_code in [200, 415, 422]
+            data = response.json()
+            assert data["status"] == "healthy"
+            assert data["service"] == "langchain-agent-hub"
+            assert data["environment"] == "test"
+            assert "api_keys_configured" in data
 
 
-@pytest.mark.unit
-class TestMessageValidation:
-    """Test message validation in chat completions."""
+class TestProvidersEndpoint:
+    """Test cases for provider-related endpoints"""
 
-    def test_chat_completion_invalid_role(self, client: TestClient, mock_llm):
-        """Test chat completion with invalid message role."""
+    @pytest.mark.asyncio
+    async def test_list_providers(self):
+        """Test listing available providers"""
+        with patch('app.api.routes.provider_registry') as mock_registry:
+            # Mock provider
+            mock_provider = MagicMock()
+            mock_provider.name = "Test Provider"
+            mock_provider.provider_type.value = "openai"
+            mock_provider.is_configured = True
+            mock_provider.is_healthy.return_value = True
+            mock_registry.list_providers.return_value = [mock_provider]
+            mock_registry._default_provider = None
+            
+            client = TestClient(app)
+            response = client.get("/v1/providers")
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["object"] == "list"
+            assert len(data["data"]) == 1
+            assert data["data"][0]["name"] == "Test Provider"
+            assert data["data"][0]["type"] == "openai"
+            assert data["data"][0]["configured"] is True
+            assert data["data"][0]["healthy"] is True
+
+    @pytest.mark.asyncio
+    async def test_list_provider_models_success(self):
+        """Test listing models for a specific provider"""
+        with patch('app.api.routes.provider_registry') as mock_registry:
+            # Mock provider
+            mock_provider = MagicMock()
+            mock_provider.is_configured = True
+            
+            # Mock model
+            mock_model = MagicMock()
+            mock_model.name = "test-model"
+            mock_model.description = "Test model description"
+            mock_model.context_length = 4096
+            mock_model.supports_streaming = True
+            mock_model.supports_tools = True
+            mock_provider.list_models.return_value = [mock_model]
+            
+            mock_registry.get_provider.return_value = mock_provider
+            
+            with patch('app.api.routes.ProviderType') as mock_provider_type:
+                mock_provider_type.return_value = "openai"
+                
+                client = TestClient(app)
+                response = client.get("/v1/providers/openai/models")
+                
+                assert response.status_code == 200
+                data = response.json()
+                assert data["object"] == "list"
+                assert len(data["data"]) == 1
+                assert data["data"][0]["id"] == "test-model"
+                assert data["data"][0]["description"] == "Test model description"
+
+    @pytest.mark.asyncio
+    async def test_list_provider_models_invalid_type(self):
+        """Test listing models for invalid provider type"""
+        client = TestClient(app)
+        response = client.get("/v1/providers/invalid-type/models")
+        
+        assert response.status_code == 400
+        assert "Invalid provider type" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_list_provider_models_not_found(self):
+        """Test listing models for non-existent provider"""
+        with patch('app.api.routes.provider_registry') as mock_registry:
+            with patch('app.api.routes.ProviderType') as mock_provider_type:
+                mock_provider_type.return_value = "openai"
+                mock_registry.get_provider.return_value = None
+                
+                client = TestClient(app)
+                response = client.get("/v1/providers/openai/models")
+                
+                assert response.status_code == 404
+                assert "not found" in response.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_health_check_providers(self):
+        """Test health check for all providers"""
+        with patch('app.api.routes.provider_registry') as mock_registry:
+            # Mock provider
+            mock_provider = MagicMock()
+            mock_provider.name = "Test Provider"
+            mock_provider.provider_type.value = "openai"
+            mock_provider.is_configured = True
+            mock_provider.is_healthy.return_value = True
+            mock_registry.list_providers.return_value = [mock_provider]
+            
+            client = TestClient(app)
+            response = client.post("/v1/providers/health-check")
+            
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "completed"
+            assert len(data["providers"]) == 1
+            assert data["providers"][0]["name"] == "Test Provider"
+
+
+class TestAddProviderEndpoint:
+    """Test cases for the /v1/providers (POST) endpoint"""
+
+    @pytest.mark.asyncio
+    async def test_add_provider_success(self):
+        """Test successfully adding a new provider"""
         request_data = {
-            "messages": [{"role": "invalid_role", "content": "Hello"}],
-            "stream": False,
+            "name": "Test Provider",
+            "type": "openai_compatible",
+            "api_key": "test-api-key",
+            "api_base": "https://api.test.com",
+            "is_default": True,
+            "model_list": ["test-model"]
         }
-        response = client.post("/v1/chat/completions", json=request_data)
-        # The role might be validated by Pydantic or in the route handler
-        assert response.status_code in [200, 422]
+        
+        with patch('app.api.routes.secure_settings') as mock_secure_settings:
+            with patch('app.api.routes.initialize_llm_providers') as mock_init:
+                with patch('app.api.routes.settings') as mock_settings:
+                    mock_settings.preferred_provider = None
+                    
+                    client = TestClient(app)
+                    response = client.post("/v1/providers", json=request_data)
+                    
+                    assert response.status_code == 200
+                    data = response.json()
+                    assert data["success"] is True
+                    assert "added successfully" in data["message"]
+                    assert data["provider"]["name"] == "Test Provider"
+                    assert data["provider"]["type"] == "openai_compatible"
 
-    def test_chat_completion_empty_content(self, client: TestClient, mock_llm):
-        """Test chat completion with empty message content."""
-        request_data = {"messages": [{"role": "user", "content": ""}], "stream": False}
-        response = client.post("/v1/chat/completions", json=request_data)
-        # Empty content might be allowed or cause an error
-        assert response.status_code in [200, 422, 500]
-
-    def test_chat_completion_missing_content(self, client: TestClient):
-        """Test chat completion with missing content field."""
+    @pytest.mark.asyncio
+    async def test_add_provider_validation_error(self):
+        """Test adding provider with validation error"""
+        # Missing API key for non-local provider
         request_data = {
-            "messages": [{"role": "user"}],  # Missing content
-            "stream": False,
+            "name": "Test Provider",
+            "type": "openai_compatible",
+            # api_key is missing
         }
-        response = client.post("/v1/chat/completions", json=request_data)
+        
+        client = TestClient(app)
+        response = client.post("/v1/providers", json=request_data)
+        
         assert response.status_code == 422  # Validation error
 
+    @pytest.mark.asyncio
+    async def test_add_provider_local_no_api_key(self):
+        """Test adding local provider without API key"""
+        request_data = {
+            "name": "Local Ollama",
+            "type": "ollama",
+            # api_key is not required for local providers
+            "api_base": "http://localhost:11434"
+        }
+        
+        with patch('app.api.routes.secure_settings') as mock_secure_settings:
+            with patch('app.api.routes.initialize_llm_providers') as mock_init:
+                client = TestClient(app)
+                response = client.post("/v1/providers", json=request_data)
+                
+                assert response.status_code == 200
+                data = response.json()
+                assert data["success"] is True
 
-@pytest.mark.asyncio
-class TestAsyncChatCompletions:
-    """Test async functionality of chat completions."""
+    @pytest.mark.asyncio
+    async def test_add_provider_server_error(self):
+        """Test adding provider with server error"""
+        request_data = {
+            "name": "Test Provider",
+            "type": "openai_compatible",
+            "api_key": "test-api-key"
+        }
+        
+        with patch('app.api.routes.secure_settings', side_effect=Exception("Server error")):
+            client = TestClient(app)
+            response = client.post("/v1/providers", json=request_data)
+            
+            assert response.status_code == 500
+            assert "internal error" in response.json()["detail"]
 
-    async def test_async_chat_completion(
-        self, client: TestClient, chat_request_data, mock_llm
-    ):
-        """Test async chat completion request."""
-        response = client.post("/v1/chat/completions", json=chat_request_data)
-        assert response.status_code == 200
-        data = response.json()
-        assert data["choices"][0]["message"]["content"] == "Mocked AI response"
 
-    async def test_async_streaming_chat_completion(
-        self, client: TestClient, streaming_chat_request_data, mock_llm
-    ):
-        """Test async streaming chat completion."""
-        response = client.post("/v1/chat/completions", json=streaming_chat_request_data)
-        assert response.status_code == 200
-        assert "text/plain" in response.headers["content-type"]
+class TestStreamingResponse:
+    """Test cases for streaming response functionality"""
+
+    @pytest.mark.asyncio
+    async def test_stream_response_native_streaming(self):
+        """Test streaming response with native streaming support"""
+        from app.api.routes import _stream_response
+        from fastapi.responses import StreamingResponse
+        
+        # Mock messages and LLM
+        mock_messages = [MagicMock()]
+        mock_llm = MagicMock()
+        mock_llm.streaming = True
+        mock_llm.astream.return_value = [MagicMock(content="Test chunk")]
+        
+        response = await _stream_response(mock_messages, mock_llm, "test-model")
+        
+        assert isinstance(response, StreamingResponse)
+        assert response.media_type == "text/plain"
+
+    @pytest.mark.asyncio
+    async def test_stream_response_fallback_streaming(self):
+        """Test streaming response with fallback streaming"""
+        from app.api.routes import _stream_response
+        from fastapi.responses import StreamingResponse
+        
+        # Mock messages and LLM
+        mock_messages = [MagicMock()]
+        mock_llm = MagicMock()
+        mock_llm.streaming = False
+        mock_response = MagicMock()
+        mock_response.content = "Test response content"
+        mock_llm.ainvoke.return_value = mock_response
+        
+        response = await _stream_response(mock_messages, mock_llm, "test-model")
+        
+        assert isinstance(response, StreamingResponse)
+        assert response.media_type == "text/plain"

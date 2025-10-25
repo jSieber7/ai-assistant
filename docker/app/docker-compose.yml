@@ -1,8 +1,8 @@
 services:
   app:
     build:
-      context: ../../
-      dockerfile: docker/app/Dockerfile
+      context: ../..
+      dockerfile: docker/app/Dockerfile.${BUILD_MODE:-prod}
       args:
         BUILD_MODE: ${BUILD_MODE:-production}
     container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-app
@@ -11,7 +11,7 @@ services:
       - "${APP_PORT:-8000}:8000"
       - "8888:8888"
     env_file:
-      - env/${ENVIRONMENT:-dev}.env
+      - ../.env.dev
     environment:
       - BUILD_MODE=${BUILD_MODE:-production}
     networks:

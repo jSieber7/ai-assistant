@@ -1,456 +1,771 @@
 """
-Unit tests for LangGraph Agent Manager.
+Unit tests for LangChain Agent Manager.
 
-This module tests agent registration, invocation, and integration
-with LangGraph agent components.
+This module tests the LangGraph-based agent manager functionality,
+including agent registration, execution, and state management.
 """
 
 import pytest
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch
-from typing import Dict, Any, Callable
+from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from datetime import datetime
+import uuid
 
-from langgraph.graph import StateGraph
-from langgraph.checkpoint.memory import MemorySaver
+from app.core.langchain.agent_manager import (
+    LangGraphAgentManager,
+    AgentType,
+    AgentState,
+    MultiAgentState,
+    AgentConfig,
+    agent_manager
+)
 
-from app.core.langchain.agent_manager import LangGraphAgentManager
-from app.core.secure_settings import secure_settings
+
+class TestAgentType:
+    """Test AgentType enum"""
+
+    def test_agent_type_values(self):
+        """Test that AgentType has expected values"""
+        expected_types = [
+            "conversational",
+            "tool_heavy",
+            "multi_agent",
+            "researcher",
+            "analyst",
+            "synthesizer",
+            "coordinator"
+        ]
+        
+        actual_types = [agent_type.value for agent_type in AgentType]
+        assert actual_types == expected_types
+
+
+class TestAgentState:
+    """Test AgentState dataclass"""
+
+    def test_agent_state_defaults(self):
+        """Test AgentState default values"""
+        state = AgentState()
+        
+        assert state.messages == []
+        assert state.current_task is None
+        assert state.tool_results == []
+        assert state.context == {}
+        assert state.conversation_id is None
+        assert state.agent_name is None
+        assert state.iteration_count == 0
+        assert state.max_iterations == 5
+
+    def test_agent_state_with_values(self):
+        """Test AgentState with provided values"""
+        messages = [Mock()]
+        tool_results = [{"result": "test"}]
+        context = {"key": "value"}
+        
+        state = AgentState(
+            messages=messages,
+            current_task="test task",
+            tool_results=tool_results,
+            context=context,
+            conversation_id="conv-123",
+            agent_name="test_agent",
+            iteration_count=2,
+            max_iterations=10
+        )
+        
+        assert state.messages == messages
+        assert state.current_task == "test task"
+        assert state.tool_results == tool_results
+        assert state.context == context
+        assert state.conversation_id == "conv-123"
+        assert state.agent_name == "test_agent"
+        assert state.iteration_count == 2
+        assert state.max_iterations == 10
+
+
+class TestMultiAgentState:
+    """Test MultiAgentState dataclass"""
+
+    def test_multi_agent_state_defaults(self):
+        """Test MultiAgentState default values"""
+        state = MultiAgentState()
+        
+        assert state.messages == []
+        assert state.current_task is None
+        assert state.agent_results == {}
+        assert state.active_agents == []
+        assert state.coordinator_decision is None
+        assert state.context == {}
+        assert state.conversation_id is None
+        assert state.iteration_count == 0
+        assert state.max_iterations == 10
+
+    def test_multi_agent_state_with_values(self):
+        """Test MultiAgentState with provided values"""
+        messages = [Mock()]
+        agent_results = {"researcher": {"result": "test"}}
+        active_agents = ["researcher", "analyst"]
+        
+        state = MultiAgentState(
+            messages=messages,
+            current_task="test task",
+            agent_results=agent_results,
+            active_agents=active_agents,
+            coordinator_decision="continue",
+            context={"key": "value"},
+            conversation_id="conv-123",
+            iteration_count=3,
+            max_iterations=15
+        )
+        
+        assert state.messages == messages
+        assert state.current_task == "test task"
+        assert state.agent_results == agent_results
+        assert state.active_agents == active_agents
+        assert state.coordinator_decision == "continue"
+        assert state.context == {"key": "value"}
+        assert state.conversation_id == "conv-123"
+        assert state.iteration_count == 3
+        assert state.max_iterations == 15
+
+
+class TestAgentConfig:
+    """Test AgentConfig dataclass"""
+
+    def test_agent_config_defaults(self):
+        """Test AgentConfig default values"""
+        config = AgentConfig(
+            name="test_agent",
+            agent_type=AgentType.CONVERSATIONAL,
+            llm_model="gpt-4"
+        )
+        
+        assert config.name == "test_agent"
+        assert config.agent_type == AgentType.CONVERSATIONAL
+        assert config.llm_model == "gpt-4"
+        assert config.temperature == 0.7
+        assert config.max_tokens is None
+        assert config.tools == []
+        assert config.system_prompt is None
+        assert config.max_iterations == 5
+        assert config.enable_streaming is False
+        assert config.memory_backend == "conversation"
+        assert config.metadata == {}
+
+    def test_agent_config_with_values(self):
+        """Test AgentConfig with provided values"""
+        tools = ["search", "calculator"]
+        metadata = {"version": "1.0"}
+        
+        config = AgentConfig(
+            name="advanced_agent",
+            agent_type=AgentType.TOOL_HEAVY,
+            llm_model="gpt-4-turbo",
+            temperature=0.5,
+            max_tokens=2048,
+            tools=tools,
+            system_prompt="You are an advanced assistant",
+            max_iterations=10,
+            enable_streaming=True,
+            memory_backend="summary",
+            metadata=metadata
+        )
+        
+        assert config.name == "advanced_agent"
+        assert config.agent_type == AgentType.TOOL_HEAVY
+        assert config.llm_model == "gpt-4-turbo"
+        assert config.temperature == 0.5
+        assert config.max_tokens == 2048
+        assert config.tools == tools
+        assert config.system_prompt == "You are an advanced assistant"
+        assert config.max_iterations == 10
+        assert config.enable_streaming is True
+        assert config.memory_backend == "summary"
+        assert config.metadata == metadata
 
 
 class TestLangGraphAgentManager:
-    """Test cases for LangGraph Agent Manager"""
-    
+    """Test LangGraphAgentManager class"""
+
     @pytest.fixture
-    async def agent_manager(self):
-        """Create a LangGraph Agent Manager instance for testing"""
-        manager = LangGraphAgentManager()
-        await manager.initialize()
-        return manager
-    
+    def agent_manager_instance(self):
+        """Create a fresh agent manager instance for testing"""
+        return LangGraphAgentManager()
+
     @pytest.fixture
-    def mock_settings(self):
-        """Mock secure settings for testing"""
-        mock_settings = Mock()
-        mock_settings.get_setting.side_effect = lambda section, key, default=None: {
-            ('langchain', 'agent_manager_enabled'): True,
-            ('langchain', 'max_concurrent_agents'): 5,
-            ('agents', 'execution_timeout'): 60,
-        }.get((section, key), default)
-        return mock_settings
-    
+    def mock_llm_manager(self):
+        """Mock LLM manager"""
+        with patch('app.core.langchain.agent_manager.llm_manager') as mock:
+            mock.get_llm = AsyncMock(return_value=Mock())
+            yield mock
+
     @pytest.fixture
-    def sample_agent(self):
-        """Create a sample agent for testing"""
-        async def sample_agent_function(state: Dict[str, Any]) -> Dict[str, Any]:
-            """A sample agent function"""
-            return {
-                "messages": [{"role": "assistant", "content": "Sample response"}],
-                "next": "end"
-            }
+    def mock_tool_registry(self):
+        """Mock tool registry"""
+        with patch('app.core.langchain.agent_manager.tool_registry') as mock:
+            mock.get_tool = Mock(return_value=Mock())
+            yield mock
+
+    @pytest.fixture
+    def mock_memory_manager(self):
+        """Mock memory manager"""
+        with patch('app.core.langchain.agent_manager.memory_manager') as mock:
+            mock.get_conversation_messages = AsyncMock(return_value=[])
+            mock.add_message = AsyncMock(return_value=True)
+            yield mock
+
+    @pytest.fixture
+    def mock_monitoring(self):
+        """Mock monitoring system"""
+        with patch('app.core.langchain.agent_manager.LangChainMonitoring') as mock:
+            mock_instance = Mock()
+            mock_instance.initialize = AsyncMock()
+            mock_instance.track_agent_registration = AsyncMock()
+            mock_instance.start_agent_execution = AsyncMock(return_value="exec-123")
+            mock_instance.complete_agent_execution = AsyncMock()
+            mock.return_value = mock_instance
+            yield mock_instance
+
+    @pytest.mark.asyncio
+    async def test_initialize(self, agent_manager_instance, mock_monitoring):
+        """Test agent manager initialization"""
+        await agent_manager_instance.initialize()
         
-        # Create a simple state graph
-        workflow = StateGraph(dict)
-        workflow.add_node("process", sample_agent_function)
-        workflow.set_entry_point("process")
-        workflow.add_edge("process", "end")
+        assert agent_manager_instance._initialized is True
+        mock_monitoring.return_value.initialize.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_initialize_idempotent(self, agent_manager_instance, mock_monitoring):
+        """Test that initialize is idempotent"""
+        await agent_manager_instance.initialize()
+        await agent_manager_instance.initialize()
         
-        return workflow.compile(checkpointer=MemorySaver())
-    
-    async def test_initialize_success(self, mock_settings):
-        """Test successful initialization of agent manager"""
-        with patch('app.core.langchain.agent_manager.secure_settings', mock_settings):
-            manager = LangGraphAgentManager()
-            
-            # Test initialization
-            await manager.initialize()
-            
-            # Verify initialization
-            assert manager._initialized is True
-            assert manager._monitoring is not None
-            assert isinstance(manager._agents, dict)
-    
-    async def test_register_agent(self, agent_manager, sample_agent):
-        """Test registering an agent"""
-        # Register agent
-        await agent_manager.register_agent(
-            name="sample_agent",
-            agent=sample_agent,
-            description="A sample agent for testing"
+        assert agent_manager_instance._initialized is True
+        # Should only initialize once
+        mock_monitoring.return_value.initialize.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_register_agent_success(
+        self, 
+        agent_manager_instance, 
+        mock_llm_manager, 
+        mock_tool_registry, 
+        mock_monitoring
+    ):
+        """Test successful agent registration"""
+        await agent_manager_instance.initialize()
+        
+        config = AgentConfig(
+            name="test_agent",
+            agent_type=AgentType.CONVERSATIONAL,
+            llm_model="gpt-4",
+            tools=["search"]
         )
         
-        # Verify registration
-        assert "sample_agent" in agent_manager._agents
-        assert agent_manager._agents["sample_agent"]["agent"] is sample_agent
-        assert agent_manager._agents["sample_agent"]["description"] == "A sample agent for testing"
-    
-    async def test_register_agent_with_config(self, agent_manager, sample_agent):
-        """Test registering an agent with configuration"""
-        config = {
-            "max_iterations": 10,
-            "timeout": 30,
-            "retry_attempts": 3
-        }
-        
-        # Register agent with config
-        await agent_manager.register_agent(
-            name="sample_agent",
-            agent=sample_agent,
-            description="A sample agent for testing",
-            config=config
-        )
-        
-        # Verify registration with config
-        assert "sample_agent" in agent_manager._agents
-        assert agent_manager._agents["sample_agent"]["config"] == config
-    
-    async def test_get_agent(self, agent_manager, sample_agent):
-        """Test getting a registered agent"""
-        # Register agent
-        await agent_manager.register_agent(
-            name="sample_agent",
-            agent=sample_agent,
-            description="A sample agent for testing"
-        )
-        
-        # Get agent
-        retrieved_agent = agent_manager.get_agent("sample_agent")
-        
-        assert retrieved_agent is sample_agent
-    
-    async def test_get_agent_not_found(self, agent_manager):
-        """Test getting an agent that doesn't exist"""
-        agent = agent_manager.get_agent("non_existent_agent")
-        assert agent is None
-    
-    async def test_list_agents(self, agent_manager, sample_agent):
-        """Test listing all registered agents"""
-        # Register some agents
-        await agent_manager.register_agent(
-            name="sample_agent_1",
-            agent=sample_agent,
-            description="First sample agent"
-        )
-        
-        await agent_manager.register_agent(
-            name="sample_agent_2",
-            agent=sample_agent,
-            description="Second sample agent"
-        )
-        
-        # List agents
-        agents = agent_manager.list_agents()
-        
-        assert isinstance(agents, list)
-        assert len(agents) == 2
-        agent_names = [agent["name"] for agent in agents]
-        assert "sample_agent_1" in agent_names
-        assert "sample_agent_2" in agent_names
-    
-    async def test_invoke_agent_sync(self, agent_manager, sample_agent):
-        """Test synchronous agent invocation"""
-        # Register agent
-        await agent_manager.register_agent(
-            name="sample_agent",
-            agent=sample_agent,
-            description="A sample agent for testing"
-        )
-        
-        # Invoke agent
-        result = await agent_manager.invoke_agent(
-            agent_name="sample_agent",
-            input_data={"messages": [{"role": "user", "content": "Hello"}]},
-            config={"thread_id": "test_thread"}
-        )
-        
-        assert isinstance(result, dict)
-        assert "messages" in result
-        assert len(result["messages"]) > 0
-    
-    async def test_invoke_agent_stream(self, agent_manager, sample_agent):
-        """Test streaming agent invocation"""
-        # Register agent
-        await agent_manager.register_agent(
-            name="sample_agent",
-            agent=sample_agent,
-            description="A sample agent for testing"
-        )
-        
-        # Invoke agent with streaming
-        result_chunks = []
-        async for chunk in agent_manager.invoke_agent_stream(
-            agent_name="sample_agent",
-            input_data={"messages": [{"role": "user", "content": "Hello"}]},
-            config={"thread_id": "test_thread"}
-        ):
-            result_chunks.append(chunk)
-        
-        assert len(result_chunks) > 0
-        assert all(isinstance(chunk, dict) for chunk in result_chunks)
-    
-    async def test_invoke_agent_not_found(self, agent_manager):
-        """Test invoking an agent that doesn't exist"""
-        with pytest.raises(ValueError, match="Agent 'non_existent_agent' not found"):
-            await agent_manager.invoke_agent("non_existent_agent", {})
-    
-    async def test_unregister_agent(self, agent_manager, sample_agent):
-        """Test unregistering an agent"""
-        # Register agent
-        await agent_manager.register_agent(
-            name="sample_agent",
-            agent=sample_agent,
-            description="A sample agent for testing"
-        )
-        
-        # Verify it's registered
-        assert "sample_agent" in agent_manager._agents
-        
-        # Unregister it
-        result = await agent_manager.unregister_agent("sample_agent")
+        result = await agent_manager_instance.register_agent(config)
         
         assert result is True
-        assert "sample_agent" not in agent_manager._agents
-    
-    async def test_unregister_agent_not_found(self, agent_manager):
-        """Test unregistering an agent that doesn't exist"""
-        result = await agent_manager.unregister_agent("non_existent_agent")
-        assert result is False
-    
-    async def test_get_agent_info(self, agent_manager, sample_agent):
-        """Test getting information about an agent"""
-        # Register agent
-        await agent_manager.register_agent(
-            name="sample_agent",
-            agent=sample_agent,
-            description="A sample agent for testing"
-        )
-        
-        # Get agent info
-        info = agent_manager.get_agent_info("sample_agent")
-        
-        assert isinstance(info, dict)
-        assert "name" in info
-        assert "description" in info
-        assert "registered_at" in info
-        assert info["name"] == "sample_agent"
-    
-    async def test_get_agent_info_not_found(self, agent_manager):
-        """Test getting info for an agent that doesn't exist"""
-        info = agent_manager.get_agent_info("non_existent_agent")
-        assert info is None
-    
-    async def test_health_check(self, agent_manager, sample_agent):
-        """Test health check functionality"""
-        # Register some agents
-        await agent_manager.register_agent(
-            name="sample_agent_1",
-            agent=sample_agent,
-            description="First sample agent"
-        )
-        
-        await agent_manager.register_agent(
-            name="sample_agent_2",
-            agent=sample_agent,
-            description="Second sample agent"
-        )
-        
-        # Perform health check
-        health = await agent_manager.health_check()
-        
-        assert isinstance(health, dict)
-        assert "overall_status" in health
-        assert "agents" in health
-        assert "timestamp" in health
-        assert "sample_agent_1" in health["agents"]
-        assert "sample_agent_2" in health["agents"]
-    
-    async def test_shutdown(self, agent_manager):
-        """Test shutdown functionality"""
-        # Mock monitoring shutdown
-        agent_manager._monitoring.shutdown = AsyncMock()
-        
-        await agent_manager.shutdown()
-        
-        # Verify shutdown was called
-        agent_manager._monitoring.shutdown.assert_called_once()
-        
-        # Verify manager is marked as not initialized
-        assert agent_manager._initialized is False
-        
-        # Verify agents are cleared
-        assert len(agent_manager._agents) == 0
-    
-    async def test_concurrent_agent_invocations(self, agent_manager, sample_agent):
-        """Test concurrent agent invocations"""
-        # Register agent
-        await agent_manager.register_agent(
-            name="sample_agent",
-            agent=sample_agent,
-            description="A sample agent for testing"
-        )
-        
-        # Invoke agent concurrently
-        tasks = [
-            agent_manager.invoke_agent(
-                agent_name="sample_agent",
-                input_data={"messages": [{"role": "user", "content": f"Hello {i}"}]},
-                config={"thread_id": f"test_thread_{i}"}
-            )
-            for i in range(3)
-        ]
-        
-        results = await asyncio.gather(*tasks)
-        
-        # Verify all invocations succeeded
-        assert len(results) == 3
-        assert all(isinstance(result, dict) for result in results)
-    
-    async def test_agent_execution_timeout(self, agent_manager):
-        """Test agent execution timeout"""
-        async def slow_agent(state: Dict[str, Any]) -> Dict[str, Any]:
-            await asyncio.sleep(2)  # Simulate slow operation
-            return {"messages": [{"role": "assistant", "content": "Slow response"}]}
-        
-        # Create slow agent
-        workflow = StateGraph(dict)
-        workflow.add_node("process", slow_agent)
-        workflow.set_entry_point("process")
-        workflow.add_edge("process", "end")
-        slow_agent_compiled = workflow.compile(checkpointer=MemorySaver())
-        
-        # Register agent
-        await agent_manager.register_agent(
-            name="slow_agent",
-            agent=slow_agent_compiled,
-            description="A slow agent"
-        )
-        
-        # Set a short timeout
-        agent_manager._execution_timeout = 1.0
-        
-        # Invoke should timeout
-        with pytest.raises(asyncio.TimeoutError):
-            await agent_manager.invoke_agent("slow_agent", {})
-    
-    async def test_agent_error_handling(self, agent_manager):
-        """Test error handling during agent execution"""
-        async def error_agent(state: Dict[str, Any]) -> Dict[str, Any]:
-            raise RuntimeError("Agent execution error")
-        
-        # Create error agent
-        workflow = StateGraph(dict)
-        workflow.add_node("process", error_agent)
-        workflow.set_entry_point("process")
-        workflow.add_edge("process", "end")
-        error_agent_compiled = workflow.compile(checkpointer=MemorySaver())
-        
-        # Register agent
-        await agent_manager.register_agent(
-            name="error_agent",
-            agent=error_agent_compiled,
-            description="An agent that errors"
-        )
-        
-        # Invoke should handle error gracefully
-        with pytest.raises(RuntimeError, match="Agent execution error"):
-            await agent_manager.invoke_agent("error_agent", {})
-    
-    async def test_monitoring_integration(self, agent_manager, sample_agent):
-        """Test that monitoring is properly integrated"""
-        # Mock monitoring to track calls
-        agent_manager._monitoring.record_metric = AsyncMock()
-        
-        # Register and invoke an agent
-        await agent_manager.register_agent(
-            name="sample_agent",
-            agent=sample_agent,
-            description="A sample agent for testing"
-        )
-        
-        await agent_manager.invoke_agent(
-            agent_name="sample_agent",
-            input_data={"messages": [{"role": "user", "content": "Hello"}]}
-        )
+        assert "test_agent" in agent_manager_instance._agent_configs
+        assert "test_agent" in agent_manager_instance._agents
+        assert "test_agent" in agent_manager_instance._agent_states
         
         # Verify monitoring was called
-        agent_manager._monitoring.record_metric.assert_called()
-    
-    async def test_agent_config_validation(self, agent_manager, sample_agent):
-        """Test agent configuration validation"""
-        # Test invalid config
-        with pytest.raises(ValueError, match="Invalid agent configuration"):
-            await agent_manager.register_agent(
-                name="sample_agent",
-                agent=sample_agent,
-                description="A sample agent",
-                config="invalid_config"  # Should be dict
-            )
-    
-    async def test_agent_caching(self, agent_manager, sample_agent):
-        """Test that agents are properly cached"""
-        # Register an agent
-        await agent_manager.register_agent(
-            name="sample_agent",
-            agent=sample_agent,
-            description="A sample agent for testing"
+        mock_monitoring.return_value.track_agent_registration.assert_called_once()
+        call_args = mock_monitoring.return_value.track_agent_registration.call_args[1]
+        assert call_args["agent_name"] == "test_agent"
+        assert call_args["agent_type"] == "conversational"
+        assert call_args["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_register_agent_duplicate(
+        self, 
+        agent_manager_instance, 
+        mock_monitoring
+    ):
+        """Test registering duplicate agent"""
+        await agent_manager_instance.initialize()
+        
+        config = AgentConfig(
+            name="duplicate_agent",
+            agent_type=AgentType.CONVERSATIONAL,
+            llm_model="gpt-4"
         )
         
-        # Get agent multiple times
-        agent1 = agent_manager.get_agent("sample_agent")
-        agent2 = agent_manager.get_agent("sample_agent")
-        agent3 = agent_manager.get_agent("sample_agent")
+        # Register first time
+        result1 = await agent_manager_instance.register_agent(config)
+        assert result1 is True
         
-        # All should be same instance
-        assert agent1 is agent2
-        assert agent2 is agent3
-    
-    async def test_get_statistics(self, agent_manager, sample_agent):
-        """Test getting agent manager statistics"""
-        # Register some agents
-        await agent_manager.register_agent(
-            name="sample_agent_1",
-            agent=sample_agent,
-            description="First sample agent"
+        # Register second time
+        result2 = await agent_manager_instance.register_agent(config)
+        assert result2 is False
+        
+        # Verify monitoring was called for failure
+        assert mock_monitoring.return_value.track_agent_registration.call_count == 2
+        failure_call = mock_monitoring.return_value.track_agent_registration.call_args_list[1][1]
+        assert failure_call["success"] is False
+        assert "already registered" in failure_call["error"]
+
+    @pytest.mark.asyncio
+    async def test_register_agent_creation_failure(
+        self, 
+        agent_manager_instance, 
+        mock_llm_manager, 
+        mock_monitoring
+    ):
+        """Test agent registration with creation failure"""
+        await agent_manager_instance.initialize()
+        
+        # Make LLM manager fail
+        mock_llm_manager.get_llm.side_effect = Exception("LLM creation failed")
+        
+        config = AgentConfig(
+            name="failing_agent",
+            agent_type=AgentType.CONVERSATIONAL,
+            llm_model="gpt-4"
         )
         
-        await agent_manager.register_agent(
-            name="sample_agent_2",
-            agent=sample_agent,
-            description="Second sample agent"
+        result = await agent_manager_instance.register_agent(config)
+        
+        assert result is False
+        assert "failing_agent" not in agent_manager_instance._agents
+        
+        # Verify monitoring was called for failure
+        mock_monitoring.return_value.track_agent_registration.assert_called_once()
+        call_args = mock_monitoring.return_value.track_agent_registration.call_args[1]
+        assert call_args["success"] is False
+        assert "Failed to create agent instance" in call_args["error"]
+
+    def test_get_agent(self, agent_manager_instance):
+        """Test getting an agent"""
+        # Create mock agent
+        mock_agent = Mock()
+        agent_manager_instance._agents["test_agent"] = mock_agent
+        
+        # Get existing agent
+        result = agent_manager_instance.get_agent("test_agent")
+        assert result == mock_agent
+        
+        # Get non-existent agent
+        result = agent_manager_instance.get_agent("nonexistent")
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_list_agents(self, agent_manager_instance):
+        """Test listing agents"""
+        # Create mock configurations
+        config1 = AgentConfig(
+            name="agent1",
+            agent_type=AgentType.CONVERSATIONAL,
+            llm_model="gpt-4"
+        )
+        config2 = AgentConfig(
+            name="agent2",
+            agent_type=AgentType.TOOL_HEAVY,
+            llm_model="gpt-4"
         )
         
-        # Get statistics
-        stats = agent_manager.get_statistics()
+        agent_manager_instance._agent_configs = {
+            "agent1": config1,
+            "agent2": config2
+        }
         
-        assert isinstance(stats, dict)
-        assert "total_agents_registered" in stats
-        assert "initialized" in stats
-        assert stats["total_agents_registered"] == 2
-    
-    async def test_agent_thread_management(self, agent_manager, sample_agent):
-        """Test agent thread management"""
-        # Register agent
-        await agent_manager.register_agent(
-            name="sample_agent",
-            agent=sample_agent,
-            description="A sample agent for testing"
+        # Add one agent to _agents (active)
+        agent_manager_instance._agents = {"agent1": Mock()}
+        
+        # Add mock states
+        agent_manager_instance._agent_states = {
+            "agent1": {
+                "created_at": "2023-01-01T00:00:00",
+                "last_used": "2023-01-02T00:00:00",
+                "usage_count": 5,
+                "conversations": {}
+            },
+            "agent2": {
+                "created_at": "2023-01-01T00:00:00",
+                "last_used": None,
+                "usage_count": 0,
+                "conversations": {}
+            }
+        }
+        
+        # List active agents only
+        result = await agent_manager_instance.list_agents(active_only=True)
+        assert len(result) == 1
+        assert result[0]["name"] == "agent1"
+        assert result[0]["enabled"] is True
+        
+        # List all agents
+        result = await agent_manager_instance.list_agents(active_only=False)
+        assert len(result) == 2
+        names = [agent["name"] for agent in result]
+        assert "agent1" in names
+        assert "agent2" in names
+
+    @pytest.mark.asyncio
+    async def test_invoke_agent_success(
+        self, 
+        agent_manager_instance, 
+        mock_llm_manager, 
+        mock_tool_registry, 
+        mock_memory_manager, 
+        mock_monitoring
+    ):
+        """Test successful agent invocation"""
+        await agent_manager_instance.initialize()
+        
+        # Create and register an agent
+        config = AgentConfig(
+            name="test_agent",
+            agent_type=AgentType.CONVERSATIONAL,
+            llm_model="gpt-4"
+        )
+        await agent_manager_instance.register_agent(config)
+        
+        # Mock agent execution
+        mock_agent = agent_manager_instance._agents["test_agent"]
+        mock_agent.ainvoke = AsyncMock(return_value={
+            "messages": [Mock(content="Test response")]
+        })
+        
+        result = await agent_manager_instance.invoke_agent(
+            agent_name="test_agent",
+            message="Hello, world!",
+            conversation_id="conv-123"
         )
         
-        # Invoke agent with different thread IDs
-        result1 = await agent_manager.invoke_agent(
-            agent_name="sample_agent",
-            input_data={"messages": [{"role": "user", "content": "Hello 1"}]},
-            config={"thread_id": "thread_1"}
+        assert result["success"] is True
+        assert "response" in result
+        assert result["agent_name"] == "test_agent"
+        assert result["conversation_id"] == "conv-123"
+        
+        # Verify monitoring was called
+        mock_monitoring.return_value.start_agent_execution.assert_called_once()
+        mock_monitoring.return_value.complete_agent_execution.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_invoke_agent_not_found(
+        self, 
+        agent_manager_instance, 
+        mock_monitoring
+    ):
+        """Test invoking non-existent agent"""
+        await agent_manager_instance.initialize()
+        
+        result = await agent_manager_instance.invoke_agent(
+            agent_name="nonexistent_agent",
+            message="Hello, world!"
         )
         
-        result2 = await agent_manager.invoke_agent(
-            agent_name="sample_agent",
-            input_data={"messages": [{"role": "user", "content": "Hello 2"}]},
-            config={"thread_id": "thread_2"}
+        assert result["success"] is False
+        assert "not found" in result["error"]
+        assert result["agent_name"] == "nonexistent_agent"
+        
+        # Verify monitoring was called for failure
+        mock_monitoring.return_value.track_agent_execution.assert_called_once()
+        call_args = mock_monitoring.return_value.track_agent_execution.call_args[1]
+        assert call_args["success"] is False
+        assert "not found" in call_args["error"]
+
+    @pytest.mark.asyncio
+    async def test_create_conversation(
+        self, 
+        agent_manager_instance, 
+        mock_memory_manager
+    ):
+        """Test creating a conversation"""
+        await agent_manager_instance.initialize()
+        
+        conversation_id = await agent_manager_instance.create_conversation(
+            agent_name="test_agent",
+            title="Test Conversation",
+            metadata={"test": True}
         )
         
-        # Results should be independent
-        assert result1 != result2
+        assert conversation_id is not None
+        assert len(conversation_id) > 0  # UUID should be generated
+        
+        # Verify memory manager was called
+        mock_memory_manager.create_conversation.assert_called_once()
+        call_args = mock_memory_manager.create_conversation.call_args[1]
+        assert call_args["agent_name"] == "test_agent"
+        assert call_args["title"] == "Test Conversation"
+        assert call_args["metadata"]["test"] is True
+
+    @pytest.mark.asyncio
+    async def test_get_conversation_history(
+        self, 
+        agent_manager_instance, 
+        mock_memory_manager
+    ):
+        """Test getting conversation history"""
+        await agent_manager_instance.initialize()
+        
+        # Mock memory manager response
+        mock_messages = [
+            {"role": "human", "content": "Hello"},
+            {"role": "ai", "content": "Hi there!"}
+        ]
+        mock_memory_manager.get_conversation_messages.return_value = mock_messages
+        
+        result = await agent_manager_instance.get_conversation_history(
+            agent_name="test_agent",
+            conversation_id="conv-123"
+        )
+        
+        assert result == mock_messages
+        mock_memory_manager.get_conversation_messages.assert_called_once_with("conv-123")
+
+    @pytest.mark.asyncio
+    async def test_reset_agent(self, agent_manager_instance):
+        """Test resetting an agent"""
+        await agent_manager_instance.initialize()
+        
+        # Set up agent state
+        agent_manager_instance._agent_states["test_agent"] = {
+            "created_at": "2023-01-01T00:00:00",
+            "last_used": "2023-01-02T00:00:00",
+            "usage_count": 5,
+            "conversations": {"conv-1": {}, "conv-2": {}}
+        }
+        
+        result = await agent_manager_instance.reset_agent("test_agent")
+        
+        assert result is True
+        state = agent_manager_instance._agent_states["test_agent"]
+        assert state["conversations"] == {}
+        assert state["usage_count"] == 0
+        assert state["last_used"] is None
+
+    @pytest.mark.asyncio
+    async def test_reset_agent_not_found(self, agent_manager_instance):
+        """Test resetting non-existent agent"""
+        await agent_manager_instance.initialize()
+        
+        result = await agent_manager_instance.reset_agent("nonexistent_agent")
+        
+        assert result is False
+
+    def test_get_agent_stats(self, agent_manager_instance):
+        """Test getting agent statistics"""
+        # Set up agent state
+        agent_manager_instance._agent_states["test_agent"] = {
+            "created_at": "2023-01-01T00:00:00",
+            "last_used": "2023-01-02T00:00:00",
+            "usage_count": 5,
+            "conversations": {"conv-1": {}, "conv-2": {}}
+        }
+        
+        result = agent_manager_instance.get_agent_stats("test_agent")
+        
+        assert result["created_at"] == "2023-01-01T00:00:00"
+        assert result["last_used"] == "2023-01-02T00:00:00"
+        assert result["usage_count"] == 5
+        assert len(result["conversations"]) == 2
+
+    def test_get_agent_stats_not_found(self, agent_manager_instance):
+        """Test getting stats for non-existent agent"""
+        result = agent_manager_instance.get_agent_stats("nonexistent_agent")
+        
+        assert result is None
+
+    def test_get_registry_stats(self, agent_manager_instance):
+        """Test getting registry statistics"""
+        # Set up registry state
+        agent_manager_instance._agent_configs = {
+            "agent1": Mock(agent_type=AgentType.CONVERSATIONAL),
+            "agent2": Mock(agent_type=AgentType.TOOL_HEAVY),
+            "agent3": Mock(agent_type=AgentType.RESEARCHER)
+        }
+        agent_manager_instance._agents = {
+            "agent1": Mock(),
+            "agent2": Mock()
+        }
+        agent_manager_instance._workflows = {
+            "conversational": Mock(),
+            "tool_heavy": Mock(),
+            "multi_agent": Mock()
+        }
+        
+        result = agent_manager_instance.get_registry_stats()
+        
+        assert result["total_agents"] == 3
+        assert result["active_agents"] == 2
+        assert result["total_workflows"] == 3
+        assert len(result["agent_types"]) == 3
+        assert result["agent_types"]["conversational"] == 1
+        assert result["agent_types"]["tool_heavy"] == 1
+        assert result["agent_types"]["researcher"] == 1
+        assert len(result["available_workflows"]) == 3
+
+    @pytest.mark.asyncio
+    async def test_create_agent_instance(
+        self, 
+        agent_manager_instance, 
+        mock_llm_manager, 
+        mock_tool_registry
+    ):
+        """Test creating an agent instance"""
+        await agent_manager_instance.initialize()
+        
+        # Set up workflows
+        agent_manager_instance._workflows = {
+            "conversational": Mock()
+        }
+        
+        config = AgentConfig(
+            name="test_agent",
+            agent_type=AgentType.CONVERSATIONAL,
+            llm_model="gpt-4",
+            tools=["search"]
+        )
+        
+        result = await agent_manager_instance._create_agent_instance(config)
+        
+        assert result is not None
+        mock_llm_manager.get_llm.assert_called_once_with(
+            "gpt-4",
+            temperature=0.7,
+            max_tokens=None,
+            streaming=False
+        )
+        mock_tool_registry.get_tool.assert_called_once_with("search")
+
+    @pytest.mark.asyncio
+    async def test_create_agent_instance_workflow_not_found(
+        self, 
+        agent_manager_instance, 
+        mock_llm_manager
+    ):
+        """Test creating agent instance with missing workflow"""
+        await agent_manager_instance.initialize()
+        
+        # Don't set up workflows
+        config = AgentConfig(
+            name="test_agent",
+            agent_type=AgentType.CONVERSATIONAL,
+            llm_model="gpt-4"
+        )
+        
+        result = await agent_manager_instance._create_agent_instance(config)
+        
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_invoke_agent_sync(
+        self, 
+        agent_manager_instance, 
+        mock_memory_manager
+    ):
+        """Test synchronous agent invocation"""
+        await agent_manager_instance.initialize()
+        
+        # Create mock agent
+        mock_agent = Mock()
+        mock_agent.ainvoke = AsyncMock(return_value={
+            "messages": [Mock(content="Test response")]
+        })
+        
+        config = AgentConfig(
+            name="test_agent",
+            agent_type=AgentType.CONVERSATIONAL,
+            llm_model="gpt-4"
+        )
+        
+        state = AgentState(
+            messages=[Mock(content="Hello")],
+            current_task="Hello",
+            conversation_id="conv-123",
+            agent_name="test_agent"
+        )
+        
+        result = await agent_manager_instance._invoke_agent_sync(
+            mock_agent, state, config
+        )
+        
+        assert result["success"] is True
+        assert "response" in result
+        assert result["agent_name"] == "test_agent"
+        assert result["conversation_id"] == "conv-123"
+        
+        # Verify memory manager was called
+        mock_memory_manager.add_message.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_invoke_agent_sync_failure(
+        self, 
+        agent_manager_instance
+    ):
+        """Test synchronous agent invocation with failure"""
+        await agent_manager_instance.initialize()
+        
+        # Create mock agent that fails
+        mock_agent = Mock()
+        mock_agent.ainvoke = AsyncMock(side_effect=Exception("Agent execution failed"))
+        
+        config = AgentConfig(
+            name="test_agent",
+            agent_type=AgentType.CONVERSATIONAL,
+            llm_model="gpt-4"
+        )
+        
+        state = AgentState(
+            messages=[Mock(content="Hello")],
+            current_task="Hello",
+            conversation_id="conv-123",
+            agent_name="test_agent"
+        )
+        
+        result = await agent_manager_instance._invoke_agent_sync(
+            mock_agent, state, config
+        )
+        
+        assert result["success"] is False
+        assert "error" in result
+        assert result["agent_name"] == "test_agent"
+        assert result["conversation_id"] == "conv-123"
+
+    @pytest.mark.asyncio
+    async def test_invoke_agent_stream(
+        self, 
+        agent_manager_instance, 
+        mock_memory_manager
+    ):
+        """Test streaming agent invocation"""
+        await agent_manager_instance.initialize()
+        
+        # Create mock agent
+        mock_agent = Mock()
+        mock_agent.ainvoke = AsyncMock(return_value={
+            "messages": [Mock(content="Test response")]
+        })
+        
+        config = AgentConfig(
+            name="test_agent",
+            agent_type=AgentType.CONVERSATIONAL,
+            llm_model="gpt-4"
+        )
+        
+        state = AgentState(
+            messages=[Mock(content="Hello")],
+            current_task="Hello",
+            conversation_id="conv-123",
+            agent_name="test_agent"
+        )
+        
+        # Stream mode should fall back to sync for now
+        result = await agent_manager_instance._invoke_agent_stream(
+            mock_agent, state, config
+        )
+        
+        assert result["success"] is True
+        assert "response" in result
 
 
-if __name__ == "__main__":
-    pytest.main([__file__])
+class TestGlobalAgentManager:
+    """Test global agent manager instance"""
+
+    def test_global_instance(self):
+        """Test that global agent manager instance exists"""
+        from app.core.langchain.agent_manager import agent_manager
+        assert agent_manager is not None
+        assert isinstance(agent_manager, LangGraphAgentManager)

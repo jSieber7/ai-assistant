@@ -10,10 +10,11 @@ MODE=${BUILD_MODE:-production}
 cd /app
 
 # Run application
+# Run application
 if [ "$MODE" = "development" ]; then
     echo "Running with hot reload for development..."
     exec .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 else
     echo "Running for production..."
-    exec .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+    exec /opt/venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
 fi

@@ -1,511 +1,790 @@
 """
 Unit tests for LangChain Monitoring System.
 
-This module tests metric collection, performance tracking,
-and integration with database persistence.
+This module tests the comprehensive monitoring system for LangChain components,
+including performance metrics, error tracking, and logging.
 """
 
 import pytest
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch
-from typing import Dict, Any, Optional
+from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from datetime import datetime, timedelta
+import uuid
+from typing import List, Dict, Any, Optional
 
-from app.core.langchain.monitoring import LangChainMonitoring
-from app.core.secure_settings import secure_settings
+from app.core.langchain.monitoring import (
+    LangChainMonitor,
+    MetricType,
+    ComponentType,
+    MetricEvent,
+    PerformanceMetrics,
+    RequestTracker,
+    langchain_monitor,
+    track_llm_request,
+    track_tool_execution,
+    track_agent_execution,
+    track_workflow_execution,
+    track_request
+)
 
 
-class TestLangChainMonitoring:
-    """Test cases for LangChain Monitoring System"""
-    
+class TestMetricType:
+    """Test MetricType enum"""
+
+    def test_metric_type_values(self):
+        """Test that MetricType has expected values"""
+        expected_types = [
+            "counter",
+            "gauge",
+            "histogram",
+            "timer"
+        ]
+        
+        actual_types = [metric_type.value for metric_type in MetricType]
+        assert actual_types == expected_types
+
+
+class TestComponentType:
+    """Test ComponentType enum"""
+
+    def test_component_type_values(self):
+        """Test that ComponentType has expected values"""
+        expected_types = [
+            "llm",
+            "tool",
+            "agent",
+            "workflow",
+            "memory",
+            "chain"
+        ]
+        
+        actual_types = [component_type.value for component_type in ComponentType]
+        assert actual_types == expected_types
+
+
+class TestMetricEvent:
+    """Test MetricEvent dataclass"""
+
+    def test_metric_event_defaults(self):
+        """Test MetricEvent default values"""
+        event = MetricEvent(
+            name="test_metric",
+            component_type=ComponentType.LLM,
+            component_id="gpt-4",
+            metric_type=MetricType.COUNTER,
+            value=1.0,
+            timestamp=datetime.now()
+        )
+        
+        assert event.name == "test_metric"
+        assert event.component_type == ComponentType.LLM
+        assert event.component_id == "gpt-4"
+        assert event.metric_type == MetricType.COUNTER
+        assert event.value == 1.0
+        assert event.metadata == {}
+
+    def test_metric_event_with_values(self):
+        """Test MetricEvent with provided values"""
+        timestamp = datetime.now()
+        metadata = {"request_id": "req-123", "user_id": "user-456"}
+        
+        event = MetricEvent(
+            name="response_time",
+            component_type=ComponentType.AGENT,
+            component_id="conversational_agent",
+            metric_type=MetricType.TIMER,
+            value=2.5,
+            timestamp=timestamp,
+            metadata=metadata
+        )
+        
+        assert event.name == "response_time"
+        assert event.component_type == ComponentType.AGENT
+        assert event.component_id == "conversational_agent"
+        assert event.metric_type == MetricType.TIMER
+        assert event.value == 2.5
+        assert event.timestamp == timestamp
+        assert event.metadata == metadata
+
+    def test_metric_event_to_dict(self):
+        """Test MetricEvent to_dict method"""
+        timestamp = datetime.now()
+        metadata = {"test": True}
+        
+        event = MetricEvent(
+            name="test_metric",
+            component_type=ComponentType.LLM,
+            component_id="gpt-4",
+            metric_type=MetricType.COUNTER,
+            value=1.0,
+            timestamp=timestamp,
+            metadata=metadata
+        )
+        
+        result = event.to_dict()
+        
+        assert result["name"] == "test_metric"
+        assert result["component_type"] == "llm"
+        assert result["component_id"] == "gpt-4"
+        assert result["metric_type"] == "counter"
+        assert result["value"] == 1.0
+        assert result["timestamp"] == timestamp.isoformat()
+        assert result["metadata"] == metadata
+
+
+class TestPerformanceMetrics:
+    """Test PerformanceMetrics dataclass"""
+
+    def test_performance_metrics_defaults(self):
+        """Test PerformanceMetrics default values"""
+        metrics = PerformanceMetrics(
+            component_id="test_component",
+            component_type=ComponentType.LLM
+        )
+        
+        assert metrics.component_id == "test_component"
+        assert metrics.component_type == ComponentType.LLM
+        assert metrics.total_requests == 0
+        assert metrics.successful_requests == 0
+        assert metrics.failed_requests == 0
+        assert metrics.total_duration == 0.0
+        assert metrics.min_duration == float('inf')
+        assert metrics.max_duration == 0.0
+        assert metrics.average_duration == 0.0
+        assert metrics.last_request_time is None
+        assert metrics.error_rate == 0.0
+
+    def test_performance_metrics_with_values(self):
+        """Test PerformanceMetrics with provided values"""
+        last_request_time = datetime.now()
+        
+        metrics = PerformanceMetrics(
+            component_id="test_component",
+            component_type=ComponentType.LLM,
+            total_requests=10,
+            successful_requests=9,
+            failed_requests=1,
+            total_duration=45.5,
+            min_duration=1.0,
+            max_duration=10.0,
+            average_duration=4.55,
+            last_request_time=last_request_time,
+            error_rate=0.1
+        )
+        
+        assert metrics.component_id == "test_component"
+        assert metrics.component_type == ComponentType.LLM
+        assert metrics.total_requests == 10
+        assert metrics.successful_requests == 9
+        assert metrics.failed_requests == 1
+        assert metrics.total_duration == 45.5
+        assert metrics.min_duration == 1.0
+        assert metrics.max_duration == 10.0
+        assert metrics.average_duration == 4.55
+        assert metrics.last_request_time == last_request_time
+        assert metrics.error_rate == 0.1
+
+    def test_performance_metrics_update(self):
+        """Test PerformanceMetrics update method"""
+        metrics = PerformanceMetrics(
+            component_id="test_component",
+            component_type=ComponentType.LLM
+        )
+        
+        # Update with successful request
+        metrics.update(duration=2.5, success=True)
+        
+        assert metrics.total_requests == 1
+        assert metrics.successful_requests == 1
+        assert metrics.failed_requests == 0
+        assert metrics.total_duration == 2.5
+        assert metrics.min_duration == 2.5
+        assert metrics.max_duration == 2.5
+        assert metrics.average_duration == 2.5
+        assert metrics.last_request_time is not None
+        assert metrics.error_rate == 0.0
+        
+        # Update with failed request
+        metrics.update(duration=1.0, success=False)
+        
+        assert metrics.total_requests == 2
+        assert metrics.successful_requests == 1
+        assert metrics.failed_requests == 1
+        assert metrics.total_duration == 3.5
+        assert metrics.min_duration == 1.0
+        assert metrics.max_duration == 2.5
+        assert metrics.average_duration == 1.75
+        assert metrics.error_rate == 0.5
+
+    def test_performance_metrics_to_dict(self):
+        """Test PerformanceMetrics to_dict method"""
+        last_request_time = datetime.now()
+        
+        metrics = PerformanceMetrics(
+            component_id="test_component",
+            component_type=ComponentType.LLM,
+            total_requests=10,
+            successful_requests=9,
+            failed_requests=1,
+            total_duration=45.5,
+            min_duration=1.0,
+            max_duration=10.0,
+            average_duration=4.55,
+            last_request_time=last_request_time,
+            error_rate=0.1
+        )
+        
+        result = metrics.to_dict()
+        
+        assert result["component_id"] == "test_component"
+        assert result["component_type"] == "llm"
+        assert result["total_requests"] == 10
+        assert result["successful_requests"] == 9
+        assert result["failed_requests"] == 1
+        assert result["total_duration"] == 45.5
+        assert result["min_duration"] == 1.0
+        assert result["max_duration"] == 10.0
+        assert result["average_duration"] == 4.55
+        assert result["last_request_time"] == last_request_time.isoformat()
+        assert result["error_rate"] == 0.1
+
+
+class TestLangChainMonitor:
+    """Test LangChainMonitor class"""
+
     @pytest.fixture
-    async def monitoring(self):
-        """Create a LangChain Monitoring instance for testing"""
-        monitor = LangChainMonitoring()
-        await monitor.initialize()
-        return monitor
-    
-    @pytest.fixture
-    def mock_settings(self):
-        """Mock secure settings for testing"""
-        mock_settings = Mock()
-        mock_settings.get_setting.side_effect = lambda section, key, default=None: {
-            ('langchain', 'monitoring_enabled'): True,
-            ('langchain', 'metrics_retention_days'): 30,
-            ('langchain', 'performance_tracking'): True,
-        }.get((section, key), default)
-        return mock_settings
-    
+    def monitor_instance(self):
+        """Create a fresh monitor instance for testing"""
+        return LangChainMonitor()
+
     @pytest.fixture
     def mock_db_client(self):
-        """Mock database client for testing"""
-        db_client = Mock()
-        db_client.save_metric = AsyncMock()
-        db_client.get_metrics = AsyncMock(return_value=[])
-        db_client.delete_old_metrics = AsyncMock(return_value=10)
-        return db_client
-    
-    async def test_initialize_success(self, mock_settings):
-        """Test successful initialization of monitoring system"""
-        with patch('app.core.langchain.monitoring.secure_settings', mock_settings):
-            with patch('app.core.langchain.monitoring.get_langchain_client') as mock_get_client:
-                mock_get_client.return_value = Mock()
-                
-                monitor = LangChainMonitoring()
-                
-                # Test initialization
-                await monitor.initialize()
-                
-                # Verify initialization
-                assert monitor._initialized is True
-                assert monitor._db_client is not None
-                assert isinstance(monitor._metrics, dict)
-    
-    async def test_record_metric_success(self, monitoring, mock_db_client):
-        """Test successful metric recording"""
-        monitoring._db_client = mock_db_client
+        """Mock database client"""
+        with patch('app.core.langchain.monitoring.get_langchain_client') as mock:
+            mock_client = Mock()
+            mock_client.log_performance = AsyncMock()
+            mock_client.cleanup_old_metrics = AsyncMock()
+            mock.return_value = mock_client
+            yield mock_client
+
+    @pytest.mark.asyncio
+    async def test_initialize(self, monitor_instance, mock_db_client):
+        """Test monitor initialization"""
+        await monitor_instance.initialize()
         
-        # Record a metric
-        await monitoring.record_metric(
-            component_type="llm",
-            component_name="gpt-3.5-turbo",
-            metric_name="request_count",
-            metric_value=1,
-            metadata={"model": "gpt-3.5-turbo"}
+        assert monitor_instance._initialized is True
+        mock_db_client.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_initialize_idempotent(self, monitor_instance, mock_db_client):
+        """Test that initialize is idempotent"""
+        await monitor_instance.initialize()
+        await monitor_instance.initialize()
+        
+        assert monitor_instance._initialized is True
+        # Should only initialize once
+        mock_db_client.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_initialize_failure(self, monitor_instance):
+        """Test monitor initialization failure"""
+        with patch('app.core.langchain.monitoring.get_langchain_client') as mock:
+            mock.side_effect = Exception("Database connection failed")
+            
+            await monitor_instance.initialize()
+            
+            assert monitor_instance._initialized is True  # Still marked as initialized
+            assert monitor_instance._db_client is None
+
+    @pytest.mark.asyncio
+    async def test_track_request(self, monitor_instance, mock_db_client):
+        """Test tracking a request"""
+        await monitor_instance.initialize()
+        
+        await monitor_instance.track_request(
+            component_type=ComponentType.LLM,
+            component_id="gpt-4",
+            duration=2.5,
+            success=True,
+            metadata={"request_id": "req-123"}
         )
         
-        # Verify metric was saved
-        mock_db_client.save_metric.assert_called_once()
-        call_args = mock_db_client.save_metric.call_args[1]
+        # Check metrics were created
+        key = "llm:gpt-4"
+        assert key in monitor_instance._metrics
+        metrics = monitor_instance._metrics[key]
+        assert metrics.total_requests == 1
+        assert metrics.successful_requests == 1
+        assert metrics.failed_requests == 0
+        assert metrics.total_duration == 2.5
+        assert metrics.average_duration == 2.5
         
-        assert call_args["component_type"] == "llm"
-        assert call_args["component_name"] == "gpt-3.5-turbo"
-        assert call_args["metric_name"] == "request_count"
-        assert call_args["metric_value"] == 1
-        assert call_args["metadata"]["model"] == "gpt-3.5-turbo"
-    
-    async def test_record_metric_with_validation(self, monitoring, mock_db_client):
-        """Test metric recording with validation"""
-        monitoring._db_client = mock_db_client
+        # Check event was created
+        assert len(monitor_instance._events) == 1
+        event = monitor_instance._events[0]
+        assert event.name == "request_duration"
+        assert event.component_type == ComponentType.LLM
+        assert event.component_id == "gpt-4"
+        assert event.metric_type == MetricType.TIMER
+        assert event.value == 2.5
+        assert event.metadata["success"] is True
+        assert event.metadata["request_id"] == "req-123"
+
+    @pytest.mark.asyncio
+    async def test_track_request_failure(self, monitor_instance):
+        """Test tracking a failed request"""
+        await monitor_instance.initialize()
         
-        # Test invalid component type
-        with pytest.raises(ValueError, match="Invalid component type"):
-            await monitoring.record_metric(
-                component_type="invalid_type",
-                component_name="test",
-                metric_name="test_metric",
-                metric_value=1
-            )
-        
-        # Test invalid metric value
-        with pytest.raises(ValueError, match="Metric value must be numeric"):
-            await monitoring.record_metric(
-                component_type="llm",
-                component_name="test",
-                metric_name="test_metric",
-                metric_value="invalid"
-            )
-    
-    async def test_get_metrics(self, monitoring, mock_db_client):
-        """Test getting metrics with filters"""
-        monitoring._db_client = mock_db_client
-        
-        # Mock database response
-        mock_metrics = [
-            {
-                "id": 1,
-                "component_type": "llm",
-                "component_name": "gpt-3.5-turbo",
-                "metric_name": "request_count",
-                "metric_value": 10,
-                "metadata": {"model": "gpt-3.5-turbo"},
-                "created_at": datetime.now()
-            },
-            {
-                "id": 2,
-                "component_type": "tool",
-                "component_name": "web_search",
-                "metric_name": "execution_count",
-                "metric_value": 5,
-                "metadata": {"tool": "web_search"},
-                "created_at": datetime.now()
-            }
-        ]
-        mock_db_client.get_metrics.return_value = mock_metrics
-        
-        # Get metrics with filters
-        metrics = await monitoring.get_metrics(
-            component_type="llm",
-            component_name="gpt-3.5-turbo",
-            limit=10
+        await monitor_instance.track_request(
+            component_type=ComponentType.TOOL,
+            component_id="search_tool",
+            duration=1.0,
+            success=False,
+            metadata={"error": "API timeout"}
         )
         
-        # Verify filters were applied
-        mock_db_client.get_metrics.assert_called_once_with(
-            component_type="llm",
-            component_name="gpt-3.5-turbo",
-            metric_name=None,
-            limit=10
+        # Check metrics
+        key = "tool:search_tool"
+        metrics = monitor_instance._metrics[key]
+        assert metrics.total_requests == 1
+        assert metrics.successful_requests == 0
+        assert metrics.failed_requests == 1
+        assert metrics.error_rate == 1.0
+
+    @pytest.mark.asyncio
+    async def test_track_metric(self, monitor_instance):
+        """Test tracking a custom metric"""
+        await monitor_instance.initialize()
+        
+        await monitor_instance.track_metric(
+            name="custom_metric",
+            component_type=ComponentType.AGENT,
+            component_id="conversational_agent",
+            metric_type=MetricType.GAUGE,
+            value=42.5,
+            metadata={"unit": "items"}
         )
         
-        # Verify returned metrics
-        assert len(metrics) == 2
-    
-    async def test_get_metrics_summary(self, monitoring, mock_db_client):
-        """Test getting metrics summary"""
-        monitoring._db_client = mock_db_client
+        # Check event was created
+        assert len(monitor_instance._events) == 1
+        event = monitor_instance._events[0]
+        assert event.name == "custom_metric"
+        assert event.component_type == ComponentType.AGENT
+        assert event.component_id == "conversational_agent"
+        assert event.metric_type == MetricType.GAUGE
+        assert event.value == 42.5
+        assert event.metadata["unit"] == "items"
+
+    @pytest.mark.asyncio
+    async def test_track_error(self, monitor_instance, mock_db_client):
+        """Test tracking an error"""
+        await monitor_instance.initialize()
         
-        # Mock database response
-        mock_summary = {
-            "total_metrics": 100,
-            "metrics_by_type": {
-                "llm": 50,
-                "tool": 30,
-                "agent": 20
-            },
-            "metrics_by_name": {
-                "request_count": 50,
-                "execution_count": 30,
-                "success_count": 20
-            }
-        }
-        mock_db_client.get_metrics_summary.return_value = mock_summary
-        
-        # Get summary
-        summary = await monitoring.get_metrics_summary(
-            component_type="llm",
-            component_name="gpt-3.5-turbo"
+        error = Exception("Test error")
+        await monitor_instance.track_error(
+            component_type=ComponentType.WORKFLOW,
+            component_id="memory_workflow",
+            error=error,
+            metadata={"step": "validation"}
         )
         
-        # Verify filters were applied
-        mock_db_client.get_metrics_summary.assert_called_once_with(
-            component_type="llm",
-            component_name="gpt-3.5-turbo"
+        # Check failed request was tracked
+        key = "workflow:memory_workflow"
+        metrics = monitor_instance._metrics[key]
+        assert metrics.total_requests == 1
+        assert metrics.successful_requests == 0
+        assert metrics.failed_requests == 1
+        
+        # Check database logging was called
+        mock_db_client.return_value.log_performance.assert_called_once()
+        call_args = mock_db_client.return_value.log_performance.call_args[1]
+        assert call_args["component_type"] == "workflow"
+        assert call_args["component_id"] == "memory_workflow"
+        assert call_args["metric_name"] == "error"
+        assert call_args["metric_value"] == 1.0
+        assert call_args["metadata"]["error_type"] == "Exception"
+        assert call_args["metadata"]["error_message"] == "Test error"
+        assert call_args["metadata"]["step"] == "validation"
+
+    @pytest.mark.asyncio
+    async def test_get_metrics(self, monitor_instance):
+        """Test getting performance metrics"""
+        await monitor_instance.initialize()
+        
+        # Create some metrics
+        await monitor_instance.track_request(
+            ComponentType.LLM, "gpt-4", 1.0, True
+        )
+        await monitor_instance.track_request(
+            ComponentType.TOOL, "search_tool", 2.0, True
+        )
+        await monitor_instance.track_request(
+            ComponentType.LLM, "gpt-3.5-turbo", 1.5, True
         )
         
-        # Verify summary
-        assert summary["total_metrics"] == 100
-        assert summary["metrics_by_type"]["llm"] == 50
-        assert summary["metrics_by_name"]["request_count"] == 50
-    
-    async def test_get_component_status(self, monitoring, mock_db_client):
-        """Test getting component status"""
-        monitoring._db_client = mock_db_client
+        # Get all metrics
+        all_metrics = await monitor_instance.get_metrics()
+        assert len(all_metrics) == 3
         
-        # Mock database response
-        mock_status = {
-            "component_type": "llm",
-            "component_name": "gpt-3.5-turbo",
-            "status": "healthy",
-            "last_activity": datetime.now(),
-            "error_count": 0,
-            "success_count": 100
-        }
-        mock_db_client.get_component_status.return_value = mock_status
+        # Get filtered by component type
+        llm_metrics = await monitor_instance.get_metrics(
+            component_type=ComponentType.LLM
+        )
+        assert len(llm_metrics) == 2
         
-        # Get component status
-        status = await monitoring.get_component_status("llm")
+        # Get filtered by component ID
+        gpt4_metrics = await monitor_instance.get_metrics(
+            component_type=ComponentType.LLM,
+            component_id="gpt-4"
+        )
+        assert len(gpt4_metrics) == 1
+        assert gpt4_metrics[0].component_id == "gpt-4"
+
+    @pytest.mark.asyncio
+    async def test_get_events(self, monitor_instance):
+        """Test getting metric events"""
+        await monitor_instance.initialize()
         
-        # Verify call was made
-        mock_db_client.get_component_status.assert_called_once_with(
-            component_type="llm",
-            component_name=None
+        # Create some events
+        await monitor_instance.track_metric(
+            "metric1", ComponentType.LLM, "gpt-4", MetricType.COUNTER, 1.0
+        )
+        await monitor_instance.track_metric(
+            "metric2", ComponentType.TOOL, "search_tool", MetricType.GAUGE, 2.0
+        )
+        await monitor_instance.track_metric(
+            "metric3", ComponentType.AGENT, "conv_agent", MetricType.TIMER, 3.0
         )
         
-        # Verify status
-        assert status["component_type"] == "llm"
-        assert status["status"] == "healthy"
-        assert status["error_count"] == 0
-        assert status["success_count"] == 100
-    
-    async def test_get_performance_data(self, monitoring, mock_db_client):
-        """Test getting performance data"""
-        monitoring._db_client = mock_db_client
+        # Get all events
+        all_events = await monitor_instance.get_events()
+        assert len(all_events) == 3
         
-        # Mock database response
-        mock_performance = [
-            {
-                "timestamp": datetime.now() - timedelta(hours=1),
-                "avg_response_time": 0.5,
-                "request_count": 10,
-                "error_rate": 0.0
-            },
-            {
-                "timestamp": datetime.now() - timedelta(hours=2),
-                "avg_response_time": 0.7,
-                "request_count": 15,
-                "error_rate": 0.1
-            }
-        ]
-        mock_db_client.get_performance_data.return_value = mock_performance
+        # Get limited events
+        limited_events = await monitor_instance.get_events(limit=2)
+        assert len(limited_events) == 2
         
-        # Get performance data
-        performance = await monitoring.get_performance_data(
-            component_type="llm",
-            component_name="gpt-3.5-turbo",
-            time_range="1h"
+        # Get filtered by component type
+        llm_events = await monitor_instance.get_events(
+            component_type=ComponentType.LLM
+        )
+        assert len(llm_events) == 1
+        assert llm_events[0].component_type == ComponentType.LLM
+
+    @pytest.mark.asyncio
+    async def test_maybe_flush_events_buffer_full(self, monitor_instance, mock_db_client):
+        """Test flushing events when buffer is full"""
+        await monitor_instance.initialize()
+        
+        # Set small buffer size for testing
+        monitor_instance._event_buffer_size = 2
+        
+        # Add events to fill buffer
+        await monitor_instance.track_metric(
+            "metric1", ComponentType.LLM, "gpt-4", MetricType.COUNTER, 1.0
+        )
+        await monitor_instance.track_metric(
+            "metric2", ComponentType.TOOL, "search_tool", MetricType.GAUGE, 2.0
         )
         
-        # Verify call was made
-        mock_db_client.get_performance_data.assert_called_once_with(
-            component_type="llm",
-            component_name="gpt-3.5-turbo",
-            time_range="1h"
+        # Should have flushed
+        assert len(monitor_instance._events) == 0
+        assert mock_db_client.return_value.log_performance.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_maybe_flush_events_interval_passed(self, monitor_instance, mock_db_client):
+        """Test flushing events when interval has passed"""
+        await monitor_instance.initialize()
+        
+        # Set short interval for testing
+        monitor_instance._flush_interval = 0.1  # 100ms
+        monitor_instance._last_flush = datetime.now() - timedelta(seconds=1)
+        
+        # Add event
+        await monitor_instance.track_metric(
+            "metric1", ComponentType.LLM, "gpt-4", MetricType.COUNTER, 1.0
         )
         
-        # Verify performance data
-        assert len(performance) == 2
-        assert performance[0]["avg_response_time"] == 0.5
-        assert performance[1]["error_rate"] == 0.1
-    
-    async def test_perform_health_check(self, monitoring, mock_db_client):
-        """Test performing health check"""
-        monitoring._db_client = mock_db_client
-        
-        # Mock database response
-        mock_health = {
-            "overall_status": "healthy",
-            "components": {
-                "llm": {"status": "healthy", "last_check": datetime.now()},
-                "tool": {"status": "healthy", "last_check": datetime.now()},
-                "agent": {"status": "degraded", "last_check": datetime.now()}
-            },
-            "timestamp": datetime.now()
-        }
-        mock_db_client.get_health_status.return_value = mock_health
-        
-        # Perform health check
-        health = await monitoring.perform_health_check()
-        
-        # Verify call was made
-        mock_db_client.get_health_status.assert_called_once()
-        
-        # Verify health data
-        assert health["overall_status"] == "healthy"
-        assert len(health["components"]) == 3
-        assert health["components"]["llm"]["status"] == "healthy"
-        assert health["components"]["agent"]["status"] == "degraded"
-    
-    async def test_clear_metrics(self, monitoring, mock_db_client):
-        """Test clearing metrics"""
-        monitoring._db_client = mock_db_client
-        
-        # Clear metrics with filters
-        cleared_count = await monitoring.clear_metrics(
-            component_type="llm",
-            component_name="gpt-3.5-turbo"
-        )
-        
-        # Verify call was made
-        mock_db_client.delete_old_metrics.assert_called_once_with(
-            component_type="llm",
-            component_name="gpt-3.5-turbo",
-            older_than_days=0
-        )
-        
-        # Verify cleared count
-        assert cleared_count == 10
-    
-    async def test_cleanup_old_metrics(self, monitoring, mock_db_client):
+        # Should have flushed
+        assert len(monitor_instance._events) == 0
+        mock_db_client.return_value.log_performance.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_cleanup_old_metrics(self, monitor_instance, mock_db_client):
         """Test cleaning up old metrics"""
-        monitoring._db_client = mock_db_client
+        await monitor_instance.initialize()
         
-        # Clean up metrics older than 7 days
-        cleaned_count = await monitoring.cleanup_old_metrics(days=7)
+        await monitor_instance.cleanup_old_metrics(days=30)
         
-        # Verify call was made
-        mock_db_client.delete_old_metrics.assert_called_once_with(
-            component_type=None,
-            component_name=None,
-            older_than_days=7
+        mock_db_client.return_value.cleanup_old_metrics.assert_called_once_with(days=30)
+
+    @pytest.mark.asyncio
+    async def test_get_summary_stats(self, monitor_instance):
+        """Test getting summary statistics"""
+        await monitor_instance.initialize()
+        
+        # Create some metrics
+        await monitor_instance.track_request(ComponentType.LLM, "gpt-4", 1.0, True)
+        await monitor_instance.track_request(ComponentType.LLM, "gpt-3.5-turbo", 1.5, True)
+        await monitor_instance.track_request(ComponentType.TOOL, "search_tool", 2.0, True)
+        await monitor_instance.track_request(ComponentType.AGENT, "conv_agent", 2.5, False)
+        
+        result = await monitor_instance.get_summary_stats()
+        
+        assert result["total_components"] == 4
+        assert result["total_requests"] == 4
+        assert result["total_errors"] == 1
+        assert len(result["components_by_type"]) == 3
+        assert result["components_by_type"]["llm"] == 2
+        assert result["components_by_type"]["tool"] == 1
+        assert result["components_by_type"]["agent"] == 1
+        assert "average_response_times" in result
+        assert result["average_response_times"]["llm"] == 1.25  # (1.0 + 1.5) / 2
+        assert result["average_response_times"]["tool"] == 2.0
+        assert result["average_response_times"]["agent"] == 2.5
+
+    @pytest.mark.asyncio
+    async def test_flush_events(self, monitor_instance, mock_db_client):
+        """Test flushing events to database"""
+        await monitor_instance.initialize()
+        
+        # Add events
+        await monitor_instance.track_metric(
+            "metric1", ComponentType.LLM, "gpt-4", MetricType.COUNTER, 1.0
+        )
+        await monitor_instance.track_metric(
+            "metric2", ComponentType.TOOL, "search_tool", MetricType.GAUGE, 2.0
         )
         
-        # Verify cleaned count
-        assert cleaned_count == 10
-    
-    async def test_track_request_context_manager(self, monitoring, mock_db_client):
-        """Test request tracking context manager"""
-        monitoring._db_client = mock_db_client
+        # Manually flush
+        await monitor_instance._flush_events()
         
-        # Use context manager
-        with monitoring.track_request(
-            component_type="llm",
-            component_name="gpt-3.5-turbo",
-            metadata={"model": "gpt-3.5-turbo"}
-        ):
-            # Simulate some work
-            await asyncio.sleep(0.1)
+        # Should have flushed
+        assert len(monitor_instance._events) == 0
+        assert mock_db_client.return_value.log_performance.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_flush_events_no_db_client(self, monitor_instance):
+        """Test flushing events without database client"""
+        await monitor_instance.initialize()
+        monitor_instance._db_client = None
         
-        # Verify metrics were recorded
-        assert mock_db_client.save_metric.call_count >= 2  # start and end metrics
-    
-    async def test_track_request_context_manager_with_error(self, monitoring, mock_db_client):
-        """Test request tracking context manager with error"""
-        monitoring._db_client = mock_db_client
-        
-        # Use context manager with error
-        try:
-            with monitoring.track_request(
-                component_type="llm",
-                component_name="gpt-3.5-turbo"
-            ):
-                raise ValueError("Test error")
-        except ValueError:
-            pass  # Expected error
-        
-        # Verify error metric was recorded
-        call_args_list = [call[1] for call in mock_db_client.save_metric.call_args_list]
-        error_metrics = [args for args in call_args_list if args.get("metric_name") == "error"]
-        
-        assert len(error_metrics) > 0
-        assert error_metrics[0]["component_type"] == "llm"
-        assert error_metrics[0]["component_name"] == "gpt-3.5-turbo"
-        assert "Test error" in error_metrics[0]["metadata"]["error"]
-    
-    async def test_shutdown(self, monitoring):
-        """Test shutdown functionality"""
-        # Mock database client shutdown
-        monitoring._db_client = Mock()
-        monitoring._db_client.close = AsyncMock()
-        
-        await monitoring.shutdown()
-        
-        # Verify shutdown was called
-        monitoring._db_client.close.assert_called_once()
-        
-        # Verify monitoring is marked as not initialized
-        assert monitoring._initialized is False
-    
-    async def test_concurrent_metric_recording(self, monitoring, mock_db_client):
-        """Test concurrent metric recording"""
-        monitoring._db_client = mock_db_client
-        
-        # Record metrics concurrently
-        tasks = [
-            monitoring.record_metric(
-                component_type="llm",
-                component_name="gpt-3.5-turbo",
-                metric_name="request_count",
-                metric_value=1
-            )
-            for i in range(10)
-        ]
-        
-        await asyncio.gather(*tasks)
-        
-        # Verify all metrics were recorded
-        assert mock_db_client.save_metric.call_count == 10
-    
-    async def test_metric_aggregation(self, monitoring, mock_db_client):
-        """Test metric aggregation functionality"""
-        monitoring._db_client = mock_db_client
-        
-        # Record multiple metrics for same component
-        for i in range(5):
-            await monitoring.record_metric(
-                component_type="llm",
-                component_name="gpt-3.5-turbo",
-                metric_name="response_time",
-                metric_value=0.1 + (i * 0.1)
-            )
-        
-        # Get aggregated metrics
-        metrics = await monitoring.get_metrics(
-            component_type="llm",
-            component_name="gpt-3.5-turbo",
-            metric_name="response_time"
+        # Add event
+        await monitor_instance.track_metric(
+            "metric1", ComponentType.LLM, "gpt-4", MetricType.COUNTER, 1.0
         )
         
-        # Verify metrics were recorded
-        assert mock_db_client.save_metric.call_count == 5
-    
-    async def test_time_range_validation(self, monitoring, mock_db_client):
-        """Test time range validation"""
-        monitoring._db_client = mock_db_client
+        # Should not raise error
+        await monitor_instance._flush_events()
+
+    @pytest.mark.asyncio
+    async def test_flush_events_error(self, monitor_instance, mock_db_client):
+        """Test flushing events with database error"""
+        await monitor_instance.initialize()
         
-        # Test invalid time range
-        with pytest.raises(ValueError, match="Invalid time range"):
-            await monitoring.get_performance_data(
-                component_type="llm",
-                time_range="invalid_range"
-            )
+        # Make database fail
+        mock_db_client.return_value.log_performance.side_effect = Exception("Database error")
         
-        # Test valid time ranges
-        for time_range in ["1h", "6h", "24h", "7d"]:
-            # Should not raise exception
-            await monitoring.get_performance_data(
-                component_type="llm",
-                time_range=time_range
-            )
-    
-    async def test_get_statistics(self, monitoring, mock_db_client):
-        """Test getting monitoring statistics"""
-        monitoring._db_client = mock_db_client
+        # Add event
+        await monitor_instance.track_metric(
+            "metric1", ComponentType.LLM, "gpt-4", MetricType.COUNTER, 1.0
+        )
         
-        # Mock database response
-        mock_stats = {
-            "total_metrics": 1000,
-            "metrics_by_component_type": {
-                "llm": 400,
-                "tool": 300,
-                "agent": 200,
-                "memory": 100
-            },
-            "oldest_metric": datetime.now() - timedelta(days=30),
-            "newest_metric": datetime.now(),
-            "retention_days": 30
-        }
-        mock_db_client.get_monitoring_statistics.return_value = mock_stats
+        # Should not raise error
+        await monitor_instance._flush_events()
         
-        # Get statistics
-        stats = await monitoring.get_statistics()
-        
-        # Verify call was made
-        mock_db_client.get_monitoring_statistics.assert_called_once()
-        
-        # Verify statistics
-        assert stats["total_metrics"] == 1000
-        assert stats["metrics_by_component_type"]["llm"] == 400
-        assert "oldest_metric" in stats
-        assert "newest_metric" in stats
-    
-    async def test_error_handling_during_recording(self, monitoring, mock_db_client):
-        """Test error handling during metric recording"""
-        # Mock database to raise error
-        mock_db_client.save_metric.side_effect = Exception("Database error")
-        monitoring._db_client = mock_db_client
-        
-        # Record metric should handle error gracefully
-        with pytest.raises(Exception, match="Database error"):
-            await monitoring.record_metric(
-                component_type="llm",
-                component_name="gpt-3.5-turbo",
-                metric_name="request_count",
-                metric_value=1
-            )
-    
-    async def test_disabled_monitoring(self, mock_settings):
-        """Test behavior when monitoring is disabled"""
-        # Mock settings to disable monitoring
-        mock_settings.get_setting.side_effect = lambda section, key, default=None: {
-            ('langchain', 'monitoring_enabled'): False,
-        }.get((section, key), default)
-        
-        with patch('app.core.langchain.monitoring.secure_settings', mock_settings):
-            monitor = LangChainMonitoring()
-            await monitor.initialize()
-            
-            # Try to record metric
-            await monitor.record_metric(
-                component_type="llm",
-                component_name="gpt-3.5-turbo",
-                metric_name="request_count",
-                metric_value=1
-            )
-            
-            # Should not record anything when disabled
-            assert monitor._db_client is None
+        # Events should still be cleared
+        assert len(monitor_instance._events) == 0
 
 
-if __name__ == "__main__":
-    pytest.main([__file__])
+class TestRequestTracker:
+    """Test RequestTracker context manager"""
+
+    @pytest.fixture
+    def mock_monitor(self):
+        """Mock monitor"""
+        monitor = Mock()
+        monitor.track_request = AsyncMock()
+        return monitor
+
+    @pytest.mark.asyncio
+    async def test_request_tracker_success(self, mock_monitor):
+        """Test request tracker with successful execution"""
+        tracker = RequestTracker(
+            monitor=mock_monitor,
+            component_type=ComponentType.LLM,
+            component_id="gpt-4",
+            metadata={"request_id": "req-123"}
+        )
+        
+        async with tracker:
+            await asyncio.sleep(0.01)  # Simulate work
+        
+        # Verify tracking was called
+        mock_monitor.track_request.assert_called_once()
+        call_args = mock_monitor.track_request.call_args[1]
+        assert call_args["component_type"] == ComponentType.LLM
+        assert call_args["component_id"] == "gpt-4"
+        assert call_args["success"] is True
+        assert call_args["duration"] > 0
+        assert call_args["metadata"]["request_id"] == "req-123"
+
+    @pytest.mark.asyncio
+    async def test_request_tracker_failure(self, mock_monitor):
+        """Test request tracker with failed execution"""
+        tracker = RequestTracker(
+            monitor=mock_monitor,
+            component_type=ComponentType.TOOL,
+            component_id="search_tool"
+        )
+        
+        with pytest.raises(Exception, match="Test error"):
+            async with tracker:
+                await asyncio.sleep(0.01)  # Simulate work
+                raise Exception("Test error")
+        
+        # Verify tracking was called with failure
+        mock_monitor.track_request.assert_called_once()
+        call_args = mock_monitor.track_request.call_args[1]
+        assert call_args["component_type"] == ComponentType.TOOL
+        assert call_args["component_id"] == "search_tool"
+        assert call_args["success"] is False
+        assert call_args["duration"] > 0
+
+    @pytest.mark.asyncio
+    async def test_request_tracker_no_start_time(self, mock_monitor):
+        """Test request tracker when start_time is None"""
+        tracker = RequestTracker(
+            monitor=mock_monitor,
+            component_type=ComponentType.AGENT,
+            component_id="conv_agent"
+        )
+        
+        # Manually set start_time to None to simulate edge case
+        tracker.start_time = None
+        
+        async with tracker:
+            pass
+        
+        # Verify tracking was called with duration 0.0
+        mock_monitor.track_request.assert_called_once()
+        call_args = mock_monitor.track_request.call_args[1]
+        assert call_args["duration"] == 0.0
+
+
+class TestHelperFunctions:
+    """Test helper functions"""
+
+    @pytest.mark.asyncio
+    async def test_track_llm_request(self):
+        """Test track_llm_request helper function"""
+        with patch('app.core.langchain.monitoring.langchain_monitor') as mock_monitor:
+            mock_monitor.track_request = AsyncMock()
+            
+            await track_llm_request(
+                llm_id="gpt-4",
+                duration=2.5,
+                success=True,
+                metadata={"request_id": "req-123"}
+            )
+            
+            mock_monitor.track_request.assert_called_once()
+            call_args = mock_monitor.track_request.call_args[1]
+            assert call_args["component_type"] == ComponentType.LLM
+            assert call_args["component_id"] == "gpt-4"
+            assert call_args["duration"] == 2.5
+            assert call_args["success"] is True
+            assert call_args["metadata"]["request_id"] == "req-123"
+
+    @pytest.mark.asyncio
+    async def test_track_tool_execution(self):
+        """Test track_tool_execution helper function"""
+        with patch('app.core.langchain.monitoring.langchain_monitor') as mock_monitor:
+            mock_monitor.track_request = AsyncMock()
+            
+            await track_tool_execution(
+                tool_id="search_tool",
+                duration=1.5,
+                success=False,
+                metadata={"error": "timeout"}
+            )
+            
+            mock_monitor.track_request.assert_called_once()
+            call_args = mock_monitor.track_request.call_args[1]
+            assert call_args["component_type"] == ComponentType.TOOL
+            assert call_args["component_id"] == "search_tool"
+            assert call_args["duration"] == 1.5
+            assert call_args["success"] is False
+            assert call_args["metadata"]["error"] == "timeout"
+
+    @pytest.mark.asyncio
+    async def test_track_agent_execution(self):
+        """Test track_agent_execution helper function"""
+        with patch('app.core.langchain.monitoring.langchain_monitor') as mock_monitor:
+            mock_monitor.track_request = AsyncMock()
+            
+            await track_agent_execution(
+                agent_id="conversational_agent",
+                duration=3.0,
+                success=True
+            )
+            
+            mock_monitor.track_request.assert_called_once()
+            call_args = mock_monitor.track_request.call_args[1]
+            assert call_args["component_type"] == ComponentType.AGENT
+            assert call_args["component_id"] == "conversational_agent"
+            assert call_args["duration"] == 3.0
+            assert call_args["success"] is True
+
+    @pytest.mark.asyncio
+    async def test_track_workflow_execution(self):
+        """Test track_workflow_execution helper function"""
+        with patch('app.core.langchain.monitoring.langchain_monitor') as mock_monitor:
+            mock_monitor.track_request = AsyncMock()
+            
+            await track_workflow_execution(
+                workflow_id="memory_workflow",
+                duration=5.0,
+                success=True,
+                metadata={"steps": 5}
+            )
+            
+            mock_monitor.track_request.assert_called_once()
+            call_args = mock_monitor.track_request.call_args[1]
+            assert call_args["component_type"] == ComponentType.WORKFLOW
+            assert call_args["component_id"] == "memory_workflow"
+            assert call_args["duration"] == 5.0
+            assert call_args["success"] is True
+            assert call_args["metadata"]["steps"] == 5
+
+    def test_track_request(self):
+        """Test track_request helper function"""
+        with patch('app.core.langchain.monitoring.langchain_monitor') as mock_monitor:
+            tracker = RequestTracker(
+                monitor=mock_monitor,
+                component_type=ComponentType.LLM,
+                component_id="gpt-4",
+                metadata={"request_id": "req-123"}
+            )
+            
+            result = track_request(
+                ComponentType.LLM,
+                "gpt-4",
+                metadata={"request_id": "req-123"}
+            )
+            
+            assert isinstance(result, RequestTracker)
+            assert result.monitor == mock_monitor
+            assert result.component_type == ComponentType.LLM
+            assert result.component_id == "gpt-4"
+            assert result.metadata["request_id"] == "req-123"
+
+
+class TestGlobalMonitor:
+    """Test global monitor instance"""
+
+    def test_global_instance(self):
+        """Test that global monitor instance exists"""
+        from app.core.langchain.monitoring import langchain_monitor
+        assert langchain_monitor is not None
+        assert isinstance(langchain_monitor, LangChainMonitor)

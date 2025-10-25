@@ -1,322 +1,842 @@
 """
 Unit tests for LangChain LLM Manager.
 
-This module tests LLM provider management, request handling,
-and integration with LangChain LLM components.
+This module tests the LangChain-based LLM manager functionality,
+including provider registration, LLM creation, and management.
 """
 
 import pytest
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch
-from typing import Dict, Any, Optional
+from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from datetime import datetime
+import uuid
 
-from langchain_openai import ChatOpenAI
-from langchain_community.llms import Ollama
-from langchain_core.language_models import BaseLLM
+from app.core.langchain.llm_manager import (
+    LangChainLLMManager,
+    LLMProvider,
+    LLMConfig,
+    LLMStats,
+    llm_manager
+)
 
-from app.core.langchain.llm_manager import LangChainLLMManager
-from app.core.secure_settings import secure_settings
+
+class TestLLMProvider:
+    """Test LLMProvider enum"""
+
+    def test_llm_provider_values(self):
+        """Test that LLMProvider has expected values"""
+        expected_providers = [
+            "openai",
+            "anthropic",
+            "google",
+            "ollama",
+            "huggingface"
+        ]
+        
+        actual_providers = [provider.value for provider in LLMProvider]
+        assert actual_providers == expected_providers
+
+
+class TestLLMConfig:
+    """Test LLMConfig dataclass"""
+
+    def test_llm_config_defaults(self):
+        """Test LLMConfig default values"""
+        config = LLMConfig(
+            provider=LLMProvider.OPENAI,
+            model_name="gpt-4"
+        )
+        
+        assert config.provider == LLMProvider.OPENAI
+        assert config.model_name == "gpt-4"
+        assert config.temperature == 0.7
+        assert config.max_tokens is None
+        assert config.top_p is None
+        assert config.frequency_penalty is None
+        assert config.presence_penalty is None
+        assert config.stop_sequences is None
+        assert config.streaming is False
+        assert config.timeout == 60
+        assert config.max_retries == 3
+        assert config.metadata == {}
+
+    def test_llm_config_with_values(self):
+        """Test LLMConfig with provided values"""
+        metadata = {"version": "1.0", "custom": True}
+        
+        config = LLMConfig(
+            provider=LLMProvider.ANTHROPIC,
+            model_name="claude-3-opus",
+            temperature=0.5,
+            max_tokens=2048,
+            top_p=0.9,
+            frequency_penalty=0.1,
+            presence_penalty=0.1,
+            stop_sequences=["\n\n", "###"],
+            streaming=True,
+            timeout=120,
+            max_retries=5,
+            metadata=metadata
+        )
+        
+        assert config.provider == LLMProvider.ANTHROPIC
+        assert config.model_name == "claude-3-opus"
+        assert config.temperature == 0.5
+        assert config.max_tokens == 2048
+        assert config.top_p == 0.9
+        assert config.frequency_penalty == 0.1
+        assert config.presence_penalty == 0.1
+        assert config.stop_sequences == ["\n\n", "###"]
+        assert config.streaming is True
+        assert config.timeout == 120
+        assert config.max_retries == 5
+        assert config.metadata == metadata
+
+
+class TestLLMStats:
+    """Test LLMStats dataclass"""
+
+    def test_llm_stats_defaults(self):
+        """Test LLMStats default values"""
+        stats = LLMStats(
+            model_name="gpt-4",
+            provider="openai"
+        )
+        
+        assert stats.model_name == "gpt-4"
+        assert stats.provider == "openai"
+        assert stats.total_requests == 0
+        assert stats.successful_requests == 0
+        assert stats.failed_requests == 0
+        assert stats.total_tokens == 0
+        assert stats.total_response_time == 0.0
+        assert stats.average_response_time == 0.0
+        assert stats.last_used is None
+        assert stats.created_at is not None
+
+    def test_llm_stats_with_values(self):
+        """Test LLMStats with provided values"""
+        created_at = datetime.now()
+        last_used = datetime.now()
+        
+        stats = LLMStats(
+            model_name="gpt-4",
+            provider="openai",
+            total_requests=10,
+            successful_requests=9,
+            failed_requests=1,
+            total_tokens=5000,
+            total_response_time=45.5,
+            average_response_time=4.55,
+            last_used=last_used,
+            created_at=created_at
+        )
+        
+        assert stats.model_name == "gpt-4"
+        assert stats.provider == "openai"
+        assert stats.total_requests == 10
+        assert stats.successful_requests == 9
+        assert stats.failed_requests == 1
+        assert stats.total_tokens == 5000
+        assert stats.total_response_time == 45.5
+        assert stats.average_response_time == 4.55
+        assert stats.last_used == last_used
+        assert stats.created_at == created_at
 
 
 class TestLangChainLLMManager:
-    """Test cases for LangChain LLM Manager"""
-    
+    """Test LangChainLLMManager class"""
+
     @pytest.fixture
-    async def llm_manager(self):
-        """Create a LangChain LLM Manager instance for testing"""
-        manager = LangChainLLMManager()
-        await manager.initialize()
-        return manager
-    
+    def llm_manager_instance(self):
+        """Create a fresh LLM manager instance for testing"""
+        return LangChainLLMManager()
+
     @pytest.fixture
-    def mock_settings(self):
-        """Mock secure settings for testing"""
-        mock_settings = Mock()
-        mock_settings.get_setting.side_effect = lambda section, key, default=None: {
-            ('llm_providers', 'openai', 'api_key'): 'test-openai-key',
-            ('llm_providers', 'openai', 'model'): 'gpt-3.5-turbo',
-            ('llm_providers', 'openai', 'temperature'): 0.7,
-            ('llm_providers', 'openai', 'max_tokens'): 1000,
-            ('llm_providers', 'ollama', 'base_url'): 'http://localhost:11434',
-            ('llm_providers', 'ollama', 'model'): 'llama2',
-            ('llm_providers', 'ollama', 'temperature'): 0.5,
-            ('llm_providers', 'ollama', 'max_tokens'): 2000,
-        }.get((section, key), default)
-        return mock_settings
-    
-    async def test_initialize_success(self, mock_settings):
-        """Test successful initialization of LLM manager"""
-        with patch('app.core.langchain.llm_manager.secure_settings', mock_settings):
-            manager = LangChainLLMManager()
-            
-            # Test initialization
-            await manager.initialize()
-            
-            # Verify initialization
-            assert manager._initialized is True
-            assert manager._monitoring is not None
-            assert len(manager._llm_instances) > 0
-    
-    async def test_register_openai_provider(self, mock_settings):
-        """Test registering OpenAI provider"""
-        with patch('app.core.langchain.llm_manager.secure_settings', mock_settings):
-            manager = LangChainLLMManager()
-            await manager.initialize()
-            
-            # Test OpenAI registration
-            llm = await manager.get_llm("gpt-3.5-turbo")
-            
-            assert isinstance(llm, ChatOpenAI)
-            assert llm.model_name == "gpt-3.5-turbo"
-            assert llm.temperature == 0.7
-            assert llm.max_tokens == 1000
-    
-    async def test_register_ollama_provider(self, mock_settings):
-        """Test registering Ollama provider"""
-        with patch('app.core.langchain.llm_manager.secure_settings', mock_settings):
-            manager = LangChainLLMManager()
-            await manager.initialize()
-            
-            # Test Ollama registration
-            llm = await manager.get_llm("llama2")
-            
-            assert isinstance(llm, Ollama)
-            assert llm.base_url == "http://localhost:11434"
-            assert llm.model == "llama2"
-    
-    async def test_get_existing_llm(self, llm_manager):
-        """Test getting an already registered LLM"""
-        # Register an LLM first
-        first_llm = await llm_manager.get_llm("test-model")
+    def mock_monitoring(self):
+        """Mock monitoring system"""
+        with patch('app.core.langchain.llm_manager.LangChainMonitoring') as mock:
+            mock_instance = Mock()
+            mock_instance.initialize = AsyncMock()
+            mock_instance.track_llm_request = AsyncMock()
+            mock_instance.track_metric = AsyncMock()
+            mock.return_value = mock_instance
+            yield mock_instance
+
+    @pytest.fixture
+    def mock_openai(self):
+        """Mock OpenAI LangChain integration"""
+        with patch('app.core.langchain.llm_manager.ChatOpenAI') as mock:
+            mock.return_value = Mock()
+            yield mock
+
+    @pytest.fixture
+    def mock_anthropic(self):
+        """Mock Anthropic LangChain integration"""
+        with patch('app.core.langchain.llm_manager.ChatAnthropic') as mock:
+            mock.return_value = Mock()
+            yield mock
+
+    @pytest.fixture
+    def mock_google(self):
+        """Mock Google LangChain integration"""
+        with patch('app.core.langchain.llm_manager.ChatGoogleGenerativeAI') as mock:
+            mock.return_value = Mock()
+            yield mock
+
+    @pytest.fixture
+    def mock_ollama(self):
+        """Mock Ollama LangChain integration"""
+        with patch('app.core.langchain.llm_manager.Ollama') as mock:
+            mock.return_value = Mock()
+            yield mock
+
+    @pytest.mark.asyncio
+    async def test_initialize(self, llm_manager_instance, mock_monitoring):
+        """Test LLM manager initialization"""
+        await llm_manager_instance.initialize()
         
-        # Get the same LLM again
-        second_llm = await llm_manager.get_llm("test-model")
+        assert llm_manager_instance._initialized is True
+        mock_monitoring.return_value.initialize.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_initialize_idempotent(self, llm_manager_instance, mock_monitoring):
+        """Test that initialize is idempotent"""
+        await llm_manager_instance.initialize()
+        await llm_manager_instance.initialize()
         
-        # Should return the same instance
-        assert first_llm is second_llm
-    
-    async def test_get_llm_with_config(self, mock_settings):
-        """Test getting LLM with custom configuration"""
-        with patch('app.core.langchain.llm_manager.secure_settings', mock_settings):
-            manager = LangChainLLMManager()
-            await manager.initialize()
-            
-            # Test with custom config
-            config = {
-                "temperature": 0.9,
-                "max_tokens": 1500,
-                "top_p": 0.95
-            }
-            
-            llm = await manager.get_llm("gpt-3.5-turbo", **config)
-            
-            assert isinstance(llm, ChatOpenAI)
-            assert llm.temperature == 0.9
-            assert llm.max_tokens == 1500
-            assert llm.top_p == 0.95
-    
-    async def test_get_llm_not_found(self, llm_manager):
-        """Test getting an LLM that doesn't exist"""
-        with pytest.raises(ValueError, match="No configuration found for LLM"):
-            await llm_manager.get_llm("non-existent-model")
-    
-    async def test_list_available_llms(self, llm_manager):
-        """Test listing available LLMs"""
-        # Register some LLMs
-        await llm_manager.get_llm("test-model-1")
-        await llm_manager.get_llm("test-model-2")
+        assert llm_manager_instance._initialized is True
+        # Should only initialize once
+        mock_monitoring.return_value.initialize.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_register_llm_config(self, llm_manager_instance):
+        """Test registering an LLM configuration"""
+        await llm_manager_instance.initialize()
         
-        # List available LLMs
-        available_llms = llm_manager.list_available_llms()
+        config = LLMConfig(
+            provider=LLMProvider.OPENAI,
+            model_name="gpt-4",
+            temperature=0.5
+        )
         
-        assert isinstance(available_llms, list)
-        assert "test-model-1" in available_llms
-        assert "test-model-2" in available_llms
-    
-    async def test_get_llm_info(self, llm_manager):
-        """Test getting information about an LLM"""
-        # Register an LLM
-        await llm_manager.get_llm("test-model")
-        
-        # Get LLM info
-        info = llm_manager.get_llm_info("test-model")
-        
-        assert isinstance(info, dict)
-        assert "model_name" in info
-        assert "provider" in info
-        assert "config" in info
-        assert "registered_at" in info
-    
-    async def test_get_llm_info_not_found(self, llm_manager):
-        """Test getting info for an LLM that doesn't exist"""
-        info = llm_manager.get_llm_info("non-existent-model")
-        assert info is None
-    
-    async def test_unregister_llm(self, llm_manager):
-        """Test unregistering an LLM"""
-        # Register an LLM
-        await llm_manager.get_llm("test-model")
-        
-        # Verify it's registered
-        assert "test-model" in llm_manager.list_available_llms()
-        
-        # Unregister it
-        result = await llm_manager.unregister_llm("test-model")
+        result = await llm_manager_instance.register_llm_config(config)
         
         assert result is True
-        assert "test-model" not in llm_manager.list_available_llms()
-    
-    async def test_unregister_llm_not_found(self, llm_manager):
-        """Test unregistering an LLM that doesn't exist"""
-        result = await llm_manager.unregister_llm("non-existent-model")
-        assert result is False
-    
-    async def test_health_check(self, llm_manager):
-        """Test health check functionality"""
-        # Register some LLMs
-        await llm_manager.get_llm("test-model-1")
-        await llm_manager.get_llm("test-model-2")
+        key = "openai:gpt-4"
+        assert key in llm_manager_instance._llm_configs
+        assert key in llm_manager_instance._llm_stats
+
+    @pytest.mark.asyncio
+    async def test_register_llm_config_duplicate(self, llm_manager_instance):
+        """Test registering duplicate LLM configuration"""
+        await llm_manager_instance.initialize()
         
-        # Perform health check
-        health = await llm_manager.health_check()
+        config = LLMConfig(
+            provider=LLMProvider.OPENAI,
+            model_name="gpt-4"
+        )
         
-        assert isinstance(health, dict)
-        assert "overall_status" in health
-        assert "llms" in health
-        assert "timestamp" in health
-        assert "test-model-1" in health["llms"]
-        assert "test-model-2" in health["llms"]
-    
-    async def test_shutdown(self, llm_manager):
-        """Test shutdown functionality"""
-        # Mock monitoring shutdown
-        llm_manager._monitoring.shutdown = AsyncMock()
+        # Register first time
+        result1 = await llm_manager_instance.register_llm_config(config)
+        assert result1 is True
         
-        await llm_manager.shutdown()
+        # Register second time
+        result2 = await llm_manager_instance.register_llm_config(config)
+        assert result2 is False
+
+    @pytest.mark.asyncio
+    async def test_get_llm_openai(
+        self, 
+        llm_manager_instance, 
+        mock_openai, 
+        mock_monitoring
+    ):
+        """Test getting OpenAI LLM"""
+        await llm_manager_instance.initialize()
         
-        # Verify shutdown was called
-        llm_manager._monitoring.shutdown.assert_called_once()
+        # Register config
+        config = LLMConfig(
+            provider=LLMProvider.OPENAI,
+            model_name="gpt-4",
+            temperature=0.5
+        )
+        await llm_manager_instance.register_llm_config(config)
         
-        # Verify manager is marked as not initialized
-        assert llm_manager._initialized is False
+        # Get LLM
+        result = await llm_manager_instance.get_llm("gpt-4")
         
-        # Verify LLM instances are cleared
-        assert len(llm_manager._llm_instances) == 0
-    
-    async def test_error_handling_during_registration(self, mock_settings):
-        """Test error handling during LLM registration"""
-        # Mock settings to cause an error
-        mock_settings.get_setting.side_effect = Exception("Configuration error")
+        assert result is not None
+        mock_openai.assert_called_once_with(
+            model="gpt-4",
+            temperature=0.5,
+            max_tokens=None,
+            top_p=None,
+            frequency_penalty=None,
+            presence_penalty=None,
+            stop=None,
+            streaming=False,
+            timeout=60,
+            max_retries=3
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_llm_anthropic(
+        self, 
+        llm_manager_instance, 
+        mock_anthropic, 
+        mock_monitoring
+    ):
+        """Test getting Anthropic LLM"""
+        await llm_manager_instance.initialize()
         
-        with patch('app.core.langchain.llm_manager.secure_settings', mock_settings):
-            manager = LangChainLLMManager()
-            
-            with pytest.raises(Exception, match="Configuration error"):
-                await manager.get_llm("test-model")
-    
-    async def test_monitoring_integration(self, mock_settings):
-        """Test that monitoring is properly integrated"""
-        with patch('app.core.langchain.llm_manager.secure_settings', mock_settings):
-            manager = LangChainLLMManager()
-            await manager.initialize()
-            
-            # Mock monitoring to track calls
-            manager._monitoring.record_metric = AsyncMock()
-            
-            # Make an LLM request
-            await manager.get_llm("gpt-3.5-turbo")
-            
-            # Verify monitoring was called
-            manager._monitoring.record_metric.assert_called()
-    
-    async def test_concurrent_requests(self, llm_manager):
-        """Test handling concurrent LLM requests"""
-        # Make concurrent requests for the same LLM
-        tasks = [
-            llm_manager.get_llm("test-model"),
-            llm_manager.get_llm("test-model"),
-            llm_manager.get_llm("test-model")
+        # Register config
+        config = LLMConfig(
+            provider=LLMProvider.ANTHROPIC,
+            model_name="claude-3-opus",
+            temperature=0.3
+        )
+        await llm_manager_instance.register_llm_config(config)
+        
+        # Get LLM
+        result = await llm_manager_instance.get_llm("claude-3-opus")
+        
+        assert result is not None
+        mock_anthropic.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_llm_google(
+        self, 
+        llm_manager_instance, 
+        mock_google, 
+        mock_monitoring
+    ):
+        """Test getting Google LLM"""
+        await llm_manager_instance.initialize()
+        
+        # Register config
+        config = LLMConfig(
+            provider=LLMProvider.GOOGLE,
+            model_name="gemini-pro"
+        )
+        await llm_manager_instance.register_llm_config(config)
+        
+        # Get LLM
+        result = await llm_manager_instance.get_llm("gemini-pro")
+        
+        assert result is not None
+        mock_google.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_llm_ollama(
+        self, 
+        llm_manager_instance, 
+        mock_ollama, 
+        mock_monitoring
+    ):
+        """Test getting Ollama LLM"""
+        await llm_manager_instance.initialize()
+        
+        # Register config
+        config = LLMConfig(
+            provider=LLMProvider.OLLAMA,
+            model_name="llama2"
+        )
+        await llm_manager_instance.register_llm_config(config)
+        
+        # Get LLM
+        result = await llm_manager_instance.get_llm("llama2")
+        
+        assert result is not None
+        mock_ollama.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_get_llm_with_overrides(
+        self, 
+        llm_manager_instance, 
+        mock_openai, 
+        mock_monitoring
+    ):
+        """Test getting LLM with parameter overrides"""
+        await llm_manager_instance.initialize()
+        
+        # Register config
+        config = LLMConfig(
+            provider=LLMProvider.OPENAI,
+            model_name="gpt-4",
+            temperature=0.7
+        )
+        await llm_manager_instance.register_llm_config(config)
+        
+        # Get LLM with overrides
+        result = await llm_manager_instance.get_llm(
+            "gpt-4",
+            temperature=0.1,
+            max_tokens=1000,
+            streaming=True
+        )
+        
+        assert result is not None
+        mock_openai.assert_called_once_with(
+            model="gpt-4",
+            temperature=0.1,  # Override
+            max_tokens=1000,   # Override
+            top_p=None,
+            frequency_penalty=None,
+            presence_penalty=None,
+            stop=None,
+            streaming=True,     # Override
+            timeout=60,
+            max_retries=3
+        )
+
+    @pytest.mark.asyncio
+    async def test_get_llm_not_registered(self, llm_manager_instance):
+        """Test getting LLM for unregistered model"""
+        await llm_manager_instance.initialize()
+        
+        result = await llm_manager_instance.get_llm("unregistered-model")
+        
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_get_llm_with_provider(
+        self, 
+        llm_manager_instance, 
+        mock_openai, 
+        mock_anthropic
+    ):
+        """Test getting LLM with explicit provider"""
+        await llm_manager_instance.initialize()
+        
+        # Register configs
+        openai_config = LLMConfig(
+            provider=LLMProvider.OPENAI,
+            model_name="gpt-4"
+        )
+        anthropic_config = LLMConfig(
+            provider=LLMProvider.ANTHROPIC,
+            model_name="gpt-4"  # Same model name, different provider
+        )
+        
+        await llm_manager_instance.register_llm_config(openai_config)
+        await llm_manager_instance.register_llm_config(anthropic_config)
+        
+        # Get OpenAI version
+        result = await llm_manager_instance.get_llm("gpt-4", provider="openai")
+        assert result is not None
+        mock_openai.assert_called_once()
+        
+        # Get Anthropic version
+        result = await llm_manager_instance.get_llm("gpt-4", provider="anthropic")
+        assert result is not None
+        mock_anthropic.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_list_available_models(self, llm_manager_instance):
+        """Test listing available models"""
+        await llm_manager_instance.initialize()
+        
+        # Register multiple configs
+        configs = [
+            LLMConfig(provider=LLMProvider.OPENAI, model_name="gpt-4"),
+            LLMConfig(provider=LLMProvider.OPENAI, model_name="gpt-3.5-turbo"),
+            LLMConfig(provider=LLMProvider.ANTHROPIC, model_name="claude-3-opus"),
+            LLMConfig(provider=LLMProvider.OLLAMA, model_name="llama2")
         ]
         
-        results = await asyncio.gather(*tasks)
+        for config in configs:
+            await llm_manager_instance.register_llm_config(config)
         
-        # All should return the same instance
-        assert all(result is results[0] for result in results)
-    
-    async def test_llm_configuration_validation(self, mock_settings):
-        """Test LLM configuration validation"""
-        # Test invalid temperature
-        mock_settings.get_setting.side_effect = lambda section, key, default=None: {
-            ('llm_providers', 'openai', 'api_key'): 'test-openai-key',
-            ('llm_providers', 'openai', 'model'): 'gpt-3.5-turbo',
-            ('llm_providers', 'openai', 'temperature'): 2.0,  # Invalid: > 1.0
-        }.get((section, key), default)
+        result = await llm_manager_instance.list_available_models()
         
-        with patch('app.core.langchain.llm_manager.secure_settings', mock_settings):
-            manager = LangChainLLMManager()
+        assert len(result) == 4
+        model_names = [model["model_name"] for model in result]
+        assert "gpt-4" in model_names
+        assert "gpt-3.5-turbo" in model_names
+        assert "claude-3-opus" in model_names
+        assert "llama2" in model_names
+        
+        # Check provider info
+        gpt4_model = next(m for m in result if m["model_name"] == "gpt-4")
+        assert gpt4_model["provider"] == "openai"
+
+    @pytest.mark.asyncio
+    async def test_list_available_models_by_provider(self, llm_manager_instance):
+        """Test listing available models filtered by provider"""
+        await llm_manager_instance.initialize()
+        
+        # Register multiple configs
+        configs = [
+            LLMConfig(provider=LLMProvider.OPENAI, model_name="gpt-4"),
+            LLMConfig(provider=LLMProvider.OPENAI, model_name="gpt-3.5-turbo"),
+            LLMConfig(provider=LLMProvider.ANTHROPIC, model_name="claude-3-opus"),
+            LLMConfig(provider=LLMProvider.OLLAMA, model_name="llama2")
+        ]
+        
+        for config in configs:
+            await llm_manager_instance.register_llm_config(config)
+        
+        # Filter by OpenAI
+        result = await llm_manager_instance.list_available_models(provider="openai")
+        
+        assert len(result) == 2
+        model_names = [model["model_name"] for model in result]
+        assert "gpt-4" in model_names
+        assert "gpt-3.5-turbo" in model_names
+        assert "claude-3-opus" not in model_names
+
+    @pytest.mark.asyncio
+    async def test_get_model_stats(self, llm_manager_instance):
+        """Test getting model statistics"""
+        await llm_manager_instance.initialize()
+        
+        # Register config
+        config = LLMConfig(
+            provider=LLMProvider.OPENAI,
+            model_name="gpt-4"
+        )
+        await llm_manager_instance.register_llm_config(config)
+        
+        # Get stats
+        result = await llm_manager_instance.get_model_stats("gpt-4")
+        
+        assert result is not None
+        assert result["model_name"] == "gpt-4"
+        assert result["provider"] == "openai"
+        assert result["total_requests"] == 0
+        assert result["successful_requests"] == 0
+        assert result["failed_requests"] == 0
+
+    @pytest.mark.asyncio
+    async def test_get_model_stats_not_found(self, llm_manager_instance):
+        """Test getting stats for non-existent model"""
+        await llm_manager_instance.initialize()
+        
+        result = await llm_manager_instance.get_model_stats("nonexistent-model")
+        
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_track_request_success(
+        self, 
+        llm_manager_instance, 
+        mock_monitoring
+    ):
+        """Test tracking a successful request"""
+        await llm_manager_instance.initialize()
+        
+        # Register config
+        config = LLMConfig(
+            provider=LLMProvider.OPENAI,
+            model_name="gpt-4"
+        )
+        await llm_manager_instance.register_llm_config(config)
+        
+        # Track request
+        await llm_manager_instance._track_request(
+            model_name="gpt-4",
+            success=True,
+            response_time=2.5,
+            tokens_used=100
+        )
+        
+        # Check stats
+        stats = llm_manager_instance._llm_stats["openai:gpt-4"]
+        assert stats.total_requests == 1
+        assert stats.successful_requests == 1
+        assert stats.failed_requests == 0
+        assert stats.total_tokens == 100
+        assert stats.total_response_time == 2.5
+        assert stats.average_response_time == 2.5
+        assert stats.last_used is not None
+        
+        # Verify monitoring was called
+        mock_monitoring.return_value.track_llm_request.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_track_request_failure(
+        self, 
+        llm_manager_instance, 
+        mock_monitoring
+    ):
+        """Test tracking a failed request"""
+        await llm_manager_instance.initialize()
+        
+        # Register config
+        config = LLMConfig(
+            provider=LLMProvider.OPENAI,
+            model_name="gpt-4"
+        )
+        await llm_manager_instance.register_llm_config(config)
+        
+        # Track failed request
+        await llm_manager_instance._track_request(
+            model_name="gpt-4",
+            success=False,
+            response_time=1.0,
+            tokens_used=0,
+            error="API error"
+        )
+        
+        # Check stats
+        stats = llm_manager_instance._llm_stats["openai:gpt-4"]
+        assert stats.total_requests == 1
+        assert stats.successful_requests == 0
+        assert stats.failed_requests == 1
+        assert stats.total_tokens == 0
+        assert stats.total_response_time == 1.0
+        assert stats.average_response_time == 1.0
+
+    @pytest.mark.asyncio
+    async def test_get_provider_stats(self, llm_manager_instance):
+        """Test getting provider statistics"""
+        await llm_manager_instance.initialize()
+        
+        # Register multiple configs for OpenAI
+        openai_configs = [
+            LLMConfig(provider=LLMProvider.OPENAI, model_name="gpt-4"),
+            LLMConfig(provider=LLMProvider.OPENAI, model_name="gpt-3.5-turbo")
+        ]
+        
+        # Register one config for Anthropic
+        anthropic_config = LLMConfig(
+            provider=LLMProvider.ANTHROPIC, 
+            model_name="claude-3-opus"
+        )
+        
+        for config in openai_configs + [anthropic_config]:
+            await llm_manager_instance.register_llm_config(config)
+        
+        # Get OpenAI stats
+        result = await llm_manager_instance.get_provider_stats("openai")
+        
+        assert result is not None
+        assert result["provider"] == "openai"
+        assert result["total_models"] == 2
+        assert len(result["models"]) == 2
+        model_names = [model["model_name"] for model in result["models"]]
+        assert "gpt-4" in model_names
+        assert "gpt-3.5-turbo" in model_names
+
+    @pytest.mark.asyncio
+    async def test_get_registry_stats(self, llm_manager_instance):
+        """Test getting registry statistics"""
+        await llm_manager_instance.initialize()
+        
+        # Register configs for multiple providers
+        configs = [
+            LLMConfig(provider=LLMProvider.OPENAI, model_name="gpt-4"),
+            LLMConfig(provider=LLMProvider.OPENAI, model_name="gpt-3.5-turbo"),
+            LLMConfig(provider=LLMProvider.ANTHROPIC, model_name="claude-3-opus"),
+            LLMConfig(provider=LLMProvider.GOOGLE, model_name="gemini-pro"),
+            LLMConfig(provider=LLMProvider.OLLAMA, model_name="llama2")
+        ]
+        
+        for config in configs:
+            await llm_manager_instance.register_llm_config(config)
+        
+        # Get registry stats
+        result = await llm_manager_instance.get_registry_stats()
+        
+        assert result["total_models"] == 5
+        assert result["total_providers"] == 5
+        assert len(result["providers"]) == 5
+        assert result["providers"]["openai"]["model_count"] == 2
+        assert result["providers"]["anthropic"]["model_count"] == 1
+        assert result["providers"]["google"]["model_count"] == 1
+        assert result["providers"]["ollama"]["model_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_reset_stats(self, llm_manager_instance):
+        """Test resetting model statistics"""
+        await llm_manager_instance.initialize()
+        
+        # Register config and track some requests
+        config = LLMConfig(
+            provider=LLMProvider.OPENAI,
+            model_name="gpt-4"
+        )
+        await llm_manager_instance.register_llm_config(config)
+        
+        await llm_manager_instance._track_request(
+            model_name="gpt-4",
+            success=True,
+            response_time=2.5,
+            tokens_used=100
+        )
+        
+        # Reset stats
+        result = await llm_manager_instance.reset_stats("gpt-4")
+        
+        assert result is True
+        stats = llm_manager_instance._llm_stats["openai:gpt-4"]
+        assert stats.total_requests == 0
+        assert stats.successful_requests == 0
+        assert stats.failed_requests == 0
+        assert stats.total_tokens == 0
+        assert stats.total_response_time == 0.0
+        assert stats.average_response_time == 0.0
+
+    @pytest.mark.asyncio
+    async def test_reset_stats_not_found(self, llm_manager_instance):
+        """Test resetting stats for non-existent model"""
+        await llm_manager_instance.initialize()
+        
+        result = await llm_manager_instance.reset_stats("nonexistent-model")
+        
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_reset_all_stats(self, llm_manager_instance):
+        """Test resetting all statistics"""
+        await llm_manager_instance.initialize()
+        
+        # Register multiple configs and track requests
+        configs = [
+            LLMConfig(provider=LLMProvider.OPENAI, model_name="gpt-4"),
+            LLMConfig(provider=LLMProvider.ANTHROPIC, model_name="claude-3-opus")
+        ]
+        
+        for config in configs:
+            await llm_manager_instance.register_llm_config(config)
+            await llm_manager_instance._track_request(
+                model_name=config.model_name,
+                success=True,
+                response_time=2.0,
+                tokens_used=50
+            )
+        
+        # Reset all stats
+        await llm_manager_instance.reset_all_stats()
+        
+        # Check all stats are reset
+        for key, stats in llm_manager_instance._llm_stats.items():
+            assert stats.total_requests == 0
+            assert stats.successful_requests == 0
+            assert stats.failed_requests == 0
+            assert stats.total_tokens == 0
+            assert stats.total_response_time == 0.0
+            assert stats.average_response_time == 0.0
+
+    def test_get_config_key(self, llm_manager_instance):
+        """Test getting configuration key"""
+        # Test with provider
+        key = llm_manager_instance._get_config_key("gpt-4", "openai")
+        assert key == "openai:gpt-4"
+        
+        # Test without provider (should default to OpenAI)
+        key = llm_manager_instance._get_config_key("gpt-4")
+        assert key == "openai:gpt-4"
+
+    def test_parse_model_key(self, llm_manager_instance):
+        """Test parsing model key"""
+        # Test valid key
+        provider, model = llm_manager_instance._parse_model_key("openai:gpt-4")
+        assert provider == "openai"
+        assert model == "gpt-4"
+        
+        # Test key without provider
+        provider, model = llm_manager_instance._parse_model_key("gpt-4")
+        assert provider is None
+        assert model == "gpt-4"
+
+    @pytest.mark.asyncio
+    async def test_create_openai_llm(self, llm_manager_instance):
+        """Test creating OpenAI LLM"""
+        await llm_manager_instance.initialize()
+        
+        config = LLMConfig(
+            provider=LLMProvider.OPENAI,
+            model_name="gpt-4",
+            temperature=0.5,
+            max_tokens=1000
+        )
+        
+        with patch('app.core.langchain.llm_manager.ChatOpenAI') as mock_openai:
+            mock_llm = Mock()
+            mock_openai.return_value = mock_llm
             
-            # Should handle invalid configuration gracefully
-            with pytest.raises(ValueError, match="Invalid temperature"):
-                await manager.get_llm("gpt-3.5-turbo")
-    
-    async def test_provider_detection(self, mock_settings):
-        """Test automatic provider detection based on model name"""
-        with patch('app.core.langchain.llm_manager.secure_settings', mock_settings):
-            manager = LangChainLLMManager()
-            await manager.initialize()
+            result = await llm_manager_instance._create_openai_llm(config)
             
-            # Test different model patterns
-            openai_llm = await manager.get_llm("gpt-4")
-            assert isinstance(openai_llm, ChatOpenAI)
+            assert result == mock_llm
+            mock_openai.assert_called_once_with(
+                model="gpt-4",
+                temperature=0.5,
+                max_tokens=1000,
+                top_p=None,
+                frequency_penalty=None,
+                presence_penalty=None,
+                stop=None,
+                streaming=False,
+                timeout=60,
+                max_retries=3
+            )
+
+    @pytest.mark.asyncio
+    async def test_create_anthropic_llm(self, llm_manager_instance):
+        """Test creating Anthropic LLM"""
+        await llm_manager_instance.initialize()
+        
+        config = LLMConfig(
+            provider=LLMProvider.ANTHROPIC,
+            model_name="claude-3-opus",
+            temperature=0.3
+        )
+        
+        with patch('app.core.langchain.llm_manager.ChatAnthropic') as mock_anthropic:
+            mock_llm = Mock()
+            mock_anthropic.return_value = mock_llm
             
-            ollama_llm = await manager.get_llm("llama2")
-            assert isinstance(ollama_llm, Ollama)
-    
-    async def test_custom_provider_registration(self, llm_manager):
-        """Test registering a custom LLM provider"""
-        # Create a custom LLM
-        custom_llm = Mock(spec=BaseLLM)
+            result = await llm_manager_instance._create_anthropic_llm(config)
+            
+            assert result == mock_llm
+            mock_anthropic.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_create_google_llm(self, llm_manager_instance):
+        """Test creating Google LLM"""
+        await llm_manager_instance.initialize()
         
-        # Register it
-        await llm_manager.register_custom_llm("custom-model", custom_llm)
+        config = LLMConfig(
+            provider=LLMProvider.GOOGLE,
+            model_name="gemini-pro"
+        )
         
-        # Verify registration
-        assert "custom-model" in llm_manager.list_available_llms()
+        with patch('app.core.langchain.llm_manager.ChatGoogleGenerativeAI') as mock_google:
+            mock_llm = Mock()
+            mock_google.return_value = mock_llm
+            
+            result = await llm_manager_instance._create_google_llm(config)
+            
+            assert result == mock_llm
+            mock_google.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_create_ollama_llm(self, llm_manager_instance):
+        """Test creating Ollama LLM"""
+        await llm_manager_instance.initialize()
         
-        # Get the custom LLM
-        retrieved_llm = await llm_manager.get_llm("custom-model")
-        assert retrieved_llm is custom_llm
-    
-    async def test_llm_caching(self, llm_manager):
-        """Test that LLM instances are properly cached"""
-        # Get the same LLM multiple times
-        llm1 = await llm_manager.get_llm("test-model")
-        llm2 = await llm_manager.get_llm("test-model")
-        llm3 = await llm_manager.get_llm("test-model")
+        config = LLMConfig(
+            provider=LLMProvider.OLLAMA,
+            model_name="llama2"
+        )
         
-        # All should be the same instance
-        assert llm1 is llm2
-        assert llm2 is llm3
-        
-        # Verify only one instance in cache
-        assert len(llm_manager._llm_instances) == 1
-    
-    async def test_get_statistics(self, llm_manager):
-        """Test getting LLM manager statistics"""
-        # Register some LLMs
-        await llm_manager.get_llm("test-model-1")
-        await llm_manager.get_llm("test-model-2")
-        
-        # Get statistics
-        stats = llm_manager.get_statistics()
-        
-        assert isinstance(stats, dict)
-        assert "total_llms_registered" in stats
-        assert "llms_by_provider" in stats
-        assert "cache_size" in stats
-        assert "initialized" in stats
-        assert stats["total_llms_registered"] == 2
+        with patch('app.core.langchain.llm_manager.Ollama') as mock_ollama:
+            mock_llm = Mock()
+            mock_ollama.return_value = mock_llm
+            
+            result = await llm_manager_instance._create_ollama_llm(config)
+            
+            assert result == mock_llm
+            mock_ollama.assert_called_once()
 
 
-if __name__ == "__main__":
-    pytest.main([__file__])
+class TestGlobalLLMManager:
+    """Test global LLM manager instance"""
+
+    def test_global_instance(self):
+        """Test that global LLM manager instance exists"""
+        from app.core.langchain.llm_manager import llm_manager
+        assert llm_manager is not None
+        assert isinstance(llm_manager, LangChainLLMManager)

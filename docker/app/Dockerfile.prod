@@ -1,111 +1,66 @@
-# =============================================================================
-# Production Dockerfile for AI Assistant
-# =============================================================================
-# Multi-stage build optimized for production
+# Multi-stage build for production
+FROM python:3.12.3-slim AS builder
 
-# =============================================================================
-# Builder Stage
-# =============================================================================
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
-
-# Set environment variables for builder
+# Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    UV_CACHE_DIR=/root/.cache/uv \
-    UV_PROJECT_ENVIRONMENT=/opt/venv \
-    UV_LINK_MODE=copy \
-    UV_COMPILE_BYTECODE=1
+    PYTHONPATH="/app"
 
-# Install build dependencies
+# Install system dependencies for building
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv
-RUN pip install --no-cache-dir uv==0.9.3
+# Create a virtual environment
+RUN python -m venv /opt/venv
 
-# Set work directory
-WORKDIR /app
+# Make sure we use the virtual environment
+ENV PATH="/opt/venv/bin:$PATH"
 
-# Copy dependency files
-COPY pyproject.toml uv.lock README.md ./
+# Copy requirements first for better caching
+COPY ../requirements.txt ../pyproject.toml ../README.md ../uv.lock ./ 
 
-# Copy application code (needed for version import)
-COPY app/ ./app/
+# Install dependencies
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install production dependencies only
-RUN uv sync --frozen --no-dev --no-cache
-
-# =============================================================================
-# Production Stage
-# =============================================================================
-FROM ubuntu:noble AS production
+# Production stage
+FROM python:3.12.3-slim AS production
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PYTHONPATH="/app" \
-    PATH="/opt/venv/bin:$PATH" \
-    UV_CACHE_DIR=/tmp/.uv-cache \
-    UV_PROJECT_ENVIRONMENT=/opt/venv
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV PATH="/opt/venv/bin:$PATH"
 
-# Install runtime dependencies only
-RUN apt-get update -qy && apt-get install -qyy \
-    -o APT::Install-Recommends=false \
-    -o APT::Install-Suggests=false \
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
     curl \
-    ca-certificates \
-    python3.12 \
-    libpython3.12 \
-    libpcre3 \
-    libxml2 \
-    && rm -rf /var/lib/apt/lists/* \
-    && apt-get clean
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy uv from uv image
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+# Copy the virtual environment from builder stage
+COPY --from=builder /opt/venv /opt/venv
 
-# Create non-root user with proper permissions
-RUN groupadd -r app && \
-    useradd -r -g app --home-dir /app --shell /bin/bash app
-
-# Set work directory
+# Create app directory
 WORKDIR /app
 
-# Copy virtual environment from builder stage with proper ownership
-COPY --from=builder --chown=app:app /opt/venv /opt/venv
+# Copy application code
+COPY ../app/ ./app/
+COPY ../docker/app/entrypoint.sh ./
 
-# Fix python symlink to point to system Python
-RUN rm /opt/venv/bin/python && \
-    rm /opt/venv/bin/python3 && \
-    rm /opt/venv/bin/python3.12 && \
-    ln -s /usr/bin/python3.12 /opt/venv/bin/python && \
-    ln -s /usr/bin/python3.12 /opt/venv/bin/python3 && \
-    ln -s /usr/bin/python3.12 /opt/venv/bin/python3.12 && \
-    chown app:app /opt/venv/bin/python /opt/venv/bin/python3 /opt/venv/bin/python3.12
+# Set permissions for entrypoint script
+RUN chmod +x entrypoint.sh
 
-# Copy application code with proper ownership
-COPY --chown=app:app app/ ./app/
-COPY --chown=app:app pyproject.toml ./
+# Create non-root user
+RUN adduser --disabled-password --gecos '' appuser && \
+    chown -R appuser:appuser /app
+USER appuser
 
-# Create necessary directories and set permissions
-RUN mkdir -p /app/logs /app/.uv-cache && \
-    chown -R app:app /app
-
-# Copy entrypoint script and set permissions
-COPY --chown=app:app docker/app/entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
-
-# Switch to non-root user
-USER app
-
-# Expose ports
-EXPOSE 8000 8888
-
-# Health check for production
+# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Set entrypoint for production
-ENTRYPOINT ["/app/entrypoint.sh"]
+# Expose port
+EXPOSE 8000
+
+# Run the application
+CMD ["./entrypoint.sh"]
