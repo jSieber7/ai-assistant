@@ -14,23 +14,25 @@ jobs:
       with:
         fetch-depth: 0
     
-    - name: Install UV
-      uses: astral-sh/setup-uv@v3
-        
-    - name: Install Python
-      run: uv python install 3.12
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: 'docs/package-lock.json'
         
     - name: Install dependencies
-      run: |
-        uv sync --group docs
+      working-directory: ./docs
+      run: npm ci
         
     - name: Build documentation
-      run: uv run mkdocs build
+      working-directory: ./docs
+      run: npm run build
       
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v3
       with:
-        path: ./site
+        path: ./docs/out
 
   deploy:
     environment:

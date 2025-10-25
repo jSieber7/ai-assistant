@@ -69,6 +69,11 @@ yarn-error.log*
 site/
 .cache/
 
+# Next.js Documentation
+docs/node_modules/
+docs/.next/
+docs/out/
+
 # Monitoring and metrics
 prometheus_data/
 grafana_data/

@@ -1,0 +1,5 @@
+{
+  "production": "Production",
+  "monitoring": "Monitoring",
+  "traefik-integration": "Traefik Integration"
+}

@@ -1,0 +1,142 @@
+# Core Components
+
+This document provides detailed information about core components of LLM Tool System Foundation.
+
+## Architecture Overview
+
+The LLM Tool System Foundation is built on a modular architecture that enables sophisticated tool-calling capabilities for AI assistants:
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   FastAPI API   │◄──►│   Tool Agent     │◄──►│   Tool Registry │
+│ (OpenAI-compat) │    │  (Orchestrator)  │    │  (Management)   │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+         │                       │                       │
+         │                       │                       │
+         ▼                       ▼                       ▼
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Caching Layer │    │   Monitoring     │    │   Tool Storage │
+│  (Multi-layer)  │    │   & Metrics      │    │   & Discovery   │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+```
+
+### Key Features
+- **🔧 Extensible Tool System**: Dynamic tool registration and discovery
+- **🤖 Intelligent Agent Orchestration**: Context-aware tool selection and execution
+- **⚡ Advanced Caching**: Multi-layer caching with compression and batching
+- **📊 Comprehensive Monitoring**: Real-time metrics and health checks
+- **🔒 Security-First Design**: Input validation and access control
+- **🔄 LangChain Integration**: Seamless compatibility with LangChain ecosystem
+
+## Core Components
+
+### Tool System ([`app/core/tools/`](../../app/core/tools/))
+- **[`BaseTool`](../../app/core/tools/base.py:57)**: Abstract base class for all tools
+- **[`ToolRegistry`](../../app/core/tools/registry.py:15)**: Central tool management and discovery
+- **[`ToolResult`](../../app/core/tools/base.py:27)**: Standardized tool execution results
+- **Example Tools**: Calculator, Time, Echo tools for testing
+
+#### Creating Custom Tools
+```python
+from app.core.tools import BaseTool, ToolResult
+
+class CustomTool(BaseTool):
+    @property
+    def name(self) -> str:
+        return "custom_tool"
+    
+    @property
+    def description(self) -> str:
+        return "A custom tool example"
+    
+    @property
+    def keywords(self) -> List[str]:
+        return ["custom", "example", "demo"]
+    
+    async def execute(self, input_data: str) -> str:
+        return f"Processed: {input_data}"
+
+# Register tool
+from app.core.tools.registry import tool_registry
+tool_registry.register(CustomTool())
+```
+
+#### Tool Registry Operations
+```python
+# Get all available tools
+tools = tool_registry.list_tools()
+
+# Find relevant tools for a query
+relevant_tools = tool_registry.find_relevant_tools("What's the time in New York?")
+
+# Enable/disable tools dynamically
+tool_registry.enable_tool("calculator")
+tool_registry.disable_tool("web_search")
+```
+
+### Agent System ([`app/core/agents/`](../../app/core/agents/))
+- **[`ToolAgent`](../../app/core/agents/tool_agent.py)**: Orchestrates LLM-tool interactions
+- **[`AgentRegistry`](../../app/core/agents/registry.py)**: Manages agent instances and strategies
+- **[`LangChainIntegration`](../../app/core/agents/langchain_integration.py)**: LangChain compatibility layer
+
+#### Using Tool Agent
+```python
+from app.core.agents.tool_agent import ToolAgent
+from app.core.tools.registry import tool_registry
+
+# Create agent instance
+agent = ToolAgent(llm_instance, tool_registry)
+
+# Process message with tool calling
+response = await agent.process_message(
+    "What's the current time in London and calculate 15% of 200?",
+    context={"user_id": "123"}
+)
+```
+
+### Caching System ([`app/core/caching/`](../../app/core/caching/))
+- **[`CachingSystem`](../../app/core/caching/base.py)**: Multi-layer caching architecture
+- **Memory Cache**: Fast in-memory caching ([`MemoryCache`](../../app/core/caching/layers/memory.py))
+- **Redis Cache**: Distributed caching support ([`RedisCache`](../../app/core/caching/layers/redis_cache.py))
+- **Compression**: Data compression for large responses ([`Compressor`](../../app/core/caching/compression/compressor.py))
+- **Batching**: Batch processing for efficiency ([`BatchProcessor`](../../app/core/caching/batching/batch_processor.py))
+
+#### Using Caching Layer
+```python
+from app.core.caching import CachingSystem, cache_set, cache_get
+
+# Initialize caching system
+caching_system = CachingSystem({
+    'memory_cache_enabled': True,
+    'redis_cache_enabled': False,
+    'compression_enabled': True
+})
+
+await caching_system.initialize()
+
+# Set and get cached values
+await caching_system.set('user:123:profile', user_data, ttl=3600)
+cached_data = await caching_system.get('user:123:profile')
+
+# Convenience functions
+await cache_set('query:456:result', result_data, ttl=300)
+result = await cache_get('query:456:result')
+```
+
+### Monitoring System ([`app/core/monitoring/`](../../app/core/monitoring/))
+- **[`MetricsCollector`](../../app/core/monitoring/metrics.py)**: Performance metrics collection
+- **[`HealthMonitor`](../../app/core/monitoring/health.py)**: System health monitoring
+- **[`MonitoringMiddleware`](../../app/core/monitoring/middleware.py)**: Request/response monitoring
+
+### API Layer ([`app/api/`](../../app/api/))
+- **[`Tool Routes`](../../app/api/tool_routes.py)**: Tool management and execution endpoints
+- **[`Agent Routes`](../../app/api/agent_routes.py)**: Agent orchestration endpoints
+- **[`Monitoring Routes`](../../app/api/monitoring_routes.py)**: Metrics and health endpoints
+- **OpenAI-Compatible API**: Standard chat completions endpoint
+
+## Related Documentation
+
+- [Architecture Overview](/architecture/overview)
+- [API Endpoints](/api/endpoints)
+- [Development Guide](/development/setup)
+- [Tool System Design](/tools/rag)

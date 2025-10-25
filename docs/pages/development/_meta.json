@@ -1,0 +1,8 @@
+{
+  "setup": "Setup",
+  "development-guide": "Development Guide",
+  "contributing": "Contributing",
+  "testing": "Testing",
+  "branch-protection": "Branch Protection",
+  "security-and-api-key-handling": "Security and API Key Handling"
+}

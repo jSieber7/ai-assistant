@@ -1,0 +1,302 @@
+# Quick Start
+
+Get up and running with AI Assistant in minutes!
+
+## Prerequisites
+
+- **Python 3.12** (required)
+- **Docker** (recommended) or local Python environment
+- **API Key** from an LLM provider
+
+## Option 1: Docker (Recommended)
+
+### 1. Clone and Setup
+```bash
+git clone https://github.com/jSieber7/ai_assistant.git
+cd ai_assistant
+cp .env.docker .env
+```
+
+### 2. Configure API Key
+```bash
+# Get an API key from OpenRouter (recommended)
+echo "OPENAI_COMPATIBLE_API_KEY=your_key_here" >> .env
+echo "SECRET_KEY=your_secret_key_here" >> .env
+```
+
+### 3. Start Services
+```bash
+# Start all services with docker-compose
+docker-compose up -d
+
+# Check service status
+docker-compose ps
+```
+
+### 4. Access the Application
+- **Main Application**: http://localhost (through Traefik)
+- **API Documentation**: http://localhost:8000/docs
+- **Traefik Dashboard**: http://localhost:8080
+- **Chainlit Interface**: http://localhost/chainlit
+
+## Option 2: Local Development
+
+### 1. Clone and Setup
+```bash
+git clone https://github.com/jSieber7/ai_assistant.git
+cd ai_assistant
+cp .env.template .env
+```
+
+### 2. Set Up Environment
+```bash
+# Create virtual environment
+uv venv .venv
+
+# Activate (Linux/Mac)
+source .venv/bin/activate
+
+# Install dependencies
+uv sync --dev
+```
+
+### 3. Configure API Key
+```bash
+# Add your API key to .env
+echo "OPENAI_COMPATIBLE_API_KEY=your_key_here" >> .env
+```
+
+### 4. Start Development Server
+```bash
+# Start the FastAPI server
+uvicorn app.main:app --reload
+
+# Or use the convenience script
+python -m app.main
+```
+
+## First Steps
+
+### 1. Get an API Key
+
+Choose from these providers:
+
+- **[OpenRouter](https://openrouter.ai)** (recommended for variety)
+  - Supports multiple models (Claude, GPT, Llama, etc.)
+  - Good pricing and reliability
+  - Easy signup process
+
+- **[OpenAI](https://platform.openai.com)**
+  - Official GPT models
+  - High quality responses
+  - Well-documented API
+
+- **[Together AI](https://together.ai)**
+  - Open-source models
+  - Cost-effective
+  - Good for experimentation
+
+- **[Azure OpenAI](https://azure.microsoft.com/en-us/products/ai-services/openai-service)**
+  - Enterprise-grade
+  - Azure integration
+  - Compliance features
+
+### 2. Test Your Setup
+
+#### Using the API
+```bash
+# Test with curl
+curl -X POST "http://localhost:8000/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "anthropic/claude-3.5-sonnet",
+    "messages": [
+      {"role": "user", "content": "Hello! Can you help me?"}
+    ]
+  }'
+```
+
+#### Using Python
+```python
+import httpx
+
+response = httpx.post(
+    "http://localhost:8000/v1/chat/completions",
+    json={
+        "model": "anthropic/claude-3.5-sonnet",
+        "messages": [{"role": "user", "content": "Hello!"}]
+    }
+)
+
+print(response.json()["choices"][0]["message"]["content"])
+```
+
+#### Using JavaScript
+```javascript
+const response = await fetch('http://localhost:8000/v1/chat/completions', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    model: 'anthropic/claude-3.5-sonnet',
+    messages: [
+      { role: 'user', content: 'Hello!' }
+    ]
+  })
+});
+
+const data = await response.json();
+console.log(data.choices[0].message.content);
+```
+
+### 3. Try Tool Calling
+
+Test the tool-calling capabilities:
+
+```bash
+curl -X POST "http://localhost:8000/v1/chat/completions" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "anthropic/claude-3.5-sonnet",
+    "messages": [
+      {"role": "user", "content": "What time is it and what is 15 * 25?"}
+    ]
+  }'
+```
+
+The AI should automatically use the time and calculator tools to answer.
+
+## Configuration Options
+
+### Basic Configuration
+
+Edit your `.env` file for common settings:
+
+```bash
+# API Configuration
+OPENAI_COMPATIBLE_API_KEY=your_api_key
+OPENAI_COMPATIBLE_BASE_URL=https://openrouter.ai/api/v1
+DEFAULT_MODEL=anthropic/claude-3.5-sonnet
+
+# Server Configuration
+HOST=127.0.0.1
+PORT=8000
+ENVIRONMENT=development
+
+# Tool Configuration
+TOOL_CALLING_ENABLED=true
+MAX_TOOLS_PER_QUERY=3
+```
+
+### Advanced Features
+
+Enable additional capabilities:
+
+```bash
+# Enable web search
+SEARXNG_TOOL_ENABLED=true
+SEARXNG_URL=http://localhost:8080
+
+# Enable web scraping (requires Docker)
+FIRECRAWL_TOOL_ENABLED=true
+FIRECRAWL_DOCKER_URL=http://firecrawl-api:3002
+
+# Enable result reranking
+JINA_RERANKER_TOOL_ENABLED=true
+JINA_RERANKER_URL=http://jina-reranker:8000
+
+# Enable caching
+REDIS_CACHE_ENABLED=true
+REDIS_URL=redis://localhost:6379
+```
+
+## Next Steps
+
+### Explore the Documentation
+
+- **[Architecture Overview](/architecture/overview)** - Understand the system design
+- **[API Reference](/api/endpoints)** - Learn about all available endpoints
+- **[Tools Guide](/tools/overview)** - Discover available tools
+- **[Development Guide](/development/setup)** - Start contributing
+
+### Try Advanced Features
+
+- **Multi-Writer System**: Generate content with AI collaboration
+- **Tool Development**: Create your own custom tools
+- **Provider Integration**: Add new LLM providers
+- **Monitoring**: Set up metrics and alerting
+
+### Join the Community
+
+- **GitHub Issues**: Report bugs and request features
+- **Discussions**: Ask questions and share ideas
+- **Contributing**: Submit pull requests and improvements
+
+## Troubleshooting
+
+### Common Issues
+
+**Port Already in Use**
+```bash
+# Check what's using the port
+lsof -i :8000
+
+# Use a different port
+PORT=8001 uvicorn app.main:app --reload
+```
+
+**API Key Not Working**
+- Verify the API key is correctly set in `.env`
+- Check the API key has sufficient credits/permissions
+- Ensure the base URL is correct for your provider
+
+**Tools Not Working**
+- Check if tools are enabled in configuration
+- Verify required services are running (for Docker setup)
+- Check logs: `docker-compose logs ai-assistant`
+
+**Docker Issues**
+```bash
+# Check Docker is running
+docker --version
+
+# Rebuild containers
+docker-compose down
+docker-compose build
+docker-compose up -d
+
+# Check logs
+docker-compose logs ai-assistant
+```
+
+### Getting Help
+
+1. **Check the logs**: `docker-compose logs ai-assistant` or application logs
+2. **Review documentation**: Browse this site for detailed guides
+3. **Search GitHub Issues**: Check for similar problems
+4. **Create an Issue**: Include logs and configuration details
+
+## Production Deployment
+
+For production deployment, see:
+
+- **[Production Guide](/deployment/production)** - Production setup and security
+- **[Docker Integration](/docker-integration)** - Container deployment
+- **[Monitoring Setup](/deployment/monitoring)** - Metrics and alerting
+- **[Traefik Integration](/deployment/traefik-integration)** - Load balancing and SSL
+
+## Security Considerations
+
+- **Never commit API keys** to version control
+- **Use environment variables** for all sensitive data
+- **Enable HTTPS** in production with Traefik
+- **Configure rate limiting** for public APIs
+- **Regular updates** to keep dependencies secure
+
+## Performance Tips
+
+- **Enable caching** for frequently used responses
+- **Use appropriate models** for your use case
+- **Monitor resource usage** and scale as needed
+- **Optimize tool usage** for faster responses

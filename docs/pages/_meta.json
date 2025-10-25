@@ -1,0 +1,60 @@
+{
+  "index": "Introduction",
+  "quick-start": "Quick Start",
+  "multi-writer-system": "Multi-Writer System",
+  "multi-writer-quick-start": "Multi-Writer Quick Start",
+  "ai": {
+    "title": "AI & Models",
+    "type": "folder"
+  },
+  "api": {
+    "title": "API Reference",
+    "type": "folder"
+  },
+  "architecture": {
+    "title": "Architecture",
+    "type": "folder"
+  },
+  "deployment": {
+    "title": "Deployment",
+    "type": "folder"
+  },
+  "development": {
+    "title": "Development",
+    "type": "folder"
+  },
+  "providers": {
+    "title": "Providers",
+    "type": "folder"
+  },
+  "tools": {
+    "title": "Tools",
+    "type": "folder"
+  },
+  "troubleshooting": {
+    "title": "Troubleshooting",
+    "type": "folder"
+  },
+  "tutorials": {
+    "title": "Tutorials",
+    "type": "folder"
+  },
+  "ui": {
+    "title": "UI",
+    "type": "folder"
+  },
+  "docker-integration": "Docker Integration",
+  "docker-testing": "Docker Testing",
+  "docker-fixes-guide": "Docker Fixes Guide",
+  "searxng-setup": "SearXNG Setup",
+  "traefik-setup": "Traefik Setup",
+  "secure-settings-guide": "Secure Settings Guide",
+  "visual-lmm-system": "Visual LMM System",
+  "dynamic-tool-system": "Dynamic Tool System",
+  "ollama-integration": "Ollama Integration",
+  "openai-compatible-provider-refactoring": "OpenAI Compatible Provider Refactoring",
+  "playwright-setup": "Playwright Setup",
+  "traefik-frontend-integration": "Traefik Frontend Integration",
+  "docker-simplified": "Docker Simplified",
+  "configuration": "Configuration"
+}
