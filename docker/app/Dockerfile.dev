@@ -1,0 +1,57 @@
+# Development Dockerfile for the app service
+FROM python:3.12.3-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH="/app"
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user first
+RUN groupadd -r app && \
+    useradd -r -g app --home-dir /app --shell /bin/bash app
+
+# Set work directory
+WORKDIR /app
+
+# Copy dependency files
+COPY ../requirements.txt ../pyproject.toml ../README.md ./
+
+# Copy app code
+COPY ../app/ ./app/
+
+# Change ownership of /app to app user
+RUN chown -R app:app /app
+
+# Switch to non-root user
+USER app
+
+# Create virtual environment and install dependencies as app user
+# Create virtual environment and install dependencies as app user
+# .venv is excluded from volume mount in docker-compose.dev.yml
+RUN python -m venv .venv && \
+    .venv/bin/pip install --upgrade pip && \
+    .venv/bin/pip install -r requirements.txt
+# Create logs directory
+RUN mkdir -p /app/logs
+
+# Copy entrypoint script to a different location to avoid volume mount conflicts
+USER root
+COPY docker/app/entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Switch back to app user
+USER app
+
+# Expose port
+EXPOSE 8000
+
+# Set entrypoint to the new location
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["development"]

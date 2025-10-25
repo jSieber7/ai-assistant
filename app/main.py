@@ -22,6 +22,7 @@ from .api.tool_routes import router as tool_router
 from .api.agent_routes import router as agent_router
 from .api.monitoring_routes import router as monitoring_router
 from .api.conversation_routes import router as conversation_router
+from .api.agent_designer_routes import router as agent_designer_router
 from .api import ui_routes
 from app import __version__
 
@@ -204,6 +205,7 @@ app.include_router(tool_router)
 app.include_router(agent_router)
 app.include_router(monitoring_router)
 app.include_router(conversation_router, prefix="/api/v1", tags=["conversations"])
+app.include_router(agent_designer_router)
 app.include_router(ui_routes.router)
 
 # Include multi-writer routes if enabled

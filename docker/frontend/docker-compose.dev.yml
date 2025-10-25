@@ -10,6 +10,8 @@ services:
     # Removed port mapping to avoid conflicts - frontend is accessible only through Traefik
     # ports:
     #   - "${FRONTEND_DEV_PORT:-3000}:3000"
+    env_file:
+      - env/dev.env
     volumes:
       - ../../frontend:/app
       - /app/node_modules
@@ -26,7 +28,7 @@ services:
       start_period: 120s
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frontend-dev.rule=Host(`frontend.${BASE_DOMAIN:-localhost}`)"
-      - "traefik.http.services.frontend-dev.loadbalancer.server.port=3000"
+      - "traefik.http.routers.frontend.rule=Host(`frontend.${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
       # - "traefik.http.routers.frontend-dev.tls=true"
       # - "traefik.http.routers.frontend-dev.tls.certresolver=${TLS_CERT_RESOLVER:-selfsigned}"

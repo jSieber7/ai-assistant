@@ -148,3 +148,5 @@ app/core/docker/supabase/volumes/db/data/
 app/core/docker/supabase/volumes/storage/
 app/core/docker/supabase/volumes/logs/*.log
 .devcontainer/
+docker/NEXT_STEPS.md
+docker/MIGRATION_GUIDE.md

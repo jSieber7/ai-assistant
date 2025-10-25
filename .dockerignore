@@ -84,10 +84,11 @@ node_modules/
 tmp/
 temp/
 
-# Docker
+# Docker (exclude but allow specific files we need)
 Dockerfile*
 docker-compose*
 .dockerignore
+!docker/app/entrypoint.sh
 
 # Documentation
 docs/_build/

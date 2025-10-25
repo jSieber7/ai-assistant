@@ -109,14 +109,14 @@ export const useBackendConnection = (options: UseBackendConnectionOptions = {}) 
   }, [checkConnection]);
 
   // Set up periodic connection checks
+  // Set up periodic connection checks
   useEffect(() => {
     const interval = state.isStartupMode ? startupCheckInterval : checkInterval;
     if (interval <= 0) return;
     
     const intervalId = setInterval(checkConnection, interval);
     return () => clearInterval(intervalId);
-  }, [checkConnection, interval, state.isStartupMode, startupCheckInterval, checkInterval]);
-
+  }, [checkConnection, state.isStartupMode, startupCheckInterval, checkInterval]);
   return {
     ...state,
     checkConnection,

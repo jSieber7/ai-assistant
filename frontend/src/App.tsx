@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ThemeToggle } from './components/ThemeToggle';
-import { Plus, MessageSquare, Cpu, User, Send, Paperclip, Settings, ChevronDown, Users, Plug, SquarePen, PanelLeft, RefreshCw, Bot, Wrench } from 'lucide-react';
+import { Plus, MessageSquare, Cpu, User, Send, Paperclip, Settings, ChevronDown, Users, Plug, SquarePen, PanelLeft, RefreshCw, Bot, Wrench, Code } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import SettingsModal from './components/SettingsModal';
 import AgentManager from './components/AgentManager';
@@ -16,6 +16,7 @@ import AddProviderModal from './components/AddProviderModal';
 import ToolAnalysis from './components/ToolAnalysis';
 import AgentToolInfo from './components/AgentToolInfo';
 import BackendLoadingScreen from './components/BackendLoadingScreen';
+import AgentDesigner from './components/AgentDesigner';
 import { useChat } from './hooks/useChat';
 import { useModels } from './hooks/useModels';
 import { useBackendConnection } from './hooks/useBackendConnection';
@@ -76,8 +77,8 @@ const SimpleHeader = ({
     lastChecked: Date | null;
   };
   onRefreshConnection: () => void;
-  currentView: 'chat' | 'agents' | 'tools';
-  onChangeView: (view: 'chat' | 'agents' | 'tools') => void;
+  currentView: 'chat' | 'agents' | 'tools' | 'agent-designer';
+  onChangeView: (view: 'chat' | 'agents' | 'tools' | 'agent-designer') => void;
 }) => {
   const handleAgentToggle = (agentName: string) => {
     if (selectedAgents.includes(agentName)) {
@@ -122,6 +123,15 @@ const SimpleHeader = ({
         >
           <Wrench className="h-5 w-5" />
           <span className="hidden sm:inline">Tools</span>
+        </Button>
+        
+        <Button
+          variant={currentView === 'agent-designer' ? 'default' : 'outline'}
+          onClick={() => onChangeView('agent-designer')}
+          className="flex items-center gap-2"
+        >
+          <Code className="h-5 w-5" />
+          <span className="hidden sm:inline">Agent Designer</span>
         </Button>
         
         {currentView === 'chat' && (
@@ -378,13 +388,13 @@ const App: React.FC = () => {
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(0);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [currentView, setCurrentView] = useState<'chat' | 'agents' | 'tools'>('chat');
+  const [currentView, setCurrentView] = useState<'chat' | 'agents' | 'tools' | 'agent-designer'>('chat');
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
   const [isSidebarOffScreen, setIsSidebarOffScreen] = useState(false);
 
   // Handle sidebar animation state based on currentView
   useEffect(() => {
-    if (currentView === 'agents' || currentView === 'tools') {
+    if (currentView === 'agents' || currentView === 'tools' || currentView === 'agent-designer') {
       // Start closing animation
       setIsSidebarOffScreen(true);
       const timer = setTimeout(() => {
@@ -535,7 +545,7 @@ const App: React.FC = () => {
       />
       
       <div className={`flex-1 flex flex-col transition-all duration-300 ${
-        isSidebarCollapsed ? 'ml-12' : (currentView === 'agents' || currentView === 'tools') ? 'ml-0' : 'ml-80'
+        isSidebarCollapsed ? 'ml-12' : (currentView === 'agents' || currentView === 'tools' || currentView === 'agent-designer') ? 'ml-0' : 'ml-80'
       }`}>
         <SimpleHeader
           selectedModel={modelsState.selectedModel || ''}
@@ -579,6 +589,14 @@ const App: React.FC = () => {
           </>
         ) : currentView === 'tools' ? (
           <ToolAnalysis />
+        ) : currentView === 'agent-designer' ? (
+          <AgentDesigner
+            onAgentCreated={(agent) => {
+              showToast.success(`Agent '${agent.agent_name}' created successfully!`);
+              // Optionally switch to agents view to see the new agent
+              // setCurrentView('agents');
+            }}
+          />
         ) : (
           <AgentManager
             agents={modelsState.agents}

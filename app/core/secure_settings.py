@@ -29,7 +29,7 @@ class SecureSettingsManager:
             settings_dir: Directory to store encrypted settings. Defaults to ~/.ai_assistant
         """
         if settings_dir is None:
-            settings_dir = os.path.expanduser("~/.ai_assistant")
+            settings_dir = os.environ.get("AI_ASSISTANT_SETTINGS_DIR", os.path.expanduser("~/.ai_assistant"))
 
         self.settings_dir = Path(settings_dir)
         self.settings_dir.mkdir(exist_ok=True)

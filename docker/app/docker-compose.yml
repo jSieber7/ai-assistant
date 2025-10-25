@@ -10,6 +10,8 @@ services:
     ports:
       - "${APP_PORT:-8000}:8000"
       - "8888:8888"
+    env_file:
+      - env/${ENVIRONMENT:-dev}.env
     environment:
       - BUILD_MODE=${BUILD_MODE:-production}
     networks:

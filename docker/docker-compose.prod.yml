@@ -1,0 +1,197 @@
+# =============================================================================
+# Production Docker Compose Configuration
+# =============================================================================
+# Production-optimized environment with security and performance focus
+
+name: my-stack-prod
+
+networks:
+  shared-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+    driver: local
+  traefik-logs:
+    driver: local
+
+services:
+  # ===========================================
+  # SHARED INFRASTRUCTURE SERVICES
+  # ===========================================
+  
+  traefik:
+    image: traefik:${TRAEFIK_VERSION:-v3}
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-traefik-prod
+    restart: unless-stopped
+    command:
+      - "--api.insecure=false"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-logs:/var/log/traefik
+    networks:
+      - shared-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+      - "traefik.http.routers.traefik.tls=true"
+      - "traefik.http.routers.traefik.tls.certresolver=${TLS_CERT_RESOLVER:-selfsigned}"
+    environment:
+      - ACME_EMAIL=${ACME_EMAIL:-admin@example.com}
+
+  redis:
+    image: redis:alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-redis-prod
+    restart: unless-stopped
+    # Redis is internal only - no port mapping for security
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-}
+    healthcheck:
+      test: ["CMD", "redis-cli", "--no-auth-warning", "-a", "${REDIS_PASSWORD:-}", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "traefik.enable=false"  # Don't expose Redis directly
+    networks:
+      - shared-network
+
+  # ===========================================
+  # APPLICATION SERVICES
+  # ===========================================
+
+  app:
+    build:
+      context: ../../
+      dockerfile: docker/app/Dockerfile.prod
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-app-prod
+    restart: unless-stopped
+    # No port mapping - use Traefik for external access
+    environment:
+      - BUILD_MODE=production
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    networks:
+      - shared-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app.rule=Host(`app.${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.services.app.loadbalancer.server.port=8000"
+      - "traefik.http.routers.app.tls=true"
+      - "traefik.http.routers.app.tls.certresolver=${TLS_CERT_RESOLVER:-selfsigned}"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: ../docker/frontend/Dockerfile.prod
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-frontend-prod
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - REACT_APP_API_URL=https://app.${BASE_DOMAIN:-localhost}
+    networks:
+      - shared-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`frontend.${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+      - "traefik.http.routers.frontend.tls=true"
+      - "traefik.http.routers.frontend.tls.certresolver=${TLS_CERT_RESOLVER:-selfsigned}"
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # ===========================================
+  # EXTERNAL SERVICES (Production Configuration)
+  # ===========================================
+
+  # Include external services with production settings
+  searxng:
+    extends:
+      file: ./searxng/docker-compose.yaml
+      service: searxng
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-searxng-prod
+    restart: unless-stopped
+    networks:
+      - shared-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.searxng.rule=Host(`searxng.${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.services.searxng.loadbalancer.server.port=8080"
+      - "traefik.http.routers.searxng.tls=true"
+      - "traefik.http.routers.searxng.tls.certresolver=${TLS_CERT_RESOLVER:-selfsigned}"
+
+  firecrawl:
+    extends:
+      file: ./firecrawl/docker-compose.yaml
+      service: api
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-firecrawl-prod
+    restart: unless-stopped
+    environment:
+      - LOGGING_LEVEL=warning
+      - USE_DB_AUTHENTICATION=true
+      - MODEL_NAME=${FIRECRAWL_MODEL:-gpt-4}
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-}@redis:6379
+    networks:
+      - shared-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.firecrawl.rule=Host(`firecrawl.${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.services.firecrawl.loadbalancer.server.port=${INTERNAL_PORT:-3002}"
+      - "traefik.http.routers.firecrawl.tls=true"
+      - "traefik.http.routers.firecrawl.tls.certresolver=${TLS_CERT_RESOLVER:-selfsigned}"
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G
+
+  db:
+    extends:
+      file: ./supabase/docker-compose.yml
+      service: db
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-db-prod
+    restart: unless-stopped
+    # No port mapping for security - access through internal network only
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-}
+    networks:
+      - shared-network
+    labels:
+      - "traefik.enable=false"  # Don't expose DB directly
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 1G

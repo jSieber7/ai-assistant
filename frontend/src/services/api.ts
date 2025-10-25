@@ -217,6 +217,58 @@ export interface ToolRegistryStats {
   categories: Record<string, number>;
 }
 
+// Agent Designer types
+export interface AgentDesignRequest {
+  name: string;
+  description: string;
+  requirements: string;
+  category: string;
+  tools_needed: string[];
+  model_preference?: string;
+  additional_context?: string;
+}
+
+export interface AgentDesignResponse {
+  success: boolean;
+  agent_id: string;
+  agent_name: string;
+  agent_code?: string;
+  message: string;
+  file_path?: string;
+  metadata: Record<string, any>;
+}
+
+export interface AgentValidationRequest {
+  agent_code: string;
+  agent_name: string;
+}
+
+export interface AgentValidationResponse {
+  is_valid: boolean;
+  errors: string[];
+  warnings: string[];
+  suggestions: string[];
+}
+
+export interface SavedAgent {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  created_at: string;
+  file_path: string;
+  is_active: boolean;
+  metadata: Record<string, any>;
+}
+
+export interface AgentDesignerTool {
+  name: string;
+  description: string;
+  categories: string[];
+  keywords: string[];
+  enabled: boolean;
+}
+
 // API functions
 export const apiService = {
   // Health check
@@ -396,6 +448,50 @@ export const apiService = {
   // Get all tools in a specific category
   async getToolsByCategory(category: string): Promise<ToolsByCategoryResponse> {
     const response = await api.get(`/v1/tools/categories/${category}`);
+    return response.data;
+  },
+
+  // Agent Designer endpoints
+  
+  // Create a new agent
+  async createAgent(request: AgentDesignRequest): Promise<AgentDesignResponse> {
+    const response = await api.post('/api/v1/agent-designer/create', request);
+    return response.data;
+  },
+
+  // Validate agent code
+  async validateAgent(request: AgentValidationRequest): Promise<AgentValidationResponse> {
+    const response = await api.post('/api/v1/agent-designer/validate', request);
+    return response.data;
+  },
+
+  // List saved custom agents
+  async listSavedAgents(): Promise<SavedAgent[]> {
+    const response = await api.get('/api/v1/agent-designer/saved-agents');
+    return response.data;
+  },
+
+  // Get a specific saved agent
+  async getSavedAgent(agentId: string): Promise<{ agent_id: string; agent_code: string; file_path: string }> {
+    const response = await api.get(`/api/v1/agent-designer/saved-agents/${agentId}`);
+    return response.data;
+  },
+
+  // Delete a saved agent
+  async deleteSavedAgent(agentId: string): Promise<{ message: string }> {
+    const response = await api.delete(`/api/v1/agent-designer/saved-agents/${agentId}`);
+    return response.data;
+  },
+
+  // Activate a saved agent
+  async activateSavedAgent(agentId: string): Promise<{ message: string }> {
+    const response = await api.post(`/api/v1/agent-designer/saved-agents/${agentId}/activate`);
+    return response.data;
+  },
+
+  // Get available tools for agent designer
+  async getAvailableToolsForDesigner(): Promise<{ tools: AgentDesignerTool[]; total_count: number }> {
+    const response = await api.get('/api/v1/agent-designer/tools/available');
     return response.data;
   },
 };

@@ -31,8 +31,8 @@ Before you begin, ensure you have the following installed:
     Copy the example environment files for each service and customize them as needed.
     ```bash
     # For the app service
-    cp docker/app/example.env docker/app/dev.env
-    cp docker/app/example.env docker/app/prod.env
+    cp docker/app/env/example.env docker/app/env/dev.env
+    cp docker/app/env/example.env docker/app/env/prod.env
 
     # For the frontend service
     cp docker/frontend/env/example.env docker/frontend/env/dev.env
@@ -45,12 +45,12 @@ Before you begin, ensure you have the following installed:
     ```
     Edit these files to set passwords, API keys, and other configurations.
 
-2.  **Run the Management Script**:
-    Use the provided `run_dockers.py` script to manage the services. It's a powerful tool that simplifies interactions with Docker Compose.
+2.  **Run Management Commands**:
+    Use the provided Makefile to manage services. It's a powerful tool that simplifies interactions with Docker Compose.
 
     To start all services in development mode:
     ```bash
-    uv run docker/run_dockers.py
+    cd docker && make up ENVIRONMENT=dev
     ```
 
 3.  **Access the Services**:
@@ -62,74 +62,69 @@ Before you begin, ensure you have the following installed:
     - **SearXNG Search**: http://searxng.localhost
     - **Traefik Dashboard**: http://traefik.localhost
 
-## Service Management with `run_dockers.py`
+## Service Management with Makefile
 
-The `run_dockers.py` script in this directory is your primary tool for managing the Docker environment.
+The Makefile in this directory is your primary tool for managing the Docker environment.
 
 ### Basic Usage
 
 The general command structure is:
-`uv run docker/run_dockers.py [service] [environment] [command] [options]`
+`make [command] ENVIRONMENT=[dev|prod] SERVICE=[service_name]`
 
-- **service**: `all` (default), `app`, `frontend`, `supabase`, `firecrawl`, `searxng`
+- **command**: `up`, `down`, `logs`, `status`, `build`, `reset`, `health-check`, `clean`
 - **environment**: `dev` (default), `prod`
-- **command**: `up` (default), `down`, `logs`, `status`, `reset`, `test`, `build`
-- **options**: `-f` (foreground), `--no-cache` (for build)
+- **service**: `app`, `frontend`, `traefik`, `redis`, `db`, `api`, `searxng`, `milvus`, `firecrawl`
 
 ### Common Commands
 
 **Start all services in the background (detached mode):**
 ```bash
-uv run docker/run_dockers.py
-```
-or
-```bash
-uv run docker/run_dockers.py all dev up
+cd docker && make up ENVIRONMENT=dev
 ```
 
 **Start a single service (e.g., the app) in the foreground to see logs:**
 ```bash
-uv run docker/run_dockers.py app dev up -f
+cd docker && make up SERVICE=app ENVIRONMENT=dev
 ```
 
 **View logs for a running service:**
 ```bash
-uv run docker/run_dockers.py frontend dev logs
+cd docker && make logs SERVICE=frontend ENVIRONMENT=dev
 ```
 
 **Stop a service:**
 ```bash
-uv run docker/run_dockers.py firecrawl dev down
+cd docker && make down SERVICE=firecrawl ENVIRONMENT=dev
 ```
 
 **Stop all services:**
 ```bash
-uv run docker/run_dockers.py all dev down
+cd docker && make down ENVIRONMENT=dev
 ```
 
 **Rebuild a service (useful after changing code or Dockerfile):**
 ```bash
-uv run docker/run_dockers.py app dev build
+cd docker && make build SERVICE=app ENVIRONMENT=dev
 ```
 
 **Rebuild all services without cache:**
 ```bash
-uv run docker/run_dockers.py all dev build --no-cache
+cd docker && make build ENVIRONMENT=dev NO_CACHE=--no-cache
 ```
 
 **Check the status of all services:**
 ```bash
-uv run docker/run_dockers.py all dev status
+cd docker && make status ENVIRONMENT=dev
 ```
 
 **Reset a service's data (⚠️ This will delete all data for that service):**
 ```bash
-uv run docker/run_dockers.py supabase dev reset
+cd docker && make reset SERVICE=supabase-db ENVIRONMENT=dev
 ```
 
 For more help, run:
 ```bash
-uv run docker/run_dockers.py --help
+cd docker && make help
 ```
 
 ## Service Overview
@@ -146,17 +141,17 @@ uv run docker/run_dockers.py --help
 
 1.  Code changes in the `app/` directory will require a rebuild of the `app` service.
     ```bash
-    uv run docker/run_dockers.py app dev build
+    cd docker && make build SERVICE=app ENVIRONMENT=dev
     ```
 2.  Code changes in the `frontend/` directory are automatically picked up in development mode due to the volume mount. No rebuild is needed.
 3.  Configuration changes in `.env` files require restarting the affected service.
     ```bash
-    uv run docker/run_dockers.py [service] dev down
-    uv run docker/run_dockers.py [service] dev up
+    cd docker && make down SERVICE=[service] ENVIRONMENT=dev
+    cd docker && make up SERVICE=[service] ENVIRONMENT=dev
     ```
 
 ## Troubleshooting
 
 - **Port conflicts**: If you get errors about ports being in use (e.g., port 80, 443, 5432), check your `.env` files and change the port settings (e.g., `TRAEFIK_HTTP_PORT`, `POSTGRES_PORT`).
 - **Build fails**: Ensure your `pyproject.toml`, `uv.lock`, and source code directories (`app/`, `frontend/`) are in the correct locations at the project root.
-- **`uv run docker/run_dockers.py` command not found**: Make sure you are running the command from the project root directory, not from inside the `docker/` directory.
+- **Make command not found**: Make sure you are running the command from the `docker/` directory or use `cd docker && make [command]`.

@@ -1,0 +1,267 @@
+# =============================================================================
+# Development Docker Compose Configuration
+# =============================================================================
+# Complete development environment with all services
+
+# Remove include directive to avoid pulling in unwanted services
+# name: my-stack-dev - will be set by environment variable
+
+networks:
+  shared-network:
+    driver: bridge
+
+volumes:
+  redis-data:
+    driver: local
+  traefik-logs:
+    driver: local
+  db-config:
+    driver: local
+  searxng-data:
+    driver: local
+
+services:
+  # ===========================================
+  # SHARED INFRASTRUCTURE SERVICES
+  # ===========================================
+  
+  traefik:
+    image: traefik:${TRAEFIK_VERSION:-v3}
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-traefik-dev
+    restart: unless-stopped
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - shared-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+
+  redis:
+    image: redis:alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"  # Expose port for development access
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "traefik.enable=false"  # Don't expose Redis directly
+    networks:
+      - shared-network
+
+  # ===========================================
+  # APPLICATION SERVICES
+  # ===========================================
+
+  app:
+    build:
+      context: ../
+      dockerfile: docker/app/Dockerfile.dev
+    image: my-stack-app-dev-fixed
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-app-dev
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8000}:8000"
+      - "8889:8888"
+    environment:
+      - BUILD_MODE=development
+      - AI_ASSISTANT_SETTINGS_DIR=/app/.ai_assistant
+    user: "1000:1000"  # Use host user ID to avoid permission issues
+    volumes:
+      - ../:/app  # Mount entire project for development
+      - /app/node_modules  # Avoid node_modules conflicts
+      - /app/.venv  # Avoid venv conflicts
+    networks:
+      - shared-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.app.rule=Host(`app.${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.services.app.loadbalancer.server.port=8000"
+      - "traefik.http.routers.app.tls=false"  # Disable TLS for development
+    entrypoint: ["/usr/local/bin/docker-entrypoint.sh"]
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../docker/frontend/Dockerfile.dev
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-frontend-dev
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+      - REACT_APP_API_URL=http://app.localhost
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+    networks:
+      - shared-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`frontend.${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
+
+  # ===========================================
+  # EXTERNAL SERVICES (Development Configuration)
+  # ===========================================
+
+  searxng:
+    extends:
+      file: ./searxng/docker-compose.yaml
+      service: searxng
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-searxng-dev
+    restart: unless-stopped
+    ports:
+      - "8081:8080"  # Expose port for development access (use 8081 to avoid conflict with traefik)
+    networks:
+      - shared-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.searxng.rule=Host(`searxng.${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.services.searxng.loadbalancer.server.port=8080"
+
+  firecrawl:
+    extends:
+      file: ./firecrawl/docker-compose.yaml
+      service: api
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-firecrawl-dev
+    restart: unless-stopped
+    environment:
+      - LOGGING_LEVEL=info
+      - USE_DB_AUTHENTICATION=false
+      - MODEL_NAME=${FIRECRAWL_MODEL:-gpt-4}
+      - REDIS_URL=redis://redis:6379
+    ports:
+      - "3002:3002"  # Expose port for development access
+    networks:
+      - shared-network
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.firecrawl.rule=Host(`firecrawl.${BASE_DOMAIN:-localhost}`)"
+      - "traefik.http.services.firecrawl.loadbalancer.server.port=3002"
+
+  playwright-service:
+    extends:
+      file: ./firecrawl/docker-compose.yaml
+      service: playwright-service
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-playwright-dev
+    restart: unless-stopped
+    ports:
+      - "3003:3000"  # Expose port for development access (use 3003 to avoid conflicts)
+    networks:
+      - shared-network
+    labels:
+      - "traefik.enable=false"  # Don't expose playwright-service directly through Traefik
+
+  nuq-postgres:
+    extends:
+      file: ./firecrawl/docker-compose.yaml
+      service: nuq-postgres
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-nuq-postgres-dev
+    restart: unless-stopped
+    ports:
+      - "5432:5432"  # Expose port for development access
+    networks:
+      - shared-network
+
+  db:
+    image: supabase/postgres:15.8.1.085
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-db-dev
+    restart: unless-stopped
+    ports:
+      - "5433:5432"  # Expose port for development access (different from nuq-postgres)
+    volumes:
+      - ./supabase/volumes/db/realtime.sql:/docker-entrypoint-initdb.d/migrations/99-realtime.sql:Z
+      - ./supabase/volumes/db/webhooks.sql:/docker-entrypoint-initdb.d/init-scripts/98-webhooks.sql:Z
+      - ./supabase/volumes/db/roles.sql:/docker-entrypoint-initdb.d/init-scripts/99-roles.sql:Z
+      - ./supabase/volumes/db/jwt.sql:/docker-entrypoint-initdb.d/init-scripts/99-jwt.sql:Z
+      - ./supabase/volumes/db/data:/var/lib/postgresql/data:Z
+      - ./supabase/volumes/db/_supabase.sql:/docker-entrypoint-initdb.d/migrations/97-_supabase.sql:Z
+      - ./supabase/volumes/db/logs.sql:/docker-entrypoint-initdb.d/migrations/99-logs.sql:Z
+      - ./supabase/volumes/db/pooler.sql:/docker-entrypoint-initdb.d/migrations/99-pooler.sql:Z
+      - db-config:/etc/postgresql-custom
+    healthcheck:
+      test:
+        [
+        "CMD",
+        "pg_isready",
+        "-U",
+        "postgres",
+        "-h",
+        "localhost"
+        ]
+      timeout: 5s
+      interval: 5s
+      retries: 10
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      PGPORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      PGDATABASE: ${POSTGRES_DB:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-token}
+      JWT_EXP: ${JWT_EXPIRY:-3600}
+    command:
+      [
+        "postgres",
+        "-c",
+        "config_file=/etc/postgresql/postgresql.conf",
+        "-c",
+        "log_min_messages=fatal"
+      ]
+    networks:
+      - shared-network
+    labels:
+      - "traefik.enable=false"  # Don't expose DB directly through Traefik
+
+  # Vector service properly configured to avoid Traefik errors
+  # Vector service properly configured to avoid Traefik errors
+  vector:
+    image: timberio/vector:0.28.1-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-vector-dev
+    restart: unless-stopped
+    command: ["vector", "--config", "yaml", "--config-yaml", "api:\n  enabled: true\n  address: 0.0.0.0:9001\n  playground: false"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://localhost:9001/health"
+        ]
+      timeout: 5s
+      interval: 5s
+      retries: 3
+    networks:
+      - shared-network
+    labels:
+      - "traefik.enable=false"  # Don't expose vector directly through Traefik

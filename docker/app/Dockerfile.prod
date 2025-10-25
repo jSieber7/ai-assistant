@@ -1,8 +1,7 @@
 # =============================================================================
-# AI Assistant Experimental Dockerfile
+# Production Dockerfile for AI Assistant
 # =============================================================================
-# Single Dockerfile with environment variable controls for production/development modes
-# Installs uv via pip instead of using uv-astral image
+# Multi-stage build optimized for production
 
 # =============================================================================
 # Builder Stage
@@ -12,7 +11,10 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 # Set environment variables for builder
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    UV_CACHE_DIR=/root/.cache/uv
+    UV_CACHE_DIR=/root/.cache/uv \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    UV_LINK_MODE=copy \
+    UV_COMPILE_BYTECODE=1
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y \
@@ -20,7 +22,7 @@ RUN apt-get update && apt-get install -y \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv via pip (as requested)
+# Install uv
 RUN pip install --no-cache-dir uv==0.9.3
 
 # Set work directory
@@ -29,31 +31,12 @@ WORKDIR /app
 # Copy dependency files
 COPY pyproject.toml uv.lock README.md ./
 
-# Copy application code first (needed for version import)
+# Copy application code (needed for version import)
 COPY app/ ./app/
 
-# Set uv environment variables to create venv at /opt/venv
-ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
-    UV_LINK_MODE=copy \
-    UV_COMPILE_BYTECODE=1
+# Install production dependencies only
+RUN uv sync --frozen --no-dev --no-cache
 
-# Create virtual environment and install dependencies
-# Environment variable controls whether to install dev dependencies
-ADD . /app
-
-ARG BUILD_MODE=production
-ENV BUILD_MODE=${BUILD_MODE}
-RUN if [ "$BUILD_MODE" = "development" ]; then \
-        uv sync --frozen --group dev --no-cache; \
-    else \
-        uv sync --frozen --no-dev --no-cache; \
-    fi
-
-# Install Playwright browsers
-# RUN uv run -m playwright install chromium firefox webkit
-# RUN uv run playwright install-deps
-
-# =============================================================================
 # =============================================================================
 # Production Stage
 # =============================================================================
@@ -67,14 +50,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_CACHE_DIR=/tmp/.uv-cache \
     UV_PROJECT_ENVIRONMENT=/opt/venv
 
-# Install basic runtime dependencies and Python
+# Install runtime dependencies only
 RUN apt-get update -qy && apt-get install -qyy \
     -o APT::Install-Recommends=false \
     -o APT::Install-Suggests=false \
     curl \
-    wget \
-    gnupg \
-    unzip \
     ca-certificates \
     python3.12 \
     libpython3.12 \
@@ -85,8 +65,6 @@ RUN apt-get update -qy && apt-get install -qyy \
 
 # Copy uv from uv image
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
-# Install Chrome and ChromeDriver only in production mode
-ARG BUILD_MODE=production
 
 # Create non-root user with proper permissions
 RUN groupadd -r app && \
@@ -110,23 +88,24 @@ RUN rm /opt/venv/bin/python && \
 # Copy application code with proper ownership
 COPY --chown=app:app app/ ./app/
 COPY --chown=app:app pyproject.toml ./
+
 # Create necessary directories and set permissions
 RUN mkdir -p /app/logs /app/.uv-cache && \
     chown -R app:app /app
 
-# Switch to non-root user
-USER app
-
-# Expose ports (both 8000 and 8888 to cover both scenarios)
-EXPOSE 8000 8888
-
-# Health check (will be used in production mode)
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
-
-# Copy entrypoint script that handles both production and development modes
+# Copy entrypoint script and set permissions
 COPY --chown=app:app docker/app/entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 
-# Run the application with the appropriate command
-CMD ["/app/entrypoint.sh"]
+# Switch to non-root user
+USER app
+
+# Expose ports
+EXPOSE 8000 8888
+
+# Health check for production
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Set entrypoint for production
+ENTRYPOINT ["/app/entrypoint.sh"]

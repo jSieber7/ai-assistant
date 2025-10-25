@@ -1,7 +1,22 @@
 #!/usr/bin/env python3
 
 # =============================================================================
-# Docker Services Runner Script
+# DEPRECATION NOTICE
+# =============================================================================
+# This script is DEPRECATED and will be removed in a future release.
+# Please use the new Docker Compose Makefile instead:
+#
+#   cd docker && make help
+#
+# The new approach provides better performance, simpler maintenance, and
+# follows Docker Compose best practices.
+#
+# Migration Guide: docker/MIGRATION_GUIDE.md
+# Next Steps: docker/NEXT_STEPS.md
+# =============================================================================
+
+# =============================================================================
+# Docker Services Runner Script (DEPRECATED)
 # =============================================================================
 # This script starts Docker services with simplified command structure.
 # Usage: uv run run_dockers.py [command] [options]
@@ -604,7 +619,12 @@ def display_all_service_urls(environment):
 
 def show_help():
     """Show help information."""
-    print(f"{Colors.BLUE}Docker Services Management Script{Colors.NC}")
+    print(f"{Colors.RED}*** DEPRECATION WARNING ***{Colors.NC}")
+    print(f"{Colors.YELLOW}This script is DEPRECATED and will be removed in a future release.{Colors.NC}")
+    print(f"{Colors.YELLOW}Please use the new Docker Compose Makefile instead:{Colors.NC}")
+    print(f"{Colors.GREEN}  cd docker && make help{Colors.NC}")
+    print("")
+    print(f"{Colors.BLUE}Docker Services Management Script (DEPRECATED){Colors.NC}")
     print("")
     print(f"{Colors.YELLOW}USAGE:{Colors.NC}")
     print("  uv run run_dockers.py [command] [options]")
@@ -644,6 +664,13 @@ def show_help():
 
 def main():
     """Main function to parse arguments and execute commands."""
+    # Show deprecation warning
+    print(f"{Colors.RED}*** DEPRECATION WARNING ***{Colors.NC}")
+    print(f"{Colors.YELLOW}This script is DEPRECATED and will be removed in a future release.{Colors.NC}")
+    print(f"{Colors.YELLOW}Please use the new Docker Compose Makefile instead:{Colors.NC}")
+    print(f"{Colors.GREEN}  cd docker && make help{Colors.NC}")
+    print("")
+    
     # Parse arguments
     parser = argparse.ArgumentParser(
         description="Docker Services Management Script",

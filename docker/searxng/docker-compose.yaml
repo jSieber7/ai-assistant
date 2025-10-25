@@ -40,6 +40,8 @@ services:
     # Expose port to traefik network only
     expose:
       - "8080"
+    env_file:
+      - env/${ENVIRONMENT:-dev}.env
     volumes:
       - ./searxng:/etc/searxng:rw
       - searxng-data:/var/cache/searxng:rw

@@ -141,11 +141,11 @@ setup-dev: ## Set up development environment
 
 dev: ## Run development server
 	@echo "Starting development server..."
-	uv run docker/run_dockers.py up -d
+	cd docker && make up ENVIRONMENT=dev
 
 dev-docker: ## Run development with Docker (includes all tool dockers)
 	@echo "Starting development environment with Docker and all tools..."
-	uv run docker/run_dockers.py up --service all --dev
+	cd docker && make up ENVIRONMENT=dev
 	@echo "Waiting for services to be ready..."
 	@sleep 10
 	@echo "Development environment with all tools is ready!"
@@ -155,7 +155,7 @@ dev-docker: ## Run development with Docker (includes all tool dockers)
 dev-quick: ## Quick development setup (install + start services)
 	@echo "Quick development setup..."
 	$(MAKE) setup-dev
-	uv run docker/run_dockers.py up --service all --dev
+	cd docker && make up ENVIRONMENT=dev
 	@echo "Development environment is ready!"
 	@echo "App: http://localhost:$(APP_PORT)"
 
@@ -333,53 +333,51 @@ security-check: test-results-dir ## Run security checks
 
 docker: ## Start all Docker services
 	@echo "Starting all Docker services..."
-	uv run docker/run_dockers.py up --service all --dev
+	cd docker && make up ENVIRONMENT=dev
 
 docker-down: ## Stop all Docker services
 	@echo "Stopping all Docker services..."
-	uv run docker/run_dockers.py down --service all --dev
+	cd docker && make down ENVIRONMENT=dev
 
 docker-logs: ## Show Docker logs
 	@echo "Showing Docker logs..."
-	uv run docker/run_dockers.py logs --service all --dev
+	cd docker && make logs ENVIRONMENT=dev
 
 docker-restart: ## Restart Docker services
 	@echo "Restarting Docker services..."
-	uv run docker/run_dockers.py down --service all --dev
-	uv run docker/run_dockers.py up --service all --dev
+	cd docker && make restart ENVIRONMENT=dev
 
 docker-status: ## Show Docker service status
 	@echo "Docker service status:"
-	uv run docker/run_dockers.py status --service all --dev
+	cd docker && make status ENVIRONMENT=dev
 
 # =============================================================================
 # Milvus Docker Commands
 # =============================================================================
 
 milvus: ## Start Milvus Docker services
-	@echo "Starting Milvus Docker services..."
-	uv run docker/run_dockers.py up --service milvus
-	@echo "Waiting for services to be ready..."
-	@sleep 30
-	$(MAKE) milvus-health
-
-milvus-down: ## Stop Milvus Docker services
-	@echo "Stopping Milvus Docker services..."
-	uv run docker/run_dockers.py down --service milvus
-
-milvus-logs: ## Show Milvus Docker logs
-	@echo "Showing Milvus Docker logs..."
-	uv run docker/run_dockers.py logs --service milvus
-
-milvus-restart: ## Restart Milvus Docker services
-	@echo "Restarting Milvus Docker services..."
-	uv run docker/run_dockers.py down --service milvus
-	uv run docker/run_dockers.py up --service milvus
-
-milvus-status: ## Show Milvus service status
-	@echo "Milvus service status:"
-	uv run docker/run_dockers.py status --service milvus
-
+	milvus: ## Start Milvus Docker services
+		@echo "Starting Milvus Docker services..."
+		cd docker && make up SERVICE=vector ENVIRONMENT=dev
+		@echo "Waiting for services to be ready..."
+		@sleep 30
+		$(MAKE) milvus-health
+	
+	milvus-down: ## Stop Milvus Docker services
+		@echo "Stopping Milvus Docker services..."
+		cd docker && make down SERVICE=vector ENVIRONMENT=dev
+	
+	milvus-logs: ## Show Milvus Docker logs
+		@echo "Showing Milvus Docker logs..."
+		cd docker && make logs SERVICE=vector ENVIRONMENT=dev
+	
+	milvus-restart: ## Restart Milvus Docker services
+		@echo "Restarting Milvus Docker services..."
+		cd docker && make restart SERVICE=vector ENVIRONMENT=dev
+	
+	milvus-status: ## Show Milvus service status
+		@echo "Milvus service status:"
+		cd docker && make status SERVICE=vector ENVIRONMENT=dev
 milvus-health: ## Check Milvus health
 	@echo "Checking Milvus health..."
 	@echo "Checking Etcd..."
@@ -395,37 +393,36 @@ milvus-health: ## Check Milvus health
 
 firecrawl: ## Start Firecrawl Docker services
 	@echo "Starting Firecrawl Docker services..."
-	uv run docker/run_dockers.py up --service firecrawl
-	@echo "Waiting for services to be ready..."
-	@sleep 10
-	$(MAKE) firecrawl-health
-
-firecrawl-down: ## Stop Firecrawl Docker services
-	@echo "Stopping Firecrawl Docker services..."
-	uv run docker/run_dockers.py down --service firecrawl
-
-firecrawl-logs: ## Show Firecrawl Docker logs
-	@echo "Showing Firecrawl Docker logs..."
-	uv run docker/run_dockers.py logs --service firecrawl
-
-firecrawl-restart: ## Restart Firecrawl Docker services
-	@echo "Restarting Firecrawl Docker services..."
-	uv run docker/run_dockers.py down --service firecrawl
-	uv run docker/run_dockers.py up --service firecrawl
-
-firecrawl-dev: ## Start development with Firecrawl
-	@echo "Starting development environment with Firecrawl..."
-	uv run docker/run_dockers.py up --service firecrawl --dev
-
-firecrawl-production: ## Start production with Firecrawl
-	@echo "Starting production environment with Firecrawl..."
-	uv run docker/run_dockers.py up --service firecrawl
-
-firecrawl-status: ## Show Firecrawl service status
-	@echo "Firecrawl service status:"
-	uv run docker/run_dockers.py status --service firecrawl
-
-firecrawl-health: ## Check Firecrawl health
+	firecrawl: ## Start Firecrawl Docker services
+		@echo "Starting Firecrawl Docker services..."
+		cd docker && make up SERVICE=api ENVIRONMENT=dev
+		@echo "Waiting for services to be ready..."
+		@sleep 10
+		$(MAKE) firecrawl-health
+	
+	firecrawl-down: ## Stop Firecrawl Docker services
+		@echo "Stopping Firecrawl Docker services..."
+		cd docker && make down SERVICE=api ENVIRONMENT=dev
+	
+	firecrawl-logs: ## Show Firecrawl Docker logs
+		@echo "Showing Firecrawl Docker logs..."
+		cd docker && make logs SERVICE=api ENVIRONMENT=dev
+	
+	firecrawl-restart: ## Restart Firecrawl Docker services
+		@echo "Restarting Firecrawl Docker services..."
+		cd docker && make restart SERVICE=api ENVIRONMENT=dev
+	
+	firecrawl-dev: ## Start development with Firecrawl
+		@echo "Starting development environment with Firecrawl..."
+		cd docker && make up SERVICE=api ENVIRONMENT=dev
+	
+	firecrawl-production: ## Start production with Firecrawl
+		@echo "Starting production environment with Firecrawl..."
+		cd docker && make up SERVICE=api ENVIRONMENT=prod
+	
+	firecrawl-status: ## Show Firecrawl service status
+		@echo "Firecrawl service status:"
+		cd docker && make status SERVICE=api ENVIRONMENT=dev
 	@echo "Checking Firecrawl health..."
 	python utility/firecrawl_health_check.py --verbose || true
 
@@ -440,7 +437,7 @@ firecrawl-test: ## Test Firecrawl with example URL
 migrate-to-docker: ## Migrate from API to Docker mode
 	@echo "Migrating to Firecrawl Docker mode..."
 	@echo "1. Starting Firecrawl Docker services..."
-	uv run docker/run_dockers.py up --service firecrawl
+	cd docker && make up SERVICE=api ENVIRONMENT=dev
 	@echo "2. Waiting for services to be ready..."
 	@sleep 15
 	@echo "3. Verifying installation..."
@@ -455,7 +452,7 @@ migrate-to-docker: ## Migrate from API to Docker mode
 migrate-to-api: ## Migrate from Docker to API mode
 	@echo "Migrating to Firecrawl API mode..."
 	@echo "1. Stopping Firecrawl Docker services..."
-	uv run docker/run_dockers.py down --service firecrawl
+	cd docker && make down SERVICE=api ENVIRONMENT=dev
 	@echo ""
 	@echo "Migration complete! Update your .env file:"
 	@echo "FIRECRAWL_DEPLOYMENT_MODE=api"
@@ -469,10 +466,10 @@ migrate-to-api: ## Migrate from Docker to API mode
 health-check: ## Run comprehensive health check
 	@echo "Running comprehensive health check..."
 	@echo "=== Docker Services ==="
-	uv run docker/run_dockers.py status --service all --dev || echo "Docker services not running"
+	cd docker && make status ENVIRONMENT=dev || echo "Docker services not running"
 	@echo ""
 	@echo "=== Firecrawl Services ==="
-	uv run docker/run_dockers.py status --service firecrawl || echo "Firecrawl services not running"
+	cd docker && make status SERVICE=api ENVIRONMENT=dev || echo "Firecrawl services not running"
 	@echo ""
 	@echo "=== Firecrawl Health ==="
 	$(MAKE) firecrawl-health || echo "Firecrawl health check failed"
@@ -480,7 +477,7 @@ health-check: ## Run comprehensive health check
 status-all: ## Show status of all services
 	@echo "=== All Service Status ==="
 	@echo "Docker Services:"
-	uv run docker/run_dockers.py status --service all --dev || echo "No Docker services running"
+	cd docker && make status ENVIRONMENT=dev || echo "No Docker services running"
 	@echo ""
 	@echo "Application Containers:"
 	@docker ps --filter "name=$(PROJECT_NAME)" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" || echo "No application containers running"
@@ -527,7 +524,7 @@ clean: ## Clean up temporary files
 
 clean-docker: ## Clean up Docker resources
 	@echo "Cleaning up Docker resources..."
-	uv run docker/run_dockers.py down --service all --dev
+	cd docker && make down ENVIRONMENT=dev
 	docker system prune -f
 	docker volume prune -f
 
@@ -541,9 +538,9 @@ shutdown-everything: ## SHUT DOWN ALL DOCKER SERVICES ACROSS ALL PROFILES
 	@echo "🚨 EMERGENCY SHUTDOWN INITIATED - STOPPING ALL SERVICES 🚨"
 	@echo "Stopping all Docker services across all profiles..."
 	@echo "Phase 1: Stopping dev services..."
-	uv run docker/run_dockers.py down --service all --dev || true
+	cd docker && make down ENVIRONMENT=dev || true
 	@echo "Phase 2: Stopping prod services..."
-	uv run docker/run_dockers.py down --service all || true
+	cd docker && make down ENVIRONMENT=prod || true
 	@echo "Phase 3: Stopping any remaining services..."
 	cd docker && $(DOCKER_COMPOSE) down --remove-orphans || true
 	@echo "Phase 4: Force stopping any stubborn containers from this project..."
@@ -573,17 +570,17 @@ nuke: ## NUCLEAR OPTION - COMPLETE DOCKER SYSTEM RESET
 # =============================================================================
 
 production: ## Start production environment
-	@echo "Starting production environment..."
-	uv run docker/run_dockers.py up --service all
-
-
-production-down: ## Stop production environment
-	@echo "Stopping production environment..."
-	uv run docker/run_dockers.py down --service all
-
-production-logs: ## Show production logs
-	@echo "Showing production logs..."
-	uv run docker/run_dockers.py logs --service all
+	production: ## Start production environment
+		@echo "Starting production environment..."
+		cd docker && make up ENVIRONMENT=prod
+	
+	production-down: ## Stop production environment
+		@echo "Stopping production environment..."
+		cd docker && make down ENVIRONMENT=prod
+	
+	production-logs: ## Show production logs
+		@echo "Showing production logs..."
+		cd docker && make logs ENVIRONMENT=prod
 
 # =============================================================================
 # Utilities
@@ -607,7 +604,7 @@ logs-app: ## Show application logs
 
 logs-all: ## Show all service logs
 	@echo "Showing all service logs..."
-	uv run docker/run_dockers.py logs --service all --dev
+	cd docker && make logs ENVIRONMENT=dev
 
 backup-firecrawl: ## Backup Firecrawl data
 	@echo "Backing up Firecrawl data..."
@@ -685,13 +682,13 @@ profile: ## Run application with profiling
 
 monitor-app-startup: ## Monitor app startup for performance issues
 	@echo "Monitoring app startup. Press Ctrl+C to stop."
-	@echo "This will start the app service and show logs in real-time."
-	uv run docker/run_dockers.py up --service app --dev --foreground
+	@echo "This will start app service and show logs in real-time."
+	cd docker && make logs SERVICE=app ENVIRONMENT=dev
 
 monitor-app-build: ## Monitor app build process for performance issues
 	@echo "Monitoring app build process with detailed logs."
-	@echo "This will show the full build output to help diagnose slow builds."
-	uv run docker/run_dockers.py build --service app --dev --progress plain
+	@echo "This will show full build output to help diagnose slow builds."
+	cd docker && make build SERVICE=app ENVIRONMENT=dev --progress plain
 
 # =============================================================================
 # Jupyter Development
@@ -702,7 +699,7 @@ jupyter: ## Start Jupyter notebook for interactive development
 	@echo "Checking if development environment is running..."
 	@if ! cd docker && $(DOCKER_COMPOSE) --env-file ../.env ps app --format "table {{.Names}}" | grep -q "my-stack-app"; then \
 		echo "Development environment not running. Please start it first with:"; \
-		echo "  uv run docker/run_dockers.py app dev up"; \
+		echo "  cd docker && make up SERVICE=app ENVIRONMENT=dev"; \
 		exit 1; \
 	fi
 	@echo "Stopping any existing Jupyter instances..."
