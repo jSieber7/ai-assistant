@@ -6,6 +6,7 @@ supporting both native LangChain tools and custom tools with seamless integratio
 """
 
 import logging
+import time
 from typing import Dict, List, Optional, Set, Any, Union
 from enum import Enum
 
@@ -15,6 +16,7 @@ from langchain_core.tools import tool as langchain_tool_decorator
 
 from app.core.tools.base.base import BaseTool
 from app.core.tools.execution.registry import tool_registry as legacy_tool_registry
+from app.core.langchain.monitoring import LangChainMonitoring
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,7 @@ class LangChainToolRegistry:
         self._enabled_tools: Set[str] = set()
         self._tool_metadata: Dict[str, Dict[str, Any]] = {}
         self._initialized = False
+        self._monitoring = LangChainMonitoring()
         
     async def initialize(self):
         """Initialize the tool registry with existing tools"""
@@ -54,6 +57,9 @@ class LangChainToolRegistry:
             return
             
         logger.info("Initializing LangChain Tool Registry...")
+        
+        # Initialize monitoring
+        await self._monitoring.initialize()
         
         # Migrate existing tools from legacy registry
         await self._migrate_legacy_tools()
@@ -130,8 +136,8 @@ class LangChainToolRegistry:
             logger.error(f"Failed to register toolkits: {str(e)}")
             
     async def register_langchain_tool(
-        self, 
-        tool: LangChainBaseTool, 
+        self,
+        tool: LangChainBaseTool,
         category: str = "general",
         metadata: Optional[Dict[str, Any]] = None
     ) -> bool:
@@ -147,8 +153,19 @@ class LangChainToolRegistry:
             True if registration successful, False otherwise
         """
         try:
+            # Track tool registration
+            start_time = time.time()
+            
             if tool.name in self._langchain_tools:
                 logger.warning(f"LangChain tool '{tool.name}' is already registered")
+                await self._monitoring.track_tool_registration(
+                    tool_name=tool.name,
+                    tool_type="langchain_native",
+                    category=category,
+                    success=False,
+                    error="Tool already registered",
+                    duration=time.time() - start_time
+                )
                 return False
                 
             self._langchain_tools[tool.name] = tool
@@ -169,16 +186,34 @@ class LangChainToolRegistry:
             # Enable by default
             self._enabled_tools.add(tool.name)
             
+            duration = time.time() - start_time
+            await self._monitoring.track_tool_registration(
+                tool_name=tool.name,
+                tool_type="langchain_native",
+                category=category,
+                success=True,
+                duration=duration
+            )
+            
             logger.info(f"Registered LangChain tool '{tool.name}' in category '{category}'")
             return True
             
         except Exception as e:
+            duration = time.time() - start_time
+            await self._monitoring.track_tool_registration(
+                tool_name=tool.name,
+                tool_type="langchain_native",
+                category=category,
+                success=False,
+                error=str(e),
+                duration=duration
+            )
             logger.error(f"Failed to register LangChain tool '{tool.name}': {str(e)}")
             return False
             
     async def register_custom_tool(
-        self, 
-        tool: BaseTool, 
+        self,
+        tool: BaseTool,
         category: str = "general",
         metadata: Optional[Dict[str, Any]] = None
     ) -> bool:
@@ -194,8 +229,19 @@ class LangChainToolRegistry:
             True if registration successful, False otherwise
         """
         try:
+            # Track tool registration
+            start_time = time.time()
+            
             if tool.name in self._custom_tools:
                 logger.warning(f"Custom tool '{tool.name}' is already registered")
+                await self._monitoring.track_tool_registration(
+                    tool_name=tool.name,
+                    tool_type="custom_wrapped",
+                    category=category,
+                    success=False,
+                    error="Tool already registered",
+                    duration=time.time() - start_time
+                )
                 return False
                 
             # Create LangChain wrapper
@@ -221,10 +267,28 @@ class LangChainToolRegistry:
             # Enable by default
             self._enabled_tools.add(tool.name)
             
+            duration = time.time() - start_time
+            await self._monitoring.track_tool_registration(
+                tool_name=tool.name,
+                tool_type="custom_wrapped",
+                category=category,
+                success=True,
+                duration=duration
+            )
+            
             logger.info(f"Registered custom tool '{tool.name}' in category '{category}'")
             return True
             
         except Exception as e:
+            duration = time.time() - start_time
+            await self._monitoring.track_tool_registration(
+                tool_name=tool.name,
+                tool_type="custom_wrapped",
+                category=category,
+                success=False,
+                error=str(e),
+                duration=duration
+            )
             logger.error(f"Failed to register custom tool '{tool.name}': {str(e)}")
             return False
             
@@ -238,15 +302,114 @@ class LangChainToolRegistry:
             def _run(self, *args, **kwargs) -> Any:
                 """Synchronous run method"""
                 import asyncio
-                return asyncio.run(tool.execute_with_timeout(**kwargs))
+                
+                # Get monitoring instance
+                monitoring = getattr(self, '_monitoring', None)
+                if not monitoring:
+                    # Fallback to creating new instance
+                    monitoring = LangChainMonitoring()
+                    asyncio.run(monitoring.initialize())
+                
+                # Track tool execution
+                start_time = time.time()
+                execution_id = None
+                
+                try:
+                    # Start tracking
+                    execution_id = asyncio.run(monitoring.start_tool_execution(
+                        tool_name=tool.name,
+                        tool_type="custom_wrapped",
+                        parameters=kwargs
+                    ))
+                    
+                    # Execute tool
+                    result = asyncio.run(tool.execute_with_timeout(**kwargs))
+                    
+                    # Complete tracking
+                    duration = time.time() - start_time
+                    if result.success:
+                        asyncio.run(monitoring.complete_tool_execution(
+                            execution_id=execution_id,
+                            success=True,
+                            result=result.data,
+                            duration=duration
+                        ))
+                        return result.data
+                    else:
+                        asyncio.run(monitoring.complete_tool_execution(
+                            execution_id=execution_id,
+                            success=False,
+                            error=result.error,
+                            duration=duration
+                        ))
+                        raise Exception(f"Tool '{tool.name}' failed: {result.error}")
+                        
+                except Exception as e:
+                    # Track error
+                    duration = time.time() - start_time
+                    if execution_id:
+                        asyncio.run(monitoring.complete_tool_execution(
+                            execution_id=execution_id,
+                            success=False,
+                            error=str(e),
+                            duration=duration
+                        ))
+                    raise
                 
             async def _arun(self, *args, **kwargs) -> Any:
                 """Asynchronous run method"""
-                result = await tool.execute_with_timeout(**kwargs)
-                if result.success:
-                    return result.data
-                else:
-                    raise Exception(f"Tool '{tool.name}' failed: {result.error}")
+                # Get monitoring instance
+                monitoring = getattr(self, '_monitoring', None)
+                if not monitoring:
+                    # Fallback to creating new instance
+                    monitoring = LangChainMonitoring()
+                    await monitoring.initialize()
+                
+                # Track tool execution
+                start_time = time.time()
+                execution_id = None
+                
+                try:
+                    # Start tracking
+                    execution_id = await monitoring.start_tool_execution(
+                        tool_name=tool.name,
+                        tool_type="custom_wrapped",
+                        parameters=kwargs
+                    ))
+                    
+                    # Execute tool
+                    result = await tool.execute_with_timeout(**kwargs)
+                    
+                    # Complete tracking
+                    duration = time.time() - start_time
+                    if result.success:
+                        await monitoring.complete_tool_execution(
+                            execution_id=execution_id,
+                            success=True,
+                            result=result.data,
+                            duration=duration
+                        )
+                        return result.data
+                    else:
+                        await monitoring.complete_tool_execution(
+                            execution_id=execution_id,
+                            success=False,
+                            error=result.error,
+                            duration=duration
+                        )
+                        raise Exception(f"Tool '{tool.name}' failed: {result.error}")
+                        
+                except Exception as e:
+                    # Track error
+                    duration = time.time() - start_time
+                    if execution_id:
+                        await monitoring.complete_tool_execution(
+                            execution_id=execution_id,
+                            success=False,
+                            error=str(e),
+                            duration=duration
+                        )
+                    raise
                     
             @property
             def args_schema(self):
@@ -275,8 +438,11 @@ class LangChainToolRegistry:
                     # Add more types as needed
                     
                 return type("ToolSchema", (BaseModel,), fields)
-                
-        return CustomToolWrapper()
+        
+        # Set monitoring instance on wrapper
+        wrapper = CustomToolWrapper()
+        wrapper._monitoring = self._monitoring
+        return wrapper
         
     async def register_toolkit(
         self, 

@@ -161,6 +161,14 @@ class SecureSettingsManager:
                 "mongodb_connection_string": "mongodb://localhost:27017",
                 "mongodb_database_name": "multi_writer_system",
             },
+            "langchain_integration": {
+                "use_langchain_llm": False,
+                "use_langchain_tools": False,
+                "use_langchain_agents": False,
+                "use_langchain_memory": False,
+                "use_langgraph_workflows": False,
+                "use_memory_workflow": False,
+            },
         }
 
     def get_setting(self, category: str, key: str, default: Any = None) -> Any:

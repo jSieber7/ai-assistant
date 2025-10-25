@@ -14,10 +14,28 @@ import logging
 from ..core.config import settings
 from ..core.agents.management.registry import agent_registry
 from ..core.tools.execution.registry import tool_registry
+from ..core.langchain.integration import get_integration
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/agents", tags=["agents"])
+
+# Initialize LangGraph agents if integration is enabled
+async def initialize_langchain_agents():
+    """Initialize LangGraph agents if integration is enabled"""
+    try:
+        integration = get_integration()
+        if integration and integration.feature_flags.use_langchain_agents:
+            await integration.initialize_agents()
+            logger.info("LangGraph agents initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize LangGraph agents: {e}")
+
+# Add startup event to initialize LangGraph agents
+@router.on_event("startup")
+async def startup_event():
+    """Initialize LangGraph agents on startup"""
+    await initialize_langchain_agents()
 
 
 class AgentChatMessage(BaseModel):
@@ -97,13 +115,24 @@ async def agent_chat_completions(request: AgentChatRequest):
 
         last_user_message = user_messages[-1]
 
-        # Use the agent system to process the message
-        result = await agent_registry.process_message(
-            message=last_user_message.content,
-            agent_name=request.agent_name,
-            conversation_id=request.conversation_id,
-            context=request.context or {},
-        )
+        # Check if LangChain integration is enabled for agents
+        integration = get_integration()
+        if integration and integration.feature_flags.use_langchain_agents:
+            # Use new LangGraph agent manager
+            result = await integration.invoke_agent(
+                agent_name=request.agent_name or "conversational_agent",
+                message=last_user_message.content,
+                conversation_id=request.conversation_id,
+                context=request.context or {},
+            )
+        else:
+            # Use legacy agent registry
+            result = await agent_registry.process_message(
+                message=last_user_message.content,
+                agent_name=request.agent_name,
+                conversation_id=request.conversation_id,
+                context=request.context or {},
+            )
 
         # Format tool results for response
         tool_results = None
@@ -158,24 +187,45 @@ async def list_agents():
     if not settings.agent_system_enabled:
         return {"agents": [], "message": "Agent system is disabled"}
 
-    agents = agent_registry.list_agents(active_only=True)
-    agent_info_list = []
+    # Check if LangChain integration is enabled for agents
+    integration = get_integration()
+    if integration and integration.feature_flags.use_langchain_agents:
+        # Use new LangGraph agent manager
+        agents = await integration.list_agents(active_only=True)
+        agent_info_list = []
 
-    for agent in agents:
-        stats = agent.get_usage_stats()
-        agent_info_list.append(
-            AgentInfo(
-                name=agent.name,
-                description=agent.description,
-                version=agent.version,
-                state=agent.state.value,
-                usage_count=stats["usage_count"],
-                last_used=stats["last_used"],
-                categories=(
-                    agent.categories if hasattr(agent, "categories") else ["general"]
-                ),
+        for agent_info in agents:
+            agent_info_list.append(
+                AgentInfo(
+                    name=agent_info["name"],
+                    description=agent_info["description"],
+                    version="1.0.0",
+                    state="active",
+                    usage_count=agent_info["usage_count"],
+                    last_used=agent_info["last_used"],
+                    categories=[agent_info["type"]],
+                )
             )
-        )
+    else:
+        # Use legacy agent registry
+        agents = agent_registry.list_agents(active_only=True)
+        agent_info_list = []
+
+        for agent in agents:
+            stats = agent.get_usage_stats()
+            agent_info_list.append(
+                AgentInfo(
+                    name=agent.name,
+                    description=agent.description,
+                    version=agent.version,
+                    state=agent.state.value,
+                    usage_count=stats["usage_count"],
+                    last_used=stats["last_used"],
+                    categories=(
+                        agent.categories if hasattr(agent, "categories") else ["general"]
+                    ),
+                )
+            )
 
     return {"agents": agent_info_list, "total_count": len(agent_info_list)}
 
@@ -186,34 +236,67 @@ async def get_agent_info(agent_name: str):
     if not settings.agent_system_enabled:
         raise HTTPException(status_code=503, detail="Agent system is disabled")
 
-    agent = agent_registry.get_agent(agent_name)
-    if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
+    # Check if LangChain integration is enabled for agents
+    integration = get_integration()
+    if integration and integration.feature_flags.use_langchain_agents:
+        # Use new LangGraph agent manager
+        agents = await integration.list_agents(active_only=True)
+        agent_info = next((a for a in agents if a["name"] == agent_name), None)
+        
+        if not agent_info:
+            raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
 
-    stats = agent.get_usage_stats()
-    registry_stats = agent_registry.get_registry_stats()
-
-    return {
-        "agent": AgentInfo(
-            name=agent.name,
-            description=agent.description,
-            version=agent.version,
-            state=agent.state.value,
-            usage_count=stats["usage_count"],
-            last_used=stats["last_used"],
-            categories=(
-                agent.categories if hasattr(agent, "categories") else ["general"]
+        registry_stats = await integration.get_agent_registry_stats()
+        
+        return {
+            "agent": AgentInfo(
+                name=agent_info["name"],
+                description=agent_info["description"],
+                version="1.0.0",
+                state="active",
+                usage_count=agent_info["usage_count"],
+                last_used=agent_info["last_used"],
+                categories=[agent_info["type"]],
             ),
-        ),
-        "registry_info": {
-            "is_default": registry_stats["default_agent"] == agent_name,
-            "is_active": agent_name in registry_stats.get("active_agents", []),
-        },
-        "conversation_info": {
-            "current_conversation_id": stats.get("current_conversation_id"),
-            "conversation_history_length": stats.get("conversation_history_length", 0),
-        },
-    }
+            "registry_info": {
+                "is_default": False,  # LangGraph doesn't have default concept
+                "is_active": agent_info["enabled"],
+            },
+            "conversation_info": {
+                "current_conversation_id": None,
+                "conversation_history_length": 0,
+            },
+        }
+    else:
+        # Use legacy agent registry
+        agent = agent_registry.get_agent(agent_name)
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
+
+        stats = agent.get_usage_stats()
+        registry_stats = agent_registry.get_registry_stats()
+
+        return {
+            "agent": AgentInfo(
+                name=agent.name,
+                description=agent.description,
+                version=agent.version,
+                state=agent.state.value,
+                usage_count=stats["usage_count"],
+                last_used=stats["last_used"],
+                categories=(
+                    agent.categories if hasattr(agent, "categories") else ["general"]
+                ),
+            ),
+            "registry_info": {
+                "is_default": registry_stats["default_agent"] == agent_name,
+                "is_active": agent_name in registry_stats.get("active_agents", []),
+            },
+            "conversation_info": {
+                "current_conversation_id": stats.get("current_conversation_id"),
+                "conversation_history_length": stats.get("conversation_history_length", 0),
+            },
+        }
 
 
 @router.post("/{agent_name}/activate")
@@ -222,11 +305,22 @@ async def activate_agent(agent_name: str):
     if not settings.agent_system_enabled:
         raise HTTPException(status_code=503, detail="Agent system is disabled")
 
-    success = agent_registry.activate_agent(agent_name)
-    if not success:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
+    # Check if LangChain integration is enabled for agents
+    integration = get_integration()
+    if integration and integration.feature_flags.use_langchain_agents:
+        # Use new LangGraph agent manager
+        success = await integration.activate_agent(agent_name)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
 
-    return {"message": f"Agent '{agent_name}' activated successfully"}
+        return {"message": f"Agent '{agent_name}' activated successfully", "registry": "langgraph"}
+    else:
+        # Use legacy agent registry
+        success = agent_registry.activate_agent(agent_name)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
+
+        return {"message": f"Agent '{agent_name}' activated successfully", "registry": "legacy"}
 
 
 @router.post("/{agent_name}/deactivate")
@@ -235,11 +329,22 @@ async def deactivate_agent(agent_name: str):
     if not settings.agent_system_enabled:
         raise HTTPException(status_code=503, detail="Agent system is disabled")
 
-    success = agent_registry.deactivate_agent(agent_name)
-    if not success:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
+    # Check if LangChain integration is enabled for agents
+    integration = get_integration()
+    if integration and integration.feature_flags.use_langchain_agents:
+        # Use new LangGraph agent manager
+        success = await integration.deactivate_agent(agent_name)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
 
-    return {"message": f"Agent '{agent_name}' deactivated successfully"}
+        return {"message": f"Agent '{agent_name}' deactivated successfully", "registry": "langgraph"}
+    else:
+        # Use legacy agent registry
+        success = agent_registry.deactivate_agent(agent_name)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
+
+        return {"message": f"Agent '{agent_name}' deactivated successfully", "registry": "legacy"}
 
 
 @router.post("/{agent_name}/set-default")
@@ -248,13 +353,22 @@ async def set_default_agent(agent_name: str):
     if not settings.agent_system_enabled:
         raise HTTPException(status_code=503, detail="Agent system is disabled")
 
-    success = agent_registry.set_default_agent(agent_name)
-    if not success:
+    # Check if LangChain integration is enabled for agents
+    integration = get_integration()
+    if integration and integration.feature_flags.use_langchain_agents:
+        # LangGraph doesn't have default agent concept
         raise HTTPException(
-            status_code=400, detail=f"Cannot set '{agent_name}' as default agent"
+            status_code=501, detail="Default agent setting not supported in LangGraph mode"
         )
+    else:
+        # Use legacy agent registry
+        success = agent_registry.set_default_agent(agent_name)
+        if not success:
+            raise HTTPException(
+                status_code=400, detail=f"Cannot set '{agent_name}' as default agent"
+            )
 
-    return {"message": f"Agent '{agent_name}' set as default successfully"}
+        return {"message": f"Agent '{agent_name}' set as default successfully", "registry": "legacy"}
 
 
 @router.get("/{agent_name}/conversation/{conversation_id}")
@@ -263,17 +377,32 @@ async def get_conversation_history(agent_name: str, conversation_id: str):
     if not settings.agent_system_enabled:
         raise HTTPException(status_code=503, detail="Agent system is disabled")
 
-    agent = agent_registry.get_agent(agent_name)
-    if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
+    # Check if LangChain integration is enabled for agents
+    integration = get_integration()
+    if integration and integration.feature_flags.use_langchain_agents:
+        # Use new LangGraph agent manager
+        history = await integration.get_conversation_history(agent_name, conversation_id)
+        return {
+            "agent_name": agent_name,
+            "conversation_id": conversation_id,
+            "history": history,
+            "message_count": len(history),
+            "registry": "langgraph",
+        }
+    else:
+        # Use legacy agent registry
+        agent = agent_registry.get_agent(agent_name)
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
 
-    history = agent.get_conversation_history(conversation_id)
-    return {
-        "agent_name": agent_name,
-        "conversation_id": conversation_id,
-        "history": history,
-        "message_count": len(history),
-    }
+        history = agent.get_conversation_history(conversation_id)
+        return {
+            "agent_name": agent_name,
+            "conversation_id": conversation_id,
+            "history": history,
+            "message_count": len(history),
+            "registry": "legacy",
+        }
 
 
 @router.post("/{agent_name}/reset")
@@ -282,12 +411,23 @@ async def reset_agent(agent_name: str):
     if not settings.agent_system_enabled:
         raise HTTPException(status_code=503, detail="Agent system is disabled")
 
-    agent = agent_registry.get_agent(agent_name)
-    if not agent:
-        raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
+    # Check if LangChain integration is enabled for agents
+    integration = get_integration()
+    if integration and integration.feature_flags.use_langchain_agents:
+        # Use new LangGraph agent manager
+        success = await integration.reset_agent(agent_name)
+        if not success:
+            raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
 
-    agent.reset()
-    return {"message": f"Agent '{agent_name}' reset successfully"}
+        return {"message": f"Agent '{agent_name}' reset successfully", "registry": "langgraph"}
+    else:
+        # Use legacy agent registry
+        agent = agent_registry.get_agent(agent_name)
+        if not agent:
+            raise HTTPException(status_code=404, detail=f"Agent '{agent_name}' not found")
+
+        agent.reset()
+        return {"message": f"Agent '{agent_name}' reset successfully", "registry": "legacy"}
 
 
 @router.get("/registry/info")
@@ -296,14 +436,28 @@ async def get_registry_info():
     if not settings.agent_system_enabled:
         raise HTTPException(status_code=503, detail="Agent system is disabled")
 
-    stats = agent_registry.get_registry_stats()
-    return AgentRegistryInfo(
-        total_agents=stats["total_agents"],
-        active_agents=stats["active_agents"],
-        default_agent=stats["default_agent"],
-        categories=stats["categories"],
-        agents_by_category=stats["agents_by_category"],
-    )
+    # Check if LangChain integration is enabled for agents
+    integration = get_integration()
+    if integration and integration.feature_flags.use_langchain_agents:
+        # Use new LangGraph agent manager
+        stats = await integration.get_agent_registry_stats()
+        return AgentRegistryInfo(
+            total_agents=stats["total_agents"],
+            active_agents=stats["active_agents"],
+            default_agent=None,  # LangGraph doesn't have default concept
+            categories=stats["agent_types"].keys(),
+            agents_by_category=stats["agent_types"],
+        )
+    else:
+        # Use legacy agent registry
+        stats = agent_registry.get_registry_stats()
+        return AgentRegistryInfo(
+            total_agents=stats["total_agents"],
+            active_agents=stats["active_agents"],
+            default_agent=stats["default_agent"],
+            categories=stats["categories"],
+            agents_by_category=stats["agents_by_category"],
+        )
 
 
 @router.post("/registry/reset")
@@ -312,8 +466,16 @@ async def reset_all_agents():
     if not settings.agent_system_enabled:
         raise HTTPException(status_code=503, detail="Agent system is disabled")
 
-    agent_registry.reset_all_agents()
-    return {"message": "All agents reset successfully"}
+    # Check if LangChain integration is enabled for agents
+    integration = get_integration()
+    if integration and integration.feature_flags.use_langchain_agents:
+        # Use new LangGraph agent manager
+        await integration.reset_all_agents()
+        return {"message": "All agents reset successfully", "registry": "langgraph"}
+    else:
+        # Use legacy agent registry
+        agent_registry.reset_all_agents()
+        return {"message": "All agents reset successfully", "registry": "legacy"}
 
 
 @router.get("/tools/available")

@@ -6,6 +6,7 @@ supporting multiple backends with PostgreSQL persistence.
 """
 
 import logging
+import time
 from typing import Dict, List, Optional, Any, Union
 from enum import Enum
 from dataclasses import dataclass
@@ -21,6 +22,8 @@ from langchain_openai import OpenAIEmbeddings
 
 from app.core.config import settings
 from app.core.secure_settings import secure_settings
+from app.core.storage.langchain_client import get_langchain_client
+from .monitoring import LangChainMonitoring
 
 logger = logging.getLogger(__name__)
 
@@ -78,21 +81,31 @@ class LangChainMemoryManager:
     - Conversation lifecycle management
     - Memory search and retrieval
     """
-    
     def __init__(self):
         self._memory_backends: Dict[str, BaseMemory] = {}
         self._chat_histories: Dict[str, PostgreSQLChatMessageHistory] = {}
         self._vector_stores: Dict[str, PGVector] = {}
         self._embeddings: Optional[OpenAIEmbeddings] = None
         self._conversation_cache: Dict[str, ConversationInfo] = {}
+        self._db_client = None
         self._initialized = False
+        self._monitoring = LangChainMonitoring()
         
     async def initialize(self):
-        """Initialize the memory manager"""
+        """Initialize memory manager"""
         if self._initialized:
             return
-            
+                
         logger.info("Initializing LangChain Memory Manager...")
+        
+        # Initialize monitoring
+        await self._monitoring.initialize()
+        
+        # Initialize database client
+        await self._initialize_database_client()
+        
+        # Load existing conversations from database
+        await self._load_conversations_from_database()
         
         # Initialize embeddings
         await self._initialize_embeddings()
@@ -235,61 +248,146 @@ class LangChainMemoryManager:
             logger.error(f"Failed to get PostgreSQL connection string: {str(e)}")
             return None
             
-    async def create_conversation(
-        self,
-        conversation_id: str,
-        agent_name: Optional[str] = None,
-        title: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> bool:
-        """
-        Create a new conversation.
-        
-        Args:
-            conversation_id: Unique conversation identifier
-            agent_name: Name of the agent
-            title: Conversation title
-            metadata: Additional metadata
-            
-        Returns:
-            True if successful, False otherwise
-        """
+    async def _initialize_database_client(self):
+        """Initialize the LangChain database client"""
         try:
-            # Store conversation info
-            conversation_info = ConversationInfo(
-                conversation_id=conversation_id,
-                agent_name=agent_name,
-                title=title,
-                created_at=datetime.now(),
-                updated_at=datetime.now(),
-                metadata=metadata or {}
-            )
+            self._db_client = get_langchain_client()
+            if self._db_client:
+                logger.info("Initialized LangChain database client")
+            else:
+                logger.warning("Failed to initialize LangChain database client")
+        except Exception as e:
+            logger.error(f"Failed to initialize database client: {str(e)}")
             
-            self._conversation_cache[conversation_id] = conversation_info
+    async def _load_conversations_from_database(self):
+        """Load existing conversations from database"""
+        try:
+            if not self._db_client:
+                return
+                
+            # Get conversations from database
+            conversations = await self._db_client.list_conversations(limit=1000)
             
-            # Create chat history for this conversation
-            if MemoryType.CONVERSATION.value in self._memory_backends:
-                connection_string = await self._get_postgres_connection_string()
-                if connection_string:
-                    chat_history = PostgreSQLChatMessageHistory(
-                        connection_string=connection_string,
-                        session_id=conversation_id
-                    )
-                    self._chat_histories[conversation_id] = chat_history
-                    
-                    # Store initial system message if provided
-                    if metadata and "system_message" in metadata:
-                        await chat_history.add_message(
-                            SystemMessage(content=metadata["system_message"])
-                        )
-                        
-            logger.info(f"Created conversation '{conversation_id}'")
-            return True
+            # Load into cache
+            for conv in conversations:
+                conversation_info = ConversationInfo(
+                    conversation_id=conv["conversation_id"],
+                    agent_name=conv.get("agent_name"),
+                    title=conv.get("title"),
+                    created_at=conv.get("created_at"),
+                    updated_at=conv.get("updated_at"),
+                    message_count=conv.get("message_count", 0),
+                    metadata=conv.get("metadata", {})
+                )
+                self._conversation_cache[conv["conversation_id"]] = conversation_info
+                
+            logger.info(f"Loaded {len(conversations)} conversations from database")
             
         except Exception as e:
-            logger.error(f"Failed to create conversation '{conversation_id}': {str(e)}")
-            return False
+            logger.error(f"Failed to load conversations from database: {str(e)}")
             
+    async def create_conversation(
+        async def create_conversation(
+            self,
+            conversation_id: str,
+            agent_name: Optional[str] = None,
+            title: Optional[str] = None,
+            metadata: Optional[Dict[str, Any]] = None
+        ) -> bool:
+            """
+            Create a new conversation.
+            
+            Args:
+                conversation_id: Unique conversation identifier
+                agent_name: Name of the agent
+                title: Conversation title
+                metadata: Additional metadata
+                
+            Returns:
+                True if successful, False otherwise
+            """
+            start_time = time.time()
+            
+            try:
+                # Store conversation info
+                conversation_info = ConversationInfo(
+                    conversation_id=conversation_id,
+                    agent_name=agent_name,
+                    title=title,
+                    created_at=datetime.now(),
+                    updated_at=datetime.now(),
+                    metadata=metadata or {}
+                )
+                
+                # Save to database
+                if self._db_client:
+                    await self._db_client.create_conversation(
+                        conversation_id=conversation_id,
+                        agent_name=agent_name,
+                        title=title,
+                        metadata=metadata or {}
+                    )
+                
+                self._conversation_cache[conversation_id] = conversation_info
+                
+                # Create chat history for this conversation
+                if MemoryType.CONVERSATION.value in self._memory_backends:
+                    connection_string = await self._get_postgres_connection_string()
+                    if connection_string:
+                        chat_history = PostgreSQLChatMessageHistory(
+                            connection_string=connection_string,
+                            session_id=conversation_id
+                        )
+                        self._chat_histories[conversation_id] = chat_history
+                        
+                        # Store initial system message if provided
+                        if metadata and "system_message" in metadata:
+                            system_message = SystemMessage(content=metadata["system_message"])
+                            await chat_history.add_message(system_message)
+                            
+                            # Also save to database
+                            if self._db_client:
+                                await self._db_client.add_chat_message(
+                                    conversation_id=conversation_id,
+                                    role="system",
+                                    content=metadata["system_message"],
+                                    metadata={"type": "system_message"}
+                                )
+                            
+                # Record success metric
+                await self._monitoring.record_metric(
+                    component_type="memory",
+                    component_name="conversation_creation",
+                    metric_name="success",
+                    metric_value=1,
+                    metadata={"conversation_id": conversation_id, "agent_name": agent_name}
+                )
+                
+                logger.info(f"Created conversation '{conversation_id}'")
+                return True
+                
+            except Exception as e:
+                # Record error metric
+                await self._monitoring.record_metric(
+                    component_type="memory",
+                    component_name="conversation_creation",
+                    metric_name="error",
+                    metric_value=1,
+                    metadata={"conversation_id": conversation_id, "error": str(e)}
+                )
+                logger.error(f"Failed to create conversation '{conversation_id}': {str(e)}")
+                return False
+                
+            finally:
+                # Record duration metric
+                duration = time.time() - start_time
+                await self._monitoring.record_metric(
+                    component_type="memory",
+                    component_name="conversation_creation",
+                    metric_name="duration",
+                    metric_value=duration,
+                    metadata={"conversation_id": conversation_id}
+                )
     async def add_message(
         self,
         conversation_id: str,
@@ -309,11 +407,28 @@ class LangChainMemoryManager:
         Returns:
             True if successful, False otherwise
         """
+        start_time = time.time()
+        
         try:
             # Update conversation info
             if conversation_id in self._conversation_cache:
                 self._conversation_cache[conversation_id].updated_at = datetime.now()
                 self._conversation_cache[conversation_id].message_count += 1
+                
+            # Save to database
+            if self._db_client:
+                await self._db_client.add_chat_message(
+                    conversation_id=conversation_id,
+                    role=role,
+                    content=content,
+                    metadata=metadata or {}
+                )
+                
+                # Update conversation in database
+                await self._db_client.update_conversation(
+                    conversation_id=conversation_id,
+                    updated_at=datetime.now()
+                )
                 
             # Add to chat history
             if conversation_id in self._chat_histories:
@@ -344,12 +459,40 @@ class LangChainMemoryManager:
                         }]
                     )
                     
+            # Record success metric
+            await self._monitoring.record_metric(
+                component_type="memory",
+                component_name="message_addition",
+                metric_name="success",
+                metric_value=1,
+                metadata={"conversation_id": conversation_id, "role": role}
+            )
+            
             logger.debug(f"Added {role} message to conversation '{conversation_id}'")
             return True
             
         except Exception as e:
+            # Record error metric
+            await self._monitoring.record_metric(
+                component_type="memory",
+                component_name="message_addition",
+                metric_name="error",
+                metric_value=1,
+                metadata={"conversation_id": conversation_id, "role": role, "error": str(e)}
+            )
             logger.error(f"Failed to add message to conversation '{conversation_id}': {str(e)}")
             return False
+            
+        finally:
+            # Record duration metric
+            duration = time.time() - start_time
+            await self._monitoring.record_metric(
+                component_type="memory",
+                component_name="message_addition",
+                metric_name="duration",
+                metric_value=duration,
+                metadata={"conversation_id": conversation_id, "role": role}
+            )
             
     async def get_conversation_messages(
         self,
@@ -367,17 +510,28 @@ class LangChainMemoryManager:
             List of message dictionaries
         """
         try:
+            # Try to get messages from database first
+            if self._db_client:
+                messages = await self._db_client.get_chat_messages(
+                    conversation_id=conversation_id,
+                    limit=limit
+                )
+                
+                if messages:
+                    return messages
+            
+            # Fallback to chat history
             if conversation_id in self._chat_histories:
                 chat_history = self._chat_histories[conversation_id]
-                messages = await chat_history.aget_messages()
+                langchain_messages = await chat_history.aget_messages()
                 
                 # Apply limit if specified
                 if limit:
-                    messages = messages[-limit:]
+                    langchain_messages = langchain_messages[-limit:]
                     
                 # Convert to dictionaries
                 result = []
-                for message in messages:
+                for message in langchain_messages:
                     result.append({
                         "role": self._get_message_role(message),
                         "content": message.content,
@@ -463,6 +617,24 @@ class LangChainMemoryManager:
         Returns:
             ConversationInfo or None if not found
         """
+        # Try to get from database first
+        if self._db_client:
+            try:
+                conv = await self._db_client.get_conversation(conversation_id)
+                if conv:
+                    return ConversationInfo(
+                        conversation_id=conv["conversation_id"],
+                        agent_name=conv.get("agent_name"),
+                        title=conv.get("title"),
+                        created_at=conv.get("created_at"),
+                        updated_at=conv.get("updated_at"),
+                        message_count=conv.get("message_count", 0),
+                        metadata=conv.get("metadata", {})
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to get conversation from database: {str(e)}")
+        
+        # Fallback to in-memory cache
         return self._conversation_cache.get(conversation_id)
         
     async def list_conversations(
@@ -480,12 +652,40 @@ class LangChainMemoryManager:
         Returns:
             List of ConversationInfo objects
         """
+        # Try to get conversations from database first
+        if self._db_client:
+            try:
+                db_conversations = await self._db_client.list_conversations(
+                    agent_name=agent_name,
+                    limit=limit
+                )
+                
+                if db_conversations:
+                    # Convert to ConversationInfo objects
+                    conversations = []
+                    for conv in db_conversations:
+                        conversation_info = ConversationInfo(
+                            conversation_id=conv["conversation_id"],
+                            agent_name=conv.get("agent_name"),
+                            title=conv.get("title"),
+                            created_at=conv.get("created_at"),
+                            updated_at=conv.get("updated_at"),
+                            message_count=conv.get("message_count", 0),
+                            metadata=conv.get("metadata", {})
+                        )
+                        conversations.append(conversation_info)
+                    
+                    return conversations
+            except Exception as e:
+                logger.warning(f"Failed to get conversations from database: {str(e)}")
+        
+        # Fallback to in-memory cache
         conversations = list(self._conversation_cache.values())
         
         # Filter by agent name
         if agent_name:
             conversations = [
-                conv for conv in conversations 
+                conv for conv in conversations
                 if conv.agent_name == agent_name
             ]
             
@@ -509,6 +709,10 @@ class LangChainMemoryManager:
             True if successful, False otherwise
         """
         try:
+            # Delete from database
+            if self._db_client:
+                await self._db_client.delete_conversation(conversation_id=conversation_id)
+                
             # Remove from cache
             if conversation_id in self._conversation_cache:
                 del self._conversation_cache[conversation_id]

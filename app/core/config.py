@@ -284,6 +284,126 @@ class MilvusSettings(BaseSettings):
         env_prefix = "MILVUS_"
 
 
+class LangChainSettings(BaseSettings):
+    """LangChain configuration settings"""
+
+    # General LangChain settings
+    enabled: bool = True
+    verbose: bool = False
+    debug: bool = False
+
+    # LLM settings
+    default_temperature: float = 0.7
+    default_max_tokens: Optional[int] = None
+    default_streaming: bool = True
+
+    # Embedding settings
+    embedding_model: str = "text-embedding-ada-002"
+    embedding_dimension: int = 1536
+    embedding_batch_size: int = 100
+
+    # Chain settings
+    max_chain_iterations: int = 10
+    chain_timeout: int = 120
+    memory_enabled: bool = True
+
+    # Tool settings
+    max_tool_execution_time: int = 60
+    tool_error_handling: str = "raise"  # raise, ignore, continue
+
+    class Config:
+        env_prefix = "LANGCHAIN_"
+
+
+class LangGraphSettings(BaseSettings):
+    """LangGraph workflow configuration settings"""
+
+    # General LangGraph settings
+    enabled: bool = True
+    checkpoint_backend: str = "memory"  # memory, redis, postgres
+    checkpoint_ttl: int = 3600  # Time to live for checkpoints (seconds)
+
+    # Workflow settings
+    max_workflow_steps: int = 50
+    workflow_timeout: int = 300  # 5 minutes
+    max_parallel_nodes: int = 5
+
+    # State management
+    state_persistence: bool = True
+    state_serialization: str = "json"  # json, pickle
+
+    # Error handling
+    retry_on_failure: bool = True
+    max_retries: int = 3
+    retry_delay: float = 1.0
+
+    # Monitoring
+    enable_tracing: bool = False
+    tracing_backend: str = "console"  # console, langsmith, custom
+
+    class Config:
+        env_prefix = "LANGGRAPH_"
+
+
+class VectorStoreSettings(BaseSettings):
+    """Enhanced vector store configuration for LangChain integration"""
+
+    # General settings
+    enabled: bool = True
+    provider: str = "milvus"  # milvus, chroma, faiss, pinecone
+    default_collection: str = "langchain_documents"
+
+    # Embedding settings
+    embedding_provider: str = "openai"  # openai, huggingface, sentence_transformers
+    embedding_model: str = "text-embedding-ada-002"
+    embedding_dimension: int = 1536
+
+    # Search settings
+    search_type: str = "similarity"  # similarity, mmr, similarity_score_threshold
+    search_kwargs: Dict[str, Any] = {"k": 4}
+    score_threshold: float = 0.5
+
+    # Performance settings
+    batch_size: int = 100
+    max_retries: int = 3
+    timeout: int = 30
+
+    # ChromaDB specific settings (if using Chroma)
+    chroma_persist_directory: Optional[str] = None
+    chroma_host: Optional[str] = None
+    chroma_port: Optional[int] = None
+
+    class Config:
+        env_prefix = "VECTOR_STORE_"
+
+
+class FirebaseSettings(BaseSettings):
+    """Firebase configuration for scraper_agent and real-time sync"""
+
+    # General settings
+    enabled: bool = False
+    project_id: Optional[str] = None
+
+    # Authentication
+    service_account_key_path: Optional[str] = None
+    service_account_key_json: Optional[str] = None
+
+    # Database settings
+    database_url: Optional[str] = None
+    database_timeout: int = 30
+
+    # Storage settings
+    storage_bucket: Optional[str] = None
+    storage_timeout: int = 60
+
+    # Real-time settings
+    realtime_enabled: bool = True
+    realtime_timeout: int = 30
+
+    class Config:
+        env_prefix = "FIREBASE_"
+
+
 class Settings(BaseSettings):
     # OpenAI-compatible provider settings (new generic approach)
     openai_settings: OpenAISettings = OpenAISettings()
@@ -343,6 +463,18 @@ class Settings(BaseSettings):
 
     # Milvus settings
     milvus_settings: MilvusSettings = MilvusSettings()
+
+    # LangChain settings
+    langchain_settings: LangChainSettings = LangChainSettings()
+
+    # LangGraph settings
+    langgraph_settings: LangGraphSettings = LangGraphSettings()
+
+    # Vector store settings
+    vector_store_settings: VectorStoreSettings = VectorStoreSettings()
+
+    # Firebase settings
+    firebase_settings: FirebaseSettings = FirebaseSettings()
 
     # Visual LMM system settings
     visual_system_enabled: bool = True
@@ -492,6 +624,53 @@ settings = Settings()
 
 def initialize_llm_providers():
     """Initialize all configured LLM providers with backward compatibility"""
+    # Try to initialize LangChain integration layer first
+    try:
+        from .langchain.integration import integration_layer
+        import asyncio
+        
+        # Create a simple synchronous wrapper
+        def _sync_init_langchain():
+            try:
+                # Create a new event loop for this thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    # Initialize integration layer
+                    loop.run_until_complete(integration_layer.initialize())
+                    
+                    # Check if LangChain LLM is enabled
+                    if integration_layer._feature_flags.get("use_langchain_llm", False):
+                        logger.info("LangChain LLM manager initialized via integration layer")
+                        return True
+                    else:
+                        logger.info("LangChain LLM manager disabled, falling back to legacy system")
+                        return False
+                finally:
+                    loop.close()
+            except Exception as e:
+                logger.error(f"Failed to initialize LangChain integration layer: {str(e)}")
+                return False
+        
+        # Use threading to avoid event loop issues
+        import concurrent.futures
+        
+        # Use a thread pool to run the async function
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_sync_init_langchain)
+            try:
+                langchain_enabled = future.result(timeout=30)
+                if langchain_enabled:
+                    return True  # LangChain is enabled, skip legacy initialization
+            except Exception as e:
+                logger.error(f"Failed to initialize LangChain from thread: {str(e)}")
+                
+    except ImportError:
+        logger.debug("LangChain integration layer not available, using legacy system")
+    except Exception as e:
+        logger.warning(f"Failed to use LangChain integration layer: {str(e)}, falling back to legacy system")
+
+    # Fallback to legacy provider system
     from .llm_providers import (
         OpenAICompatibleProvider,
         OpenRouterProvider,
@@ -696,6 +875,28 @@ async def get_llm(model_name: Optional[str] = None, **kwargs):
     Returns:
         LangChain LLM instance or a mock LLM if no providers are configured
     """
+    # Try to use LangChain integration layer first
+    try:
+        from .langchain.integration import integration_layer
+        
+        # Initialize integration layer if not already done
+        if not integration_layer._initialized:
+            await integration_layer.initialize()
+            
+        # Use integration layer if LangChain LLM is enabled
+        if integration_layer._feature_flags.get("use_langchain_llm", False):
+            # Use default model if none specified
+            if not model_name:
+                model_name = settings.default_model
+                
+            return await integration_layer.get_llm(model_name, **kwargs)
+            
+    except ImportError:
+        logger.debug("LangChain integration layer not available, using legacy system")
+    except Exception as e:
+        logger.warning(f"Failed to use LangChain integration layer: {str(e)}, falling back to legacy system")
+
+    # Fallback to legacy provider system
     from .llm_providers import provider_registry
 
     if not provider_registry.list_providers():
@@ -851,6 +1052,62 @@ def _create_mock_llm(model_name: str, **kwargs):
 
 def get_available_models():
     """Get all available models from all configured providers"""
+    # Try to use LangChain integration layer first
+    try:
+        from .langchain.integration import integration_layer
+        
+        # Initialize integration layer if not already done
+        import asyncio
+        
+        # Create a simple synchronous wrapper
+        def _sync_get_langchain_models():
+            try:
+                # Create a new event loop for this thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    # Initialize integration layer
+                    loop.run_until_complete(integration_layer.initialize())
+                    
+                    # Check if LangChain LLM is enabled
+                    if integration_layer._feature_flags.get("use_langchain_llm", False):
+                        # Get models from LangChain LLM manager
+                        async def _get_models():
+                            from .langchain.llm_manager import llm_manager
+                            return await llm_manager.list_models()
+                        
+                        return loop.run_until_complete(_get_models())
+                    else:
+                        # Fall back to legacy system
+                        return _get_legacy_models()
+                finally:
+                    loop.close()
+            except Exception as e:
+                logger.error(f"Failed to get models from LangChain: {str(e)}")
+                return _get_legacy_models()
+        
+        # Use threading to avoid event loop issues
+        import concurrent.futures
+        
+        # Use a thread pool to run the async function
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_sync_get_langchain_models)
+            try:
+                return future.result(timeout=30)
+            except Exception as e:
+                logger.error(f"Failed to get models from thread: {str(e)}")
+                return _get_legacy_models()
+                
+    except ImportError:
+        logger.debug("LangChain integration layer not available, using legacy system")
+        return _get_legacy_models()
+    except Exception as e:
+        logger.warning(f"Failed to use LangChain integration layer: {str(e)}, falling back to legacy system")
+        return _get_legacy_models()
+
+
+def _get_legacy_models():
+    """Get models from legacy provider system"""
     from .llm_providers import provider_registry
 
     if not provider_registry.list_providers():
@@ -891,6 +1148,53 @@ def get_available_models():
 
 def initialize_agent_system():
     """Initialize the agent system with default agents"""
+    # Try to use LangChain integration layer first
+    try:
+        from .langchain.integration import integration_layer
+        import asyncio
+        
+        # Create a simple synchronous wrapper
+        def _sync_init_langchain_agents():
+            try:
+                # Create a new event loop for this thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    # Initialize integration layer
+                    loop.run_until_complete(integration_layer.initialize())
+                    
+                    # Check if LangChain agents is enabled
+                    if integration_layer._feature_flags.get("use_langchain_agents", False):
+                        logger.info("LangChain agent manager initialized via integration layer")
+                        return True
+                    else:
+                        logger.info("LangChain agent manager disabled, falling back to legacy system")
+                        return False
+                finally:
+                    loop.close()
+            except Exception as e:
+                logger.error(f"Failed to initialize LangChain integration layer: {str(e)}")
+                return False
+        
+        # Use threading to avoid event loop issues
+        import concurrent.futures
+        
+        # Use a thread pool to run the async function
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_sync_init_langchain_agents)
+            try:
+                langchain_enabled = future.result(timeout=30)
+                if langchain_enabled:
+                    return True  # LangChain is enabled, skip legacy initialization
+            except Exception as e:
+                logger.error(f"Failed to initialize LangChain agents from thread: {str(e)}")
+                
+    except ImportError:
+        logger.debug("LangChain integration layer not available, using legacy system")
+    except Exception as e:
+        logger.warning(f"Failed to use LangChain integration layer: {str(e)}, falling back to legacy system")
+
+    # Fallback to legacy agent system
     from .agents.management.registry import agent_registry
     from .agents.specialized.tool_agent import ToolAgent
     from .agents.utilities.strategies import KeywordStrategy
@@ -951,6 +1255,26 @@ def initialize_agent_system():
 
 async def initialize_agent_system_async():
     """Async version of initialize_agent_system for contexts where async is available"""
+    # Try to use LangChain integration layer first
+    try:
+        from .langchain.integration import integration_layer
+        
+        # Initialize integration layer if not already done
+        await integration_layer.initialize()
+        
+        # Check if LangChain agents is enabled
+        if integration_layer._feature_flags.get("use_langchain_agents", False):
+            logger.info("LangChain agent manager initialized via integration layer")
+            return True
+        else:
+            logger.info("LangChain agent manager disabled, falling back to legacy system")
+            
+    except ImportError:
+        logger.debug("LangChain integration layer not available, using legacy system")
+    except Exception as e:
+        logger.warning(f"Failed to use LangChain integration layer: {str(e)}, falling back to legacy system")
+
+    # Fallback to legacy agent system
     from .agents.management.registry import agent_registry
     from .agents.specialized.tool_agent import ToolAgent
     from .agents.utilities.strategies import KeywordStrategy
@@ -1091,3 +1415,326 @@ def initialize_visual_system():
                 "error": str(e),
             }
         }
+
+
+def initialize_langchain_components():
+    """Initialize LangChain components including embeddings, vector stores, and memory"""
+    if not settings.langchain_settings.enabled:
+        logger.info("LangChain components disabled in settings")
+        return None
+    
+    try:
+        # Initialize LLM providers first
+        initialize_llm_providers()
+        
+        # Import LangChain components
+        from langchain.embeddings import OpenAIEmbeddings
+        from langchain.vectorstores import Milvus, Chroma
+        from langchain.memory import ConversationBufferMemory, ConversationSummaryMemory
+        from langchain.chains import ConversationChain, LLMChain
+        import asyncio
+        
+        components = {}
+        
+        # Initialize embeddings
+        try:
+            if settings.vector_store_settings.embedding_provider == "openai":
+                embeddings = OpenAIEmbeddings(
+                    model=settings.vector_store_settings.embedding_model,
+                    chunk_size=settings.langchain_settings.embedding_batch_size
+                )
+                components["embeddings"] = embeddings
+                logger.info("OpenAI embeddings initialized")
+            else:
+                logger.warning(f"Embedding provider {settings.vector_store_settings.embedding_provider} not yet implemented")
+        except Exception as e:
+            logger.error(f"Failed to initialize embeddings: {str(e)}")
+        
+        # Initialize vector store
+        try:
+            if settings.vector_store_settings.provider == "milvus" and "embeddings" in components:
+                vector_store = Milvus(
+                    embedding_function=components["embeddings"],
+                    connection_args={
+                        "host": settings.milvus_settings.host,
+                        "port": settings.milvus_settings.port,
+                    },
+                    collection_name=settings.vector_store_settings.default_collection,
+                    index_type=settings.milvus_settings.index_type,
+                    metric_type=settings.milvus_settings.metric_type,
+                )
+                components["vector_store"] = vector_store
+                logger.info("Milvus vector store initialized")
+            elif settings.vector_store_settings.provider == "chroma" and "embeddings" in components:
+                if settings.vector_store_settings.chroma_persist_directory:
+                    vector_store = Chroma(
+                        embedding_function=components["embeddings"],
+                        persist_directory=settings.vector_store_settings.chroma_persist_directory,
+                        collection_name=settings.vector_store_settings.default_collection,
+                    )
+                else:
+                    vector_store = Chroma(
+                        embedding_function=components["embeddings"],
+                        collection_name=settings.vector_store_settings.default_collection,
+                    )
+                components["vector_store"] = vector_store
+                logger.info("Chroma vector store initialized")
+            else:
+                logger.warning(f"Vector store provider {settings.vector_store_settings.provider} not yet implemented")
+        except Exception as e:
+            logger.error(f"Failed to initialize vector store: {str(e)}")
+        
+        # Initialize memory
+        try:
+            if settings.langchain_settings.memory_enabled:
+                memory = ConversationBufferMemory(
+                    memory_key="chat_history",
+                    return_messages=True
+                )
+                components["memory"] = memory
+                logger.info("Conversation memory initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize memory: {str(e)}")
+        
+        logger.info("LangChain components initialization completed")
+        return components
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize LangChain components: {str(e)}")
+        return None
+
+
+def initialize_langgraph_workflows():
+    """Initialize LangGraph workflows and state management"""
+    if not settings.langgraph_settings.enabled:
+        logger.info("LangGraph workflows disabled in settings")
+        return None
+    
+    try:
+        # Import LangGraph components
+        from langgraph.graph import StateGraph, END
+        from langgraph.checkpoint.memory import MemorySaver
+        from langgraph.checkpoint.sqlite import SqliteSaver
+        import asyncio
+        
+        workflows = {}
+        
+        # Initialize checkpoint saver
+        try:
+            if settings.langgraph_settings.checkpoint_backend == "memory":
+                checkpoint_saver = MemorySaver()
+                workflows["checkpoint_saver"] = checkpoint_saver
+                logger.info("Memory checkpoint saver initialized")
+            elif settings.langgraph_settings.checkpoint_backend == "sqlite":
+                checkpoint_saver = SqliteSaver.from_conn_string(":memory:")
+                workflows["checkpoint_saver"] = checkpoint_saver
+                logger.info("SQLite checkpoint saver initialized")
+            else:
+                logger.warning(f"Checkpoint backend {settings.langgraph_settings.checkpoint_backend} not yet implemented")
+        except Exception as e:
+            logger.error(f"Failed to initialize checkpoint saver: {str(e)}")
+        
+        # Initialize basic workflow templates
+        try:
+            # Create a simple conversation workflow
+            conversation_workflow = StateGraph(dict)
+            
+            # Define nodes (will be populated by specific agents)
+            def start_node(state):
+                return {"messages": state.get("messages", [])}
+            
+            def end_node(state):
+                return state
+            
+            # Add nodes to the graph
+            conversation_workflow.add_node("start", start_node)
+            conversation_workflow.add_node("end", end_node)
+            
+            # Set entry point
+            conversation_workflow.set_entry_point("start")
+            conversation_workflow.add_edge("start", "end")
+            conversation_workflow.add_edge("end", END)
+            
+            # Compile the workflow
+            if "checkpoint_saver" in workflows:
+                compiled_workflow = conversation_workflow.compile(checkpointer=workflows["checkpoint_saver"])
+            else:
+                compiled_workflow = conversation_workflow.compile()
+            
+            workflows["conversation"] = compiled_workflow
+            logger.info("Basic conversation workflow initialized")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize basic workflows: {str(e)}")
+        
+        logger.info("LangGraph workflows initialization completed")
+        return workflows
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize LangGraph workflows: {str(e)}")
+        return None
+
+
+def initialize_firebase_integration():
+    """Initialize Firebase integration for real-time sync and storage"""
+    if not settings.firebase_settings.enabled:
+        logger.info("Firebase integration disabled in settings")
+        return None
+    
+    try:
+        import firebase_admin
+        from firebase_admin import credentials, firestore, storage
+        import json
+        import os
+        
+        firebase_components = {}
+        
+        # Initialize Firebase app
+        try:
+            # Check if already initialized
+            if not firebase_admin._apps:
+                if settings.firebase_settings.service_account_key_path and os.path.exists(settings.firebase_settings.service_account_key_path):
+                    cred = credentials.Certificate(settings.firebase_settings.service_account_key_path)
+                elif settings.firebase_settings.service_account_key_json:
+                    cred_dict = json.loads(settings.firebase_settings.service_account_key_json)
+                    cred = credentials.Certificate(cred_dict)
+                else:
+                    logger.warning("No Firebase service account credentials provided")
+                    return None
+                
+                app = firebase_admin.initialize_app(cred, {
+                    'projectId': settings.firebase_settings.project_id,
+                    'databaseURL': settings.firebase_settings.database_url,
+                    'storageBucket': settings.firebase_settings.storage_bucket,
+                })
+                
+                firebase_components["app"] = app
+                logger.info("Firebase app initialized")
+            else:
+                firebase_components["app"] = firebase_admin.get_app()
+                logger.info("Using existing Firebase app")
+                
+        except Exception as e:
+            logger.error(f"Failed to initialize Firebase app: {str(e)}")
+            return None
+        
+        # Initialize Firestore
+        try:
+            db = firestore.client()
+            firebase_components["firestore"] = db
+            logger.info("Firestore client initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize Firestore: {str(e)}")
+        
+        # Initialize Storage
+        try:
+            if settings.firebase_settings.storage_bucket:
+                storage_client = storage.bucket()
+                firebase_components["storage"] = storage_client
+                logger.info("Firebase Storage client initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize Firebase Storage: {str(e)}")
+        
+        logger.info("Firebase integration initialization completed")
+        return firebase_components
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize Firebase integration: {str(e)}")
+        return None
+
+
+def initialize_all_langchain_components():
+    """Initialize all LangChain/LangGraph components in the correct order"""
+    logger.info("Starting initialization of all LangChain/LangGraph components")
+    
+    results = {}
+    
+    # 0. Initialize LangChain integration layer first
+    try:
+        from .langchain.integration import integration_layer
+        import asyncio
+        
+        # Create a simple synchronous wrapper
+        def _sync_init_integration():
+            try:
+                # Create a new event loop for this thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    # Initialize integration layer
+                    loop.run_until_complete(integration_layer.initialize())
+                    
+                    # Get feature flags and integration mode
+                    feature_flags = integration_layer.get_feature_flags()
+                    integration_mode = integration_layer.get_integration_mode()
+                    
+                    logger.info(f"LangChain integration layer initialized in {integration_mode.value} mode")
+                    logger.info(f"Feature flags: {feature_flags}")
+                    
+                    return True, feature_flags, integration_mode
+                finally:
+                    loop.close()
+            except Exception as e:
+                logger.error(f"Failed to initialize LangChain integration layer: {str(e)}")
+                return False, {}, None
+        
+        # Use threading to avoid event loop issues
+        import concurrent.futures
+        
+        # Use a thread pool to run the async function
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_sync_init_integration)
+            try:
+                integration_success, feature_flags, integration_mode = future.result(timeout=30)
+                if integration_success:
+                    results["integration"] = {"status": "success", "mode": integration_mode.value, "feature_flags": feature_flags}
+                else:
+                    results["integration"] = {"status": "failed", "error": "Failed to initialize integration layer"}
+            except Exception as e:
+                logger.error(f"Failed to initialize integration layer from thread: {str(e)}")
+                results["integration"] = {"status": "failed", "error": str(e)}
+                
+    except ImportError:
+        logger.debug("LangChain integration layer not available")
+        results["integration"] = {"status": "skipped", "reason": "Integration layer not available"}
+    except Exception as e:
+        logger.error(f"Failed to initialize LangChain integration layer: {str(e)}")
+        results["integration"] = {"status": "failed", "error": str(e)}
+    
+    # 1. Initialize LangChain components (only if integration layer is available and enabled)
+    if results.get("integration", {}).get("status") == "success" and feature_flags.get("use_langchain_llm", False):
+        langchain_result = initialize_langchain_components()
+        if langchain_result:
+            results["langchain"] = {"status": "success", "components": langchain_result}
+        else:
+            results["langchain"] = {"status": "failed", "error": "Failed to initialize LangChain components"}
+    else:
+        results["langchain"] = {"status": "skipped", "reason": "LangChain LLM disabled or integration layer not available"}
+    
+    # 2. Initialize LangGraph workflows (only if integration layer is available and enabled)
+    if results.get("integration", {}).get("status") == "success" and feature_flags.get("use_langgraph_workflows", False):
+        langgraph_result = initialize_langgraph_workflows()
+        if langgraph_result:
+            results["langgraph"] = {"status": "success", "workflows": langgraph_result}
+        else:
+            results["langgraph"] = {"status": "failed", "error": "Failed to initialize LangGraph workflows"}
+    else:
+        results["langgraph"] = {"status": "skipped", "reason": "LangGraph workflows disabled or integration layer not available"}
+    
+    # 3. Initialize Firebase integration (independent of integration layer)
+    firebase_result = initialize_firebase_integration()
+    if firebase_result:
+        results["firebase"] = {"status": "success", "components": firebase_result}
+    else:
+        results["firebase"] = {"status": "skipped", "reason": "Firebase disabled or failed to initialize"}
+    
+    # Check overall success
+    success_count = sum(1 for result in results.values() if result["status"] == "success")
+    total_count = len([r for r in results.values() if r["status"] != "skipped"])
+    
+    if success_count == total_count:
+        logger.info("All LangChain/LangGraph components initialized successfully")
+    else:
+        logger.warning(f"Partial initialization: {success_count}/{total_count} components successful")
+    
+    return results

@@ -9,6 +9,7 @@ import logging
 from typing import Dict, Any, Optional, List, Union
 from enum import Enum
 from dataclasses import dataclass
+import time
 
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.language_models.llms import BaseLLM
@@ -19,6 +20,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.core.config import settings
 from app.core.secure_settings import secure_settings
+from .monitoring import langchain_monitor, ComponentType, track_request
 
 logger = logging.getLogger(__name__)
 
@@ -289,57 +291,82 @@ class LangChainLLMManager:
             self._default_provider = next(iter(self._providers.keys()))
             logger.info(f"Set default provider to {self._default_provider.value}")
         else:
-            logger.warning("No providers available")
-            
-    async def get_llm(
-        self, 
-        model_name: str, 
-        temperature: float = 0.7,
-        max_tokens: Optional[int] = None,
-        streaming: bool = False,
-        **kwargs
-    ) -> BaseChatModel:
-        """
-        Get a LangChain LLM instance for the specified model.
-        
-        Args:
-            model_name: Name of the model (e.g., "gpt-4", "ollama:llama2")
-            temperature: Sampling temperature
-            max_tokens: Maximum tokens to generate
-            streaming: Whether to enable streaming
-            **kwargs: Additional model parameters
-            
-        Returns:
-            LangChain BaseChatModel instance
-            
-        Raises:
-            ValueError: If model is not found or provider is not configured
-        """
-        if not self._initialized:
-            await self.initialize()
-            
-        # Check cache first
-        cache_key = f"{model_name}:{temperature}:{max_tokens}:{streaming}"
-        if cache_key in self._model_cache:
-            return self._model_cache[cache_key]
-            
-        # Parse model name to extract provider if specified
-        provider, actual_model_name = self._parse_model_name(model_name)
-        
-        # Get provider configuration
-        if provider not in self._providers:
-            raise ValueError(f"Provider {provider.value} is not configured")
-            
-        provider_config = self._providers[provider]
-        
-        # Create LLM instance based on provider
-        llm = await self._create_llm_instance(
-            provider, actual_model_name, provider_config,
-            temperature, max_tokens, streaming, **kwargs
-        )
-        
-        # Cache the instance
-        self._model_cache[cache_key] = llm
+            async def get_llm(
+                self,
+                model_name: str,
+                temperature: float = 0.7,
+                max_tokens: Optional[int] = None,
+                streaming: bool = False,
+                **kwargs
+            ) -> BaseChatModel:
+                """
+                Get a LangChain LLM instance for the specified model.
+                
+                Args:
+                    model_name: Name of model (e.g., "gpt-4", "ollama:llama2")
+                    temperature: Sampling temperature
+                    max_tokens: Maximum tokens to generate
+                    streaming: Whether to enable streaming
+                    **kwargs: Additional model parameters
+                    
+                Returns:
+                    LangChain BaseChatModel instance
+                    
+                Raises:
+                    ValueError: If model is not found or provider is not configured
+                """
+                start_time = time.time()
+                success = True
+                error = None
+                
+                try:
+                    if not self._initialized:
+                        await self.initialize()
+                        
+                    # Check cache first
+                    cache_key = f"{model_name}:{temperature}:{max_tokens}:{streaming}"
+                    if cache_key in self._model_cache:
+                        return self._model_cache[cache_key]
+                        
+                    # Parse model name to extract provider if specified
+                    provider, actual_model_name = self._parse_model_name(model_name)
+                    
+                    # Get provider configuration
+                    if provider not in self._providers:
+                        raise ValueError(f"Provider {provider.value} is not configured")
+                        
+                    provider_config = self._providers[provider]
+                    
+                    # Create LLM instance based on provider
+                    llm = await self._create_llm_instance(
+                        provider, actual_model_name, provider_config,
+                        temperature, max_tokens, streaming, **kwargs
+                    )
+                    
+                    # Cache the instance
+                    self._model_cache[cache_key] = llm
+                    
+                    return llm
+                    
+                except Exception as e:
+                    success = False
+                    error = e
+                    raise
+                finally:
+                    # Track the request
+                    duration = time.time() - start_time
+                    await langchain_monitor.track_request(
+                        component_type=ComponentType.LLM,
+                        component_id=model_name,
+                        duration=duration,
+                        success=success,
+                        metadata={
+                            "temperature": temperature,
+                            "max_tokens": max_tokens,
+                            "streaming": streaming,
+                            "error": str(error) if error else None
+                        }
+                    )
         
         return llm
         

@@ -19,6 +19,8 @@ from .llm_manager import llm_manager
 from .tool_registry import tool_registry
 from .agent_manager import agent_manager
 from .memory_manager import memory_manager
+from .memory_workflow import memory_workflow
+from .monitoring import langchain_monitor
 
 # Legacy imports for compatibility
 from ..llm_providers import provider_registry as legacy_provider_registry
@@ -57,6 +59,7 @@ class LangChainIntegrationLayer:
             "use_langchain_agents": False,
             "use_langchain_memory": False,
             "use_langgraph_workflows": False,
+            "use_memory_workflow": False,
         }
         self._migration_stats = {
             "started_at": None,
@@ -76,6 +79,9 @@ class LangChainIntegrationLayer:
         # Load feature flags from configuration
         await self._load_feature_flags()
         
+        # Initialize monitoring system first
+        await langchain_monitor.initialize()
+        
         # Initialize LangChain components if enabled
         if self._feature_flags["use_langchain_llm"]:
             await llm_manager.initialize()
@@ -88,6 +94,9 @@ class LangChainIntegrationLayer:
             
         if self._feature_flags["use_langchain_memory"]:
             await memory_manager.initialize()
+            
+        if self._feature_flags["use_memory_workflow"]:
+            await memory_workflow.initialize()
             
         self._initialized = True
         logger.info(f"LangChain Integration Layer initialized in {self._mode.value} mode")
@@ -112,6 +121,9 @@ class LangChainIntegrationLayer:
             )
             self._feature_flags["use_langgraph_workflows"] = secure_settings.get_setting(
                 "langchain_integration", "use_langgraph_workflows", False
+            )
+            self._feature_flags["use_memory_workflow"] = secure_settings.get_setting(
+                "langchain_integration", "use_memory_workflow", False
             )
             
             # Determine integration mode
@@ -451,7 +463,221 @@ class LangChainIntegrationLayer:
                 health_results["overall_status"] = "degraded"
                 
         return health_results
+        
+    # Tool registry methods for API routes
+    async def initialize_tools(self):
+        """Initialize LangChain tool components"""
+        if self._feature_flags["use_langchain_tools"]:
+            await tool_registry.initialize()
+            logger.info("LangChain tools initialized")
+            
+    def get_tool(self, tool_name: str):
+        """Get a specific tool from LangChain Tool Registry"""
+        if self._feature_flags["use_langchain_tools"]:
+            return tool_registry.get_tool(tool_name)
+        return None
+        
+    def is_tool_enabled(self, tool_name: str) -> bool:
+        """Check if a tool is enabled"""
+        if self._feature_flags["use_langchain_tools"]:
+            metadata = tool_registry.get_tool_metadata(tool_name)
+            return metadata.get("enabled", False) if metadata else False
+        return False
+        
+    def get_tool_categories(self, tool_name: str) -> List[str]:
+        """Get categories for a tool"""
+        if self._feature_flags["use_langchain_tools"]:
+            metadata = tool_registry.get_tool_metadata(tool_name)
+            category = metadata.get("category") if metadata else None
+            return [category] if category else []
+        return []
+        
+    def get_tool_metadata(self, tool_name: str) -> Dict[str, Any]:
+        """Get metadata for a tool"""
+        if self._feature_flags["use_langchain_tools"]:
+            return tool_registry.get_tool_metadata(tool_name) or {}
+        return {}
+        
+    def get_tools_by_category(self, category: str):
+        """Get tools by category"""
+        if self._feature_flags["use_langchain_tools"]:
+            return tool_registry.get_tools_by_category(category)
+        return []
+        
+    def enable_tool(self, tool_name: str) -> bool:
+        """Enable a tool"""
+        if self._feature_flags["use_langchain_tools"]:
+            return tool_registry.enable_tool(tool_name)
+        return False
+        
+    def disable_tool(self, tool_name: str) -> bool:
+        """Disable a tool"""
+        if self._feature_flags["use_langchain_tools"]:
+            return tool_registry.disable_tool(tool_name)
+        return False
+        
+    def get_tool_registry_stats(self) -> Dict[str, Any]:
+        """Get tool registry statistics"""
+        if self._feature_flags["use_langchain_tools"]:
+            return tool_registry.get_registry_stats()
+        return {}
+        
+    # Agent registry methods for API routes
+    async def initialize_agents(self):
+        """Initialize LangGraph agent components"""
+        if self._feature_flags["use_langchain_agents"]:
+            await agent_manager.initialize()
+            logger.info("LangGraph agents initialized")
+            
+    async def get_agent(self, agent_name: str):
+        """Get a specific agent from LangGraph Agent Manager"""
+        if self._feature_flags["use_langchain_agents"]:
+            return await agent_manager.get_agent(agent_name)
+        return None
+        
+    async def list_agents(self, active_only: bool = True):
+        """List agents from LangGraph Agent Manager"""
+        if self._feature_flags["use_langchain_agents"]:
+            return await agent_manager.list_agents(active_only=active_only)
+        return []
+        
+    async def invoke_agent(
+        self,
+        agent_name: str,
+        message: str,
+        conversation_id: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        """Invoke an agent using LangGraph Agent Manager"""
+        if self._feature_flags["use_langchain_agents"]:
+            return await agent_manager.invoke_agent(
+                agent_name, message, conversation_id, context, **kwargs
+            )
+        return {}
+        
+    async def activate_agent(self, agent_name: str) -> bool:
+        """Activate an agent"""
+        if self._feature_flags["use_langchain_agents"]:
+            # LangGraph doesn't have activate/deactivate concept
+            # All registered agents are considered active
+            return agent_name in [agent["name"] for agent in await agent_manager.list_agents()]
+        return False
+        
+    async def deactivate_agent(self, agent_name: str) -> bool:
+        """Deactivate an agent"""
+        if self._feature_flags["use_langchain_agents"]:
+            # LangGraph doesn't have activate/deactivate concept
+            # This is a no-op
+            return True
+        return False
+        
+    async def reset_agent(self, agent_name: str) -> bool:
+        """Reset an agent's state"""
+        if self._feature_flags["use_langchain_agents"]:
+            return await agent_manager.reset_agent(agent_name)
+        return False
+        
+    async def reset_all_agents(self):
+        """Reset all agents"""
+        if self._feature_flags["use_langchain_agents"]:
+            # LangGraph doesn't have reset all method
+            # We can iterate through agents and reset each one
+            agents = await agent_manager.list_agents()
+            for agent_info in agents:
+                await agent_manager.reset_agent(agent_info["name"])
+            logger.info("Reset all LangGraph agents")
+        return
+        
+    async def get_conversation_history(
+        self,
+        agent_name: str,
+        conversation_id: str
+    ) -> List[Dict[str, Any]]:
+        """Get conversation history for an agent"""
+        if self._feature_flags["use_langchain_agents"]:
+            return await agent_manager.get_conversation_history(agent_name, conversation_id)
+        return []
+        
+    async def get_agent_registry_stats(self) -> Dict[str, Any]:
+        """Get agent registry statistics"""
+        if self._feature_flags["use_langchain_agents"]:
+            return agent_manager.get_registry_stats()
+        return {}
+        
+    # Memory workflow methods for API routes
+    async def initialize_memory_workflow(self):
+        """Initialize LangChain memory workflow components"""
+        if self._feature_flags["use_memory_workflow"]:
+            await memory_workflow.initialize()
+            logger.info("LangChain memory workflow initialized")
+            
+    async def store_message(
+        self,
+        conversation_id: str,
+        message: str,
+        role: str = "human",
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Store a message using memory workflow"""
+        if self._feature_flags["use_memory_workflow"]:
+            return await memory_workflow.store_message(conversation_id, message, role, metadata)
+        return {}
+        
+    async def retrieve_context(
+        self,
+        query: str,
+        conversation_id: Optional[str] = None,
+        context_limit: int = 5
+    ) -> Dict[str, Any]:
+        """Retrieve context using memory workflow"""
+        if self._feature_flags["use_memory_workflow"]:
+            return await memory_workflow.retrieve_context(query, conversation_id, context_limit)
+        return {}
+        
+    async def summarize_conversation(self, conversation_id: str) -> Dict[str, Any]:
+        """Summarize conversation using memory workflow"""
+        if self._feature_flags["use_memory_workflow"]:
+            return await memory_workflow.summarize_conversation(conversation_id)
+        return {}
+        
+    async def search_memory(
+        self,
+        query: str,
+        conversation_id: Optional[str] = None,
+        context_limit: int = 10
+    ) -> Dict[str, Any]:
+        """Search memory using memory workflow"""
+        if self._feature_flags["use_memory_workflow"]:
+            return await memory_workflow.search_conversations(query, context_limit, conversation_id)
+        return {}
+        
+    async def get_conversation_history(
+        self,
+        conversation_id: str,
+        context_limit: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """Get conversation history using memory workflow"""
+        if self._feature_flags["use_memory_workflow"]:
+            return await memory_workflow.get_messages(conversation_id, context_limit)
+        return {}
+        
+    async def manage_conversation(
+        self,
+        conversation_id: str,
+        agent_name: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Manage conversation using memory workflow"""
+        if self._feature_flags["use_memory_workflow"]:
+            return await memory_workflow.get_conversation_info(conversation_id)
+        return {}
 
 
 # Global integration layer instance
 integration_layer = LangChainIntegrationLayer()
+
+
+# Convenience function for getting integration layer
+def get_integration() -> LangChainIntegrationLayer:
+    """Get the global integration layer instance"""
+    return integration_layer

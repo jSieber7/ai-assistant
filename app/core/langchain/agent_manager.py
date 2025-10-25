@@ -6,6 +6,7 @@ supporting multiple agent types and seamless integration with LangChain componen
 """
 
 import logging
+import time
 from typing import Dict, List, Optional, Any, Union, Callable
 from enum import Enum
 from dataclasses import dataclass, field
@@ -23,6 +24,7 @@ from langgraph.prebuilt import create_agent_executor
 from .llm_manager import llm_manager
 from .tool_registry import tool_registry
 from .memory_manager import LangChainMemoryManager
+from .monitoring import LangChainMonitoring
 
 logger = logging.getLogger(__name__)
 
@@ -105,13 +107,17 @@ class LangGraphAgentManager:
         self._memory_manager: Optional[LangChainMemoryManager] = None
         self._checkpoint_saver = MemorySaver()
         self._initialized = False
+        self._monitoring = LangChainMonitoring()
         
     async def initialize(self):
-        """Initialize the agent manager"""
+        """Initialize agent manager"""
         if self._initialized:
             return
             
         logger.info("Initializing LangGraph Agent Manager...")
+        
+        # Initialize monitoring
+        await self._monitoring.initialize()
         
         # Initialize memory manager
         self._memory_manager = LangChainMemoryManager()
@@ -212,8 +218,18 @@ class LangGraphAgentManager:
             True if registration successful, False otherwise
         """
         try:
+            # Track agent registration
+            start_time = time.time()
+            
             if config.name in self._agent_configs:
                 logger.warning(f"Agent '{config.name}' is already registered")
+                await self._monitoring.track_agent_registration(
+                    agent_name=config.name,
+                    agent_type=config.agent_type.value,
+                    success=False,
+                    error="Agent already registered",
+                    duration=time.time() - start_time
+                )
                 return False
                 
             self._agent_configs[config.name] = config
@@ -231,13 +247,37 @@ class LangGraphAgentManager:
                     "conversations": {},
                 }
                 
+                duration = time.time() - start_time
+                await self._monitoring.track_agent_registration(
+                    agent_name=config.name,
+                    agent_type=config.agent_type.value,
+                    success=True,
+                    duration=duration
+                )
+                
                 logger.info(f"Registered agent '{config.name}' of type '{config.agent_type.value}'")
                 return True
             else:
+                duration = time.time() - start_time
+                await self._monitoring.track_agent_registration(
+                    agent_name=config.name,
+                    agent_type=config.agent_type.value,
+                    success=False,
+                    error="Failed to create agent instance",
+                    duration=duration
+                )
                 logger.error(f"Failed to create agent instance for '{config.name}'")
                 return False
                 
         except Exception as e:
+            duration = time.time() - start_time
+            await self._monitoring.track_agent_registration(
+                agent_name=config.name,
+                agent_type=config.agent_type.value,
+                success=False,
+                error=str(e),
+                duration=duration
+            )
             logger.error(f"Failed to register agent '{config.name}': {str(e)}")
             return False
             
@@ -336,7 +376,7 @@ class LangGraphAgentManager:
         Invoke an agent with a message.
         
         Args:
-            agent_name: Name of the agent
+            agent_name: Name of agent
             message: User message
             conversation_id: Conversation ID for context
             context: Additional context
@@ -346,8 +386,21 @@ class LangGraphAgentManager:
             Agent execution result
         """
         try:
+            # Track agent execution
+            start_time = time.time()
+            execution_id = None
+            
             agent = await self.get_agent(agent_name)
             if not agent:
+                await self._monitoring.track_agent_execution(
+                    execution_id=None,
+                    agent_name=agent_name,
+                    agent_type="unknown",
+                    message=message,
+                    success=False,
+                    error=f"Agent '{agent_name}' not found",
+                    duration=time.time() - start_time
+                )
                 return {
                     "success": False,
                     "error": f"Agent '{agent_name}' not found",
@@ -355,6 +408,14 @@ class LangGraphAgentManager:
                 }
                 
             config = self._agent_configs[agent_name]
+            
+            # Start tracking
+            execution_id = await self._monitoring.start_agent_execution(
+                agent_name=agent_name,
+                agent_type=config.agent_type.value,
+                message=message,
+                context=context
+            )
             
             # Update agent state
             if agent_name in self._agent_states:
@@ -395,11 +456,46 @@ class LangGraphAgentManager:
                 
             # Execute agent
             if stream:
-                return await self._invoke_agent_stream(agent, state, config)
+                result = await self._invoke_agent_stream(agent, state, config)
             else:
-                return await self._invoke_agent_sync(agent, state, config)
+                result = await self._invoke_agent_sync(agent, state, config)
+            
+            # Complete tracking
+            duration = time.time() - start_time
+            await self._monitoring.complete_agent_execution(
+                execution_id=execution_id,
+                success=result.get("success", False),
+                response=result.get("response"),
+                error=result.get("error"),
+                duration=duration,
+                metadata={
+                    "conversation_id": conversation_id,
+                    "tool_results": result.get("tool_results", []),
+                    "stream": stream
+                }
+            )
+            
+            return result
                 
         except Exception as e:
+            duration = time.time() - start_time
+            if execution_id:
+                await self._monitoring.complete_agent_execution(
+                    execution_id=execution_id,
+                    success=False,
+                    error=str(e),
+                    duration=duration
+                )
+            else:
+                await self._monitoring.track_agent_execution(
+                    execution_id=None,
+                    agent_name=agent_name,
+                    agent_type="unknown",
+                    message=message,
+                    success=False,
+                    error=str(e),
+                    duration=duration
+                )
             logger.error(f"Failed to invoke agent '{agent_name}': {str(e)}")
             return {
                 "success": False,

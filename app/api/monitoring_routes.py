@@ -11,10 +11,12 @@ This module provides endpoints for:
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response, PlainTextResponse
 from typing import Dict, Any, Optional
+from datetime import datetime
 
 from app.core.monitoring.health import health_monitor, HealthStatus
 from app.core.monitoring.metrics import metrics_collector
 from app.core.monitoring.config import monitoring_config
+from app.core.langchain.monitoring import LangChainMonitoring
 
 router = APIRouter(prefix="/monitoring", tags=["monitoring"])
 
@@ -276,10 +278,229 @@ async def reset_monitoring_data() -> Dict[str, Any]:
     WARNING: This will clear all collected metrics and health check history.
     Use with caution in production environments.
     """
-    # This is a placeholder - in a real implementation, we would reset the metrics
+    # This is a placeholder - in a real implementation, we would reset metrics
     # For now, we'll just return a message since our metrics are in-memory
     return {
         "message": "Monitoring reset functionality not yet implemented",
         "warning": "This would clear all collected metrics and health data",
         "status": "not_implemented",
     }
+
+
+# LangChain Monitoring Endpoints
+
+@router.get("/langchain/status", summary="LangChain Component Status")
+async def get_langchain_status() -> Dict[str, Any]:
+    """
+    Get status of all LangChain components.
+    
+    This endpoint provides information about the status of LangChain LLM Manager,
+    Tool Registry, Agent Manager, and Memory Manager.
+    """
+    try:
+        langchain_monitoring = LangChainMonitoring()
+        await langchain_monitoring.initialize()
+        
+        # Get component status
+        llm_status = await langchain_monitoring.get_component_status("llm")
+        tool_status = await langchain_monitoring.get_component_status("tool")
+        agent_status = await langchain_monitoring.get_component_status("agent")
+        memory_status = await langchain_monitoring.get_component_status("memory")
+        workflow_status = await langchain_monitoring.get_component_status("workflow")
+        
+        return {
+            "monitoring_enabled": True,
+            "components": {
+                "llm_manager": llm_status,
+                "tool_registry": tool_status,
+                "agent_manager": agent_status,
+                "memory_manager": memory_status,
+                "workflow_manager": workflow_status
+            },
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "monitoring_enabled": False,
+            "error": str(e),
+            "message": "Failed to get LangChain component status"
+        }
+
+
+@router.get("/langchain/metrics", summary="LangChain Metrics")
+async def get_langchain_metrics(
+    component_type: Optional[str] = Query(
+        None, description="Filter by component type (llm, tool, agent, memory, workflow)"
+    ),
+    component_name: Optional[str] = Query(
+        None, description="Filter by specific component name"
+    ),
+    metric_name: Optional[str] = Query(
+        None, description="Filter by specific metric name"
+    ),
+    limit: int = Query(100, description="Maximum number of metrics to return")
+) -> Dict[str, Any]:
+    """
+    Get LangChain component metrics.
+    
+    This endpoint provides detailed metrics for LangChain components, including
+    performance data, error rates, and usage statistics.
+    """
+    try:
+        langchain_monitoring = LangChainMonitoring()
+        await langchain_monitoring.initialize()
+        
+        # Get metrics with filters
+        metrics = await langchain_monitoring.get_metrics(
+            component_type=component_type,
+            component_name=component_name,
+            metric_name=metric_name,
+            limit=limit
+        )
+        
+        # Get summary statistics
+        summary = await langchain_monitoring.get_metrics_summary(
+            component_type=component_type,
+            component_name=component_name
+        )
+        
+        return {
+            "monitoring_enabled": True,
+            "filters": {
+                "component_type": component_type,
+                "component_name": component_name,
+                "metric_name": metric_name,
+                "limit": limit
+            },
+            "metrics": metrics,
+            "summary": summary,
+            "total_metrics": len(metrics),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "monitoring_enabled": False,
+            "error": str(e),
+            "message": "Failed to get LangChain metrics"
+        }
+
+
+@router.get("/langchain/performance", summary="LangChain Performance Data")
+async def get_langchain_performance(
+    component_type: Optional[str] = Query(
+        None, description="Filter by component type"
+    ),
+    component_name: Optional[str] = Query(
+        None, description="Filter by specific component name"
+    ),
+    time_range: str = Query("1h", description="Time range (1h, 6h, 24h, 7d)")
+) -> Dict[str, Any]:
+    """
+    Get LangChain performance data.
+    
+    This endpoint provides performance metrics including response times,
+    throughput, and error rates over the specified time range.
+    """
+    try:
+        langchain_monitoring = LangChainMonitoring()
+        await langchain_monitoring.initialize()
+        
+        # Get performance data
+        performance_data = await langchain_monitoring.get_performance_data(
+            component_type=component_type,
+            component_name=component_name,
+            time_range=time_range
+        )
+        
+        return {
+            "monitoring_enabled": True,
+            "filters": {
+                "component_type": component_type,
+                "component_name": component_name,
+                "time_range": time_range
+            },
+            "performance_data": performance_data,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "monitoring_enabled": False,
+            "error": str(e),
+            "message": "Failed to get LangChain performance data"
+        }
+
+
+@router.get("/langchain/health", summary="LangChain Health Check")
+async def get_langchain_health() -> Dict[str, Any]:
+    """
+    Perform health check on LangChain components.
+    
+    This endpoint checks the health and availability of all LangChain components
+    and returns detailed health information.
+    """
+    try:
+        langchain_monitoring = LangChainMonitoring()
+        await langchain_monitoring.initialize()
+        
+        # Perform health check
+        health_data = await langchain_monitoring.perform_health_check()
+        
+        return {
+            "monitoring_enabled": True,
+            "health": health_data,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "monitoring_enabled": False,
+            "error": str(e),
+            "message": "Failed to perform LangChain health check"
+        }
+
+
+@router.post("/langchain/metrics/clear", summary="Clear LangChain Metrics")
+async def clear_langchain_metrics(
+    component_type: Optional[str] = Query(
+        None, description="Clear metrics for specific component type"
+    ),
+    component_name: Optional[str] = Query(
+        None, description="Clear metrics for specific component name"
+    )
+) -> Dict[str, Any]:
+    """
+    Clear LangChain metrics.
+    
+    WARNING: This will permanently delete the specified metrics.
+    Use with caution in production environments.
+    """
+    try:
+        langchain_monitoring = LangChainMonitoring()
+        await langchain_monitoring.initialize()
+        
+        # Clear metrics
+        cleared_count = await langchain_monitoring.clear_metrics(
+            component_type=component_type,
+            component_name=component_name
+        )
+        
+        return {
+            "monitoring_enabled": True,
+            "cleared_metrics_count": cleared_count,
+            "filters": {
+                "component_type": component_type,
+                "component_name": component_name
+            },
+            "message": f"Successfully cleared {cleared_count} metrics",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        return {
+            "monitoring_enabled": False,
+            "error": str(e),
+            "message": "Failed to clear LangChain metrics"
+        }
