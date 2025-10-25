@@ -15,9 +15,17 @@ from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass
 from datetime import datetime
 import logging
-import psutil
 import requests
 from enum import Enum
+
+# Try to import psutil, but provide fallback if not available
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("psutil module not available, system resource monitoring will be limited")
 
 from .config import monitoring_config
 
@@ -112,8 +120,8 @@ class HealthMonitor:
 
         self.register_health_check(
             "custom_reranker",
-            HealthCheckType.INTERNAL_SERVICE,
-            self._check_custom_reranker,
+            HealthCheckType.EXTERNAL_SERVICE,
+            self._check_jina_reranker,
         )
         
         self.register_health_check(
@@ -256,10 +264,25 @@ class HealthMonitor:
 
     def _get_system_info(self) -> Dict[str, Any]:
         """Get system resource information"""
+        if not PSUTIL_AVAILABLE:
+            return {
+                "cpu_percent": "unknown",
+                "memory_used_mb": "unknown",
+                "memory_percent": "unknown",
+                "thread_count": "unknown",
+                "open_files": "unknown",
+                "disk_usage": {
+                    "total_gb": "unknown",
+                    "used_gb": "unknown",
+                    "free_gb": "unknown",
+                    "percent": "unknown",
+                },
+            }
+        
         try:
             process = psutil.Process()
             memory_info = process.memory_info()
-
+            
             return {
                 "cpu_percent": psutil.cpu_percent(interval=0.1),
                 "memory_used_mb": round(memory_info.rss / 1024 / 1024, 2),
@@ -359,27 +382,38 @@ class HealthMonitor:
 
     def _check_system_resources(self) -> Dict[str, Any]:
         """Check system resource usage"""
+        if not PSUTIL_AVAILABLE:
+            return {
+                "status": HealthStatus.HEALTHY,
+                "message": "System resource monitoring not available (psutil module missing)",
+                "details": {
+                    "cpu_percent": "unknown",
+                    "memory_percent": "unknown",
+                    "disk_percent": "unknown",
+                },
+            }
+        
         try:
             cpu_percent = psutil.cpu_percent(interval=0.1)
             memory_percent = psutil.virtual_memory().percent
             disk_percent = psutil.disk_usage("/").percent
-
+            
             # Define thresholds
             cpu_threshold = 90.0
             memory_threshold = 85.0
             disk_threshold = 90.0
-
+            
             issues = []
-
+            
             if cpu_percent > cpu_threshold:
                 issues.append(f"CPU usage high: {cpu_percent}%")
-
+            
             if memory_percent > memory_threshold:
                 issues.append(f"Memory usage high: {memory_percent}%")
-
+            
             if disk_percent > disk_threshold:
                 issues.append(f"Disk usage high: {disk_percent}%")
-
+            
             if issues:
                 return {
                     "status": HealthStatus.DEGRADED,
@@ -391,7 +425,7 @@ class HealthMonitor:
                         "issues": issues,
                     },
                 }
-
+            
             return {
                 "status": HealthStatus.HEALTHY,
                 "message": "System resources within normal limits",
@@ -401,7 +435,6 @@ class HealthMonitor:
                     "disk_percent": disk_percent,
                 },
             }
-
         except Exception as e:
             return {
                 "status": HealthStatus.UNHEALTHY,

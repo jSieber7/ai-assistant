@@ -7,7 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { ThemeToggle } from './components/ThemeToggle';
 import { Plus, MessageSquare, Cpu, User, Send, Paperclip, Settings, ChevronDown, Users, Plug, SquarePen, PanelLeft, RefreshCw, Bot, Wrench } from 'lucide-react';
 import Sidebar from './components/Sidebar';
 import SettingsModal from './components/SettingsModal';
@@ -15,6 +15,7 @@ import AgentManager from './components/AgentManager';
 import AddProviderModal from './components/AddProviderModal';
 import ToolAnalysis from './components/ToolAnalysis';
 import AgentToolInfo from './components/AgentToolInfo';
+import BackendLoadingScreen from './components/BackendLoadingScreen';
 import { useChat } from './hooks/useChat';
 import { useModels } from './hooks/useModels';
 import { useBackendConnection } from './hooks/useBackendConnection';
@@ -415,8 +416,13 @@ const App: React.FC = () => {
     conversationId: conversationsState.currentConversation?.id,
   });
   
-  // Use the backend connection hook
-  const connectionState = useBackendConnection();
+  // Use the backend connection hook with startup mode
+  const connectionState = useBackendConnection({
+    startupMode: true,
+    startupCheckInterval: 2000,
+    startupTimeout: 60000,
+    maxStartupAttempts: 30,
+  });
 
   // Show error notifications when errors occur
   useEffect(() => {
@@ -436,6 +442,32 @@ const App: React.FC = () => {
       showToast.error(connectionState.error);
     }
   }, [connectionState.error]);
+
+  // Show loading screen during startup or when backend is not available
+  if (connectionState.isStartupMode || (!connectionState.isConnected && !connectionState.hasTimedOut)) {
+    return (
+      <BackendLoadingScreen
+        isChecking={connectionState.isChecking}
+        error={connectionState.error}
+        attempts={connectionState.startupAttempts}
+        hasTimedOut={connectionState.hasTimedOut}
+        onRetry={connectionState.checkConnection}
+      />
+    );
+  }
+
+  // Show error screen if backend connection has timed out
+  if (connectionState.hasTimedOut && !connectionState.isConnected) {
+    return (
+      <BackendLoadingScreen
+        isChecking={connectionState.isChecking}
+        error={connectionState.error}
+        attempts={connectionState.startupAttempts}
+        hasTimedOut={connectionState.hasTimedOut}
+        onRetry={connectionState.checkConnection}
+      />
+    );
+  }
 
   return (
     <div className="h-screen bg-background flex">

@@ -12,6 +12,7 @@ services:
     environment:
       - NODE_ENV=production
       - REACT_APP_API_URL=http://supabase.localhost
+      - VITE_API_BASE_URL=http://app.localhost
     networks:
       - shared-network
     healthcheck:

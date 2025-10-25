@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiService } from '../services/api';
 
 export interface BackendConnectionState {
@@ -6,18 +6,47 @@ export interface BackendConnectionState {
   isChecking: boolean;
   error: string | null;
   lastChecked: Date | null;
+  isStartupMode: boolean;
+  startupAttempts: number;
+  hasTimedOut: boolean;
 }
 
-export const useBackendConnection = (checkInterval: number = 30000) => {
+export interface UseBackendConnectionOptions {
+  checkInterval?: number;
+  startupMode?: boolean;
+  startupCheckInterval?: number;
+  startupTimeout?: number;
+  maxStartupAttempts?: number;
+}
+
+export const useBackendConnection = (options: UseBackendConnectionOptions = {}) => {
+  const {
+    checkInterval = 30000,
+    startupMode = false,
+    startupCheckInterval = 2000,
+    startupTimeout = 60000,
+    maxStartupAttempts = 30,
+  } = options;
+
   const [state, setState] = useState<BackendConnectionState>({
     isConnected: false,
     isChecking: false,
     error: null,
     lastChecked: null,
+    isStartupMode: startupMode,
+    startupAttempts: 0,
+    hasTimedOut: false,
   });
 
+  const startupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const startupAttemptsRef = useRef(0);
+
   const checkConnection = useCallback(async () => {
-    setState(prev => ({ ...prev, isChecking: true, error: null }));
+    setState(prev => ({
+      ...prev,
+      isChecking: true,
+      error: prev.isStartupMode ? null : prev.error // Clear error only in startup mode
+    }));
     
     try {
       await apiService.healthCheck();
@@ -27,18 +56,52 @@ export const useBackendConnection = (checkInterval: number = 30000) => {
         isChecking: false,
         error: null,
         lastChecked: new Date(),
+        isStartupMode: false, // Exit startup mode on successful connection
+        startupAttempts: 0,
       }));
+      
+      // Clear startup timeout if connection is successful
+      if (startupTimeoutRef.current) {
+        clearTimeout(startupTimeoutRef.current);
+        startupTimeoutRef.current = null;
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to connect to backend';
+      const newAttempts = startupAttemptsRef.current + 1;
+      startupAttemptsRef.current = newAttempts;
+      
       setState(prev => ({
         ...prev,
         isConnected: false,
         isChecking: false,
         error: errorMessage,
         lastChecked: new Date(),
+        startupAttempts: newAttempts,
+        hasTimedOut: prev.isStartupMode && (newAttempts >= maxStartupAttempts),
       }));
     }
-  }, []);
+  }, [maxStartupAttempts]);
+
+  // Set up startup mode with timeout
+  useEffect(() => {
+    if (!startupMode) return;
+
+    // Set up timeout for startup mode
+    startupTimeoutRef.current = setTimeout(() => {
+      setState(prev => ({
+        ...prev,
+        hasTimedOut: true,
+        isStartupMode: false,
+      }));
+    }, startupTimeout);
+
+    return () => {
+      if (startupTimeoutRef.current) {
+        clearTimeout(startupTimeoutRef.current);
+        startupTimeoutRef.current = null;
+      }
+    };
+  }, [startupMode, startupTimeout]);
 
   // Check connection on mount
   useEffect(() => {
@@ -47,11 +110,12 @@ export const useBackendConnection = (checkInterval: number = 30000) => {
 
   // Set up periodic connection checks
   useEffect(() => {
-    if (checkInterval <= 0) return;
+    const interval = state.isStartupMode ? startupCheckInterval : checkInterval;
+    if (interval <= 0) return;
     
-    const interval = setInterval(checkConnection, checkInterval);
-    return () => clearInterval(interval);
-  }, [checkConnection, checkInterval]);
+    const intervalId = setInterval(checkConnection, interval);
+    return () => clearInterval(intervalId);
+  }, [checkConnection, interval, state.isStartupMode, startupCheckInterval, checkInterval]);
 
   return {
     ...state,

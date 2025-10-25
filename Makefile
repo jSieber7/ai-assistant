@@ -44,7 +44,7 @@ PYTEST_UNIT_OPTIONS := --cov=app --cov-report=html:$(COVERAGE_DIR) --cov-report=
 # Default Target
 # =============================================================================
 
-.PHONY: help install dev test lint format clean production production-down production-logs firecrawl firecrawl-down firecrawl-logs health-check docs shutdown-everything nuke quality-check ci-test test-results-dir dev-jupyter links links-int
+.PHONY: help install dev test lint format clean production production-down production-logs firecrawl firecrawl-down firecrawl-logs health-check docs shutdown-everything nuke quality-check ci-test test-results-dir dev-jupyter links links-int monitor-app-startup monitor-app-build
 
 .DEFAULT_GOAL := help
 
@@ -105,6 +105,10 @@ help: ## Show this help message
 	@echo "Links:"
 	@echo "  links            Show all accessible service URLs"
 	@echo "  links-int        Show internal service URLs only"
+	@echo ""
+	@echo "Monitoring:"
+	@echo "  monitor-app-startup  Monitor app startup for performance issues"
+	@echo "  monitor-app-build    Monitor app build process for performance issues"
 	@echo ""
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
@@ -674,6 +678,20 @@ profile: ## Run application with profiling
 	uv run python -m cProfile -o profile.stats -m uvicorn app.main:app --host 0.0.0.0 --port $(APP_PORT) --reload
 	@echo "Profile saved to profile.stats"
 	@echo "View with: python -m pstats profile.stats"
+
+# =============================================================================
+# Monitoring
+# =============================================================================
+
+monitor-app-startup: ## Monitor app startup for performance issues
+	@echo "Monitoring app startup. Press Ctrl+C to stop."
+	@echo "This will start the app service and show logs in real-time."
+	uv run docker/run_dockers.py up --service app --dev --foreground
+
+monitor-app-build: ## Monitor app build process for performance issues
+	@echo "Monitoring app build process with detailed logs."
+	@echo "This will show the full build output to help diagnose slow builds."
+	uv run docker/run_dockers.py build --service app --dev --progress plain
 
 # =============================================================================
 # Jupyter Development

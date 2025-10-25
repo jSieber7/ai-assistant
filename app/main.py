@@ -36,7 +36,14 @@ app = FastAPI(
 # Add CORS middleware for OpenWebUI integration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Configure appropriately for production
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://frontend.localhost",  # Allow frontend domain in Docker
+        "http://app.localhost",       # Allow direct backend access
+        "http://localhost:3000",      # Allow local development
+        "http://127.0.0.1:3000",      # Allow local development
+    ],  # Configure appropriately for production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -207,6 +214,15 @@ if is_multi_writer_enabled():
 
 # Chainlit has been removed from this application
 # A React-based UI will be implemented in the future
+
+@app.get("/health")
+async def health_check():
+    """
+    Simple health check endpoint.
+    Returns a 200 OK status if the application is running.
+    """
+    return {"status": "ok"}
+
 
 @app.get("/")
 async def root():
