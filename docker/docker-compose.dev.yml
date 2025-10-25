@@ -242,12 +242,15 @@ services:
       - "traefik.enable=false"  # Don't expose DB directly through Traefik
 
   # Vector service properly configured to avoid Traefik errors
-  # Vector service properly configured to avoid Traefik errors
   vector:
     image: timberio/vector:0.28.1-alpine
     container_name: ${COMPOSE_PROJECT_NAME:-my-stack}-vector-dev
     restart: unless-stopped
-    command: ["vector", "--config", "yaml", "--config-yaml", "api:\n  enabled: true\n  address: 0.0.0.0:9001\n  playground: false"]
+    env_file:
+      - .env.dev
+    volumes:
+      - ./supabase/volumes/logs/vector.yml:/etc/vector/vector.yml:ro,z
+      - ${DOCKER_SOCKET_LOCATION:-/var/run/docker.sock}:/var/run/docker.sock:ro,z
     healthcheck:
       test:
         [
@@ -256,11 +259,18 @@ services:
           "--no-verbose",
           "--tries=1",
           "--spider",
-          "http://localhost:9001/health"
+          "http://vector:9001/health"
         ]
       timeout: 5s
       interval: 5s
       retries: 3
+    environment:
+      LOGFLARE_PUBLIC_ACCESS_TOKEN: ${LOGFLARE_PUBLIC_ACCESS_TOKEN}
+    command:
+      [
+        "--config",
+        "/etc/vector/vector.yml"
+      ]
     networks:
       - shared-network
     labels:
