@@ -119,3 +119,9 @@ azure-pipelines.yml
 .env.production
 
 docker/supabase/volumes/db/data
+
+# Milvus runtime data
+docker/milvus/volumes/
+docker/milvus/volumes/etcd/
+docker/milvus/volumes/minio/
+docker/milvus/volumes/milvus/

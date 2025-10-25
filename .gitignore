@@ -150,3 +150,9 @@ app/core/docker/supabase/volumes/logs/*.log
 .devcontainer/
 docker/NEXT_STEPS.md
 docker/MIGRATION_GUIDE.md
+
+# Milvus runtime data
+docker/milvus/volumes/
+docker/milvus/volumes/etcd/
+docker/milvus/volumes/minio/
+docker/milvus/volumes/milvus/
